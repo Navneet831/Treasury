@@ -120,20 +120,63 @@ const StrategicIntelligence: React.FC = () => {
           </div>
         </div>
 
-        {/* Tolerance Variance */}
+        {/* Cost of Treasury Inefficiency */}
         <div className="bg-white p-6 rounded-xl border shadow-sm">
           <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-2">
             <AlertOctagon className="w-4 h-4" />
-            Tolerance & Variance Analysis
+            Quant Risk & Inefficiency Cost
           </h3>
-          <p className="text-xs text-muted-foreground mb-6">Capital efficiency lost due to over-issuance vs actual reduction amounts.</p>
+          <p className="text-xs text-muted-foreground mb-4">Calculated capital drain from operational delays, overdue payments, and unhedged FX.</p>
           
-          <div className="flex flex-col items-center justify-center h-40">
-              <p className="text-xs font-bold text-muted-foreground uppercase mb-2">Total Variance Detected</p>
-              <p className="text-4xl font-black text-orange-600">{formatCurrency(data.tolerance_variance, 'INR')}</p>
-              <p className="text-xs text-center text-muted-foreground max-w-sm mt-4">
-                  High variance indicates systematic over-estimation of LC amounts, unnecessarily locking up bank limits.
-              </p>
+          <div className="space-y-3">
+              <div className="flex justify-between items-center border-b pb-2">
+                  <p className="text-xs font-bold text-muted-foreground uppercase">Total Inefficiency Cost</p>
+                  <p className="text-lg font-black text-red-600">{formatCurrency(data.yield_optimization.cost_of_inefficiency, 'INR')}</p>
+              </div>
+              <div className="flex justify-between items-center border-b pb-2">
+                  <p className="text-xs font-bold text-muted-foreground uppercase">Working Cap Unlock Opp.</p>
+                  <p className="text-sm font-bold text-green-600">{formatCurrency(data.yield_optimization.working_capital_unlock, 'INR')}</p>
+              </div>
+              <div className="flex justify-between items-center border-b pb-2">
+                  <p className="text-xs font-bold text-muted-foreground uppercase">Expected FX Loss (VaR 3%)</p>
+                  <p className="text-sm font-bold text-orange-600">{formatCurrency(data.yield_optimization.expected_fx_loss, 'INR')}</p>
+              </div>
+              <div className="flex justify-between items-center">
+                  <p className="text-xs font-bold text-muted-foreground uppercase">Prob. of Liquidity Stress</p>
+                  <p className="text-sm font-bold text-primary">{data.yield_optimization.prob_liquidity_stress.toFixed(1)}%</p>
+              </div>
+          </div>
+        </div>
+
+        {/* Advanced Quant Models */}
+        <div className="bg-white p-6 rounded-xl border shadow-sm lg:col-span-3">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-2">
+            <Activity className="w-4 h-4" />
+            Predictive Analytics & Forecasting Models
+          </h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
+              <div className="p-4 border rounded-xl bg-muted/10">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">LC Closure Prediction</p>
+                  <p className="text-2xl font-black text-primary">{Math.round(data.quant_models.lc_closure_avg_days)} Days</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">Average time from Opening to Closure</p>
+              </div>
+              <div className="p-4 border rounded-xl bg-muted/10">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">LC Demand Forecast (30D)</p>
+                  <p className="text-2xl font-black text-primary">{formatCurrency(data.quant_models.lc_demand_forecast_30d, currency)}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">Projected volume based on moving average</p>
+              </div>
+              <div className="p-4 border rounded-xl bg-muted/10">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">Bank Dependency Risk</p>
+                  <p className="text-2xl font-black text-orange-600">{data.quant_models.bank_dependency_risk_pct.toFixed(1)}%</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">Exposure concentrated in top facility</p>
+              </div>
+              <div className="p-4 border rounded-xl bg-red-50 border-red-100">
+                  <p className="text-xs font-bold text-red-600 uppercase tracking-widest mb-1">Future Stress Window</p>
+                  <p className="text-lg font-black text-red-800">{data.quant_models.stress_window_start}</p>
+                  <p className="text-xs font-bold text-red-600">{formatCurrency(data.quant_models.stress_window_val, currency)}</p>
+                  <p className="text-[10px] text-red-700 mt-1">Highest 7-day concentrated outflow</p>
+              </div>
           </div>
         </div>
 

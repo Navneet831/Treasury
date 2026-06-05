@@ -95,22 +95,24 @@ const TransactionList: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex-1 ag-theme-alpine rounded-xl overflow-hidden border shadow-sm">
-        <AgGridReact
-          rowData={rowData}
-          columnDefs={columnDefs}
-          defaultColDef={{
-            resizable: true,
-            sortable: true,
-            flex: 1,
-            minWidth: 120
-          }}
-          pagination={true}
-          paginationPageSize={20}
-          onGridReady={onGridReady}
-          animateRows={true}
-          rowSelection="single"
-        />
+      <div className="flex-1 rounded-xl overflow-hidden border shadow-sm bg-white" style={{ minHeight: '500px' }}>
+        <div className="ag-theme-alpine" style={{ height: '100%', width: '100%' }}>
+          <AgGridReact
+            rowData={rowData}
+            columnDefs={columnDefs}
+            defaultColDef={{
+              resizable: true,
+              sortable: true,
+              flex: 1,
+              minWidth: 120
+            }}
+            pagination={true}
+            paginationPageSize={20}
+            onGridReady={onGridReady}
+            animateRows={true}
+            rowSelection="single"
+          />
+        </div>
       </div>
     </div>
   )

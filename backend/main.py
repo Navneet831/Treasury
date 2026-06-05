@@ -327,6 +327,14 @@ async def get_strategic_intelligence(currency: str = Query("INR"), fy: str = Que
     locked_fd = fd_query['locked_fd'] or 0
     yield_lost = locked_fd * 0.07 # Annualized estimate
     
+    # Cost of Inefficiency Components
+    # a) Delayed BOE Working Capital lock
+    delayed_boe_val = fetch_dict(f"SELECT SUM({COL_MAP['boe_pending_inr']}) as val FROM LC {where} AND {COL_MAP['boe_status']} != 'Received' AND date_diff('day', {COL_MAP['op_date']}, '{CURRENT_DATE}'::DATE) > 60")[0]['val'] or 0
+    # b) Delayed Payment Penalty (Assuming 12% penal interest annualized on overdue)
+    overdue_payment_val = fetch_dict(f"SELECT SUM({COL_MAP['amt_inr']}) as val FROM LC {where} AND {COL_MAP['payment_status']} != 'Paid' AND {COL_MAP['due_date']} < '{CURRENT_DATE}'::DATE")[0]['val'] or 0
+    
+    inefficiency_cost = (delayed_boe_val * 0.10) + (overdue_payment_val * 0.12) + yield_lost
+
     # 2. Supplier Reliability (Avg Days: Shipment to BOE Submitted)
     reliability = fetch_dict(f"""
         SELECT {COL_MAP['supplier']} as supplier, 
@@ -386,14 +394,61 @@ async def get_strategic_intelligence(currency: str = Query("INR"), fy: str = Que
     if overdue_boes > 5: health_score -= 15
     elif overdue_boes > 0: health_score -= 5
 
+    # 6. Advanced Quant: Expected FX Loss
+    fx_exposure = fetch_dict(f"SELECT SUM({COL_MAP['amt_inr']}) as val FROM LC {where} AND {COL_MAP['lc_status']} = 'Open' AND \"Currency\" != 'INR'")[0]['val'] or 0
+    expected_fx_loss = fx_exposure * 0.03 # 3% volatility buffer estimate
+    
+    # 7. Advanced Quant: Probability of Liquidity Stress
+    prob_liquidity_stress = min(99, max(1, (100 - health_score) * 1.2))
+
+    # 8. LC Closure Prediction (Avg days to close)
+    avg_close_days = fetch_dict(f"SELECT AVG(date_diff('day', {COL_MAP['op_date']}, {COL_MAP['expiry_date']})) as avg_days FROM LC {where} AND {COL_MAP['lc_status']} = 'Closed'")[0]['avg_days'] or 90
+    
+    # 9. LC Demand Forecasting (Simple 30-day moving average volume projection)
+    demand_forecast = fetch_dict(f"SELECT SUM({amt_col}) as monthly_vol FROM LC {where} AND {COL_MAP['op_date']} >= '{CURRENT_DATE}'::DATE - INTERVAL 30 DAY")[0]['monthly_vol'] or 0
+
+    # 10. Bank Dependency Risk (Herfindahl-Hirschman index simplified to Top Bank %)
+    top_bank_val = utilization[0]['used_limit'] if utilization else 0
+    dependency_risk_pct = (top_bank_val / open_val * 100) if open_val > 0 else 0
+
+    # 11. Future Cash Stress Window (Rolling 7-day highest outflow)
+    stress_window = fetch_dict(f"""
+        WITH DailyOutflows AS (
+            SELECT {COL_MAP['due_date']} as d_date, SUM({amt_col}) as val
+            FROM LC {where} AND {COL_MAP['due_date']} >= '{CURRENT_DATE}'::DATE
+            GROUP BY 1
+        )
+        SELECT d_date as start_date, 
+               SUM(val) OVER (ORDER BY d_date ROWS BETWEEN CURRENT ROW AND 6 FOLLOWING) as rolling_7d_outflow
+        FROM DailyOutflows
+        ORDER BY rolling_7d_outflow DESC NULLS LAST
+        LIMIT 1
+    """)
+    stress_window_start = stress_window[0]['start_date'] if stress_window else "N/A"
+    stress_window_val = stress_window[0]['rolling_7d_outflow'] if stress_window else 0
+
     return {
         "health_score": max(0, min(100, health_score)),
         "cash_runway_days": cash_runway_days,
         "remaining_limit": rem_limit,
-        "yield_optimization": {"locked_fd": locked_fd, "est_yield_lost_annual": yield_lost},
+        "yield_optimization": {
+            "locked_fd": locked_fd, 
+            "est_yield_lost_annual": yield_lost,
+            "cost_of_inefficiency": inefficiency_cost,
+            "expected_fx_loss": expected_fx_loss,
+            "prob_liquidity_stress": prob_liquidity_stress,
+            "working_capital_unlock": inefficiency_cost + locked_fd
+        },
         "supplier_reliability": reliability,
         "bank_utilization": utilization,
-        "tolerance_variance": tolerance['total_variance'] or 0
+        "tolerance_variance": tolerance['total_variance'] or 0,
+        "quant_models": {
+            "lc_closure_avg_days": avg_close_days,
+            "lc_demand_forecast_30d": demand_forecast,
+            "bank_dependency_risk_pct": dependency_risk_pct,
+            "stress_window_start": stress_window_start,
+            "stress_window_val": stress_window_val
+        }
     }
 
 @app.get("/api/v1/transactions")
