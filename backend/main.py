@@ -97,11 +97,12 @@ async def get_executive_overview(currency: str = Query("INR"), fy: str = Query("
 @app.get("/api/v1/calendar")
 async def get_calendar_data(month: int, year: int, currency: str = Query("INR"), fy: str = Query("All")):
     amt_col = COL_MAP["amt_inr"] if currency == "INR" else COL_MAP["amt_fc"]
+    limit_col = COL_MAP["limit_avail"]
     fy_filter = get_fy_clause(fy, COL_MAP['op_date'])
     base_where = f"WHERE EXTRACT(MONTH FROM {COL_MAP['op_date']}) = {month} AND EXTRACT(YEAR FROM {COL_MAP['op_date']}) = {year} {fy_filter}"
     
     return {
-        "daily_summary": fetch_dict(f"SELECT {COL_MAP['op_date']} as date, SUM(CASE WHEN {COL_MAP['lc_status']} = 'Open' THEN {amt_col} ELSE 0 END) as opened_value, SUM(CASE WHEN {COL_MAP['lc_status']} = 'Closed' THEN {amt_col} ELSE 0 END) as closed_value, SUM({amt_col}) as total_value FROM LC {base_where} GROUP BY 1 ORDER BY 1"),
+        "daily_summary": fetch_dict(f"SELECT {COL_MAP['op_date']} as date, SUM(CASE WHEN {COL_MAP['lc_status']} = 'Open' THEN {amt_col} ELSE 0 END) as opened_value, SUM(CASE WHEN {COL_MAP['lc_status']} = 'Closed' THEN {amt_col} ELSE 0 END) as closed_value, SUM({amt_col}) as total_value, SUM({limit_col}) as limit_balance FROM LC {base_where} GROUP BY 1 ORDER BY 1"),
         "bank_breakdown": fetch_dict(f"SELECT {COL_MAP['op_date']} as date, {COL_MAP['bank']} as bank, SUM({amt_col}) as value FROM LC {base_where} GROUP BY 1, 2"),
         "status_breakdown": fetch_dict(f"SELECT {COL_MAP['op_date']} as date, {COL_MAP['lc_status']} as status, SUM({amt_col}) as value FROM LC {base_where} GROUP BY 1, 2"),
         "boe_breakdown": fetch_dict(f"SELECT {COL_MAP['op_date']} as date, {COL_MAP['boe_status']} as boe_status, SUM({amt_col}) as value FROM LC {base_where} GROUP BY 1, 2")
@@ -246,7 +247,7 @@ async def get_strategic_intelligence(currency: str = Query("INR"), fy: str = Que
         GROUP BY 1 HAVING COUNT(*) > 1 ORDER BY 2 DESC LIMIT 5
     """)
 
-    # 3. Bank Utilization
+    # 3. Bank Utilization & Limit Exhaustion
     utilization = fetch_dict(f"""
         SELECT {COL_MAP['bank']} as bank, SUM({amt_col}) as used_limit, MAX({COL_MAP['limit_avail']}) as max_limit
         FROM LC {where} AND {COL_MAP['lc_status']} = 'Open'
@@ -256,7 +257,42 @@ async def get_strategic_intelligence(currency: str = Query("INR"), fy: str = Que
     # 4. Tolerance Tracking
     tolerance = fetch_dict(f"SELECT SUM({COL_MAP['tolerance']}) as total_variance FROM LC {where}")[0]
 
+    # 5. Cash Runway & Treasury Health Score
+    runway_data = fetch_dict(f"""
+        SELECT 
+            SUM(CASE WHEN {COL_MAP['lc_status']} = 'Open' THEN {amt_col} ELSE 0 END) as open_lc_val,
+            MAX({COL_MAP['limit_avail']}) * COUNT(DISTINCT {COL_MAP['bank']}) as approx_total_limit
+        FROM LC {where}
+    """)[0]
+    
+    daily_avg_burn = fetch_dict(f"""
+        SELECT SUM({amt_col}) / GREATEST(1, count(DISTINCT {COL_MAP['op_date']})) as avg_burn 
+        FROM LC {where} AND {COL_MAP['lc_status']} = 'Closed'
+    """)[0]['avg_burn'] or 1
+
+    total_limit = runway_data['approx_total_limit'] or 0
+    open_val = runway_data['open_lc_val'] or 0
+    rem_limit = max(0, total_limit - open_val)
+    cash_runway_days = rem_limit / daily_avg_burn if daily_avg_burn > 0 else 999
+    
+    # Calculate rough health score
+    health_score = 100
+    util_pct = (open_val / total_limit * 100) if total_limit > 0 else 0
+    if util_pct > 80: health_score -= 15
+    elif util_pct > 60: health_score -= 5
+    
+    if cash_runway_days < 30: health_score -= 20
+    elif cash_runway_days < 60: health_score -= 10
+    
+    # Overdue BOEs impact
+    overdue_boes = fetch_dict(f"SELECT COUNT(*) as c FROM LC WHERE {COL_MAP['boe_status']} != 'Received' AND date_diff('day', {COL_MAP['op_date']}, '{CURRENT_DATE}'::DATE) > 90 {fy_filter}")[0]['c']
+    if overdue_boes > 5: health_score -= 15
+    elif overdue_boes > 0: health_score -= 5
+
     return {
+        "health_score": max(0, min(100, health_score)),
+        "cash_runway_days": cash_runway_days,
+        "remaining_limit": rem_limit,
         "yield_optimization": {"locked_fd": locked_fd, "est_yield_lost_annual": yield_lost},
         "supplier_reliability": reliability,
         "bank_utilization": utilization,

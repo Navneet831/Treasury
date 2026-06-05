@@ -45,6 +45,31 @@ const StrategicIntelligence: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         
+        {/* Treasury Health Score & Cash Runway */}
+        <div className="bg-white p-6 rounded-xl border shadow-sm flex flex-col justify-between">
+          <div>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-2">
+                <Activity className="w-4 h-4" />
+                Treasury Health Score & Runway
+              </h3>
+              <p className="text-xs text-muted-foreground mb-6">Aggregate score based on limit utilization, cash runway, and pending obligations.</p>
+              
+              <div className="flex items-center gap-6">
+                  <div className="relative flex items-center justify-center w-24 h-24 rounded-full border-8 border-primary/10">
+                      <p className="text-3xl font-black text-primary">{Math.round(data.health_score)}</p>
+                      <svg className="absolute inset-0 w-full h-full transform -rotate-90 text-primary" viewBox="0 0 100 100">
+                         <circle cx="50" cy="50" r="46" stroke="currentColor" strokeWidth="8" fill="transparent" strokeDasharray={`${data.health_score * 2.89} 289`} />
+                      </svg>
+                  </div>
+                  <div>
+                      <p className="text-xs font-bold text-muted-foreground uppercase">Cash Runway</p>
+                      <p className={`text-2xl font-black ${data.cash_runway_days < 30 ? 'text-red-600' : 'text-green-600'}`}>{Math.round(data.cash_runway_days)} Days</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">Available Limit: {formatCurrency(data.remaining_limit, currency)}</p>
+                  </div>
+              </div>
+          </div>
+        </div>
+
         {/* Yield Optimization */}
         <div className="bg-white p-6 rounded-xl border shadow-sm flex flex-col justify-between">
           <div>

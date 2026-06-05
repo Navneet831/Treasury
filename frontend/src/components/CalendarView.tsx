@@ -87,7 +87,10 @@ const CalendarView: React.FC = () => {
     if (viewMode === 'boe') return data.boe_breakdown.filter((d: any) => d.date === dateStr).map((d: any) => ({ label: d.boe_status, value: d.value }))
     
     const summary = data.daily_summary.find((d: any) => d.date === dateStr)
-    return summary ? [{ label: 'Total', value: summary.total_value }] : []
+    return summary ? [
+      { label: 'Total', value: summary.total_value }, 
+      ...(summary.limit_balance ? [{ label: 'Limit Bal', value: summary.limit_balance }] : [])
+    ] : []
   }
 
   const strategicInsights = useMemo(() => {
