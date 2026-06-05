@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { getExecutiveOverview } from '../api'
+import { getExecutiveOverview, getDrillDown } from '../api'
 import { useStore } from '../store'
-import KPICard from '../components/KPICard'
+import KPICard from './KPICard'
+import DrillDownModal from './DrillDownModal'
 import { formatCurrency, formatNumber } from '../utils'
 import { 
   FileText, 
@@ -14,15 +15,18 @@ import {
 } from 'lucide-react'
 
 const ExecutiveOverview: React.FC = () => {
-  const { currency } = useStore()
+  const { currency, fy } = useStore()
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [drillData, setDrillData] = useState<any[]>([])
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [modalTitle, setModalTitle] = useState('')
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const result = await getExecutiveOverview(currency)
+        const result = await getExecutiveOverview(currency, fy)
         setData(result)
       } catch (error) {
         console.error('Error fetching executive overview:', error)
@@ -31,7 +35,16 @@ const ExecutiveOverview: React.FC = () => {
       }
     }
     fetchData()
-  }, [currency])
+  }, [currency, fy])
+
+  const handleDrillDown = async (kpiKey: string, title: string) => {
+      try {
+          const result = await getDrillDown({ kpi: kpiKey, fy })
+          setDrillData(result)
+          setModalTitle(title)
+          setIsModalOpen(true)
+      } catch (e) { console.error(e) }
+  }
 
   if (loading) {
     return <div className="p-8 flex justify-center items-center h-full">Loading insights...</div>
@@ -49,6 +62,7 @@ const ExecutiveOverview: React.FC = () => {
           value={formatCurrency(kpis.open_lc_value, currency)}
           description={`Across ${kpis.open_lc_count} active LCs`}
           icon={<FileText />}
+          onClick={() => handleDrillDown('open_lc', 'Currently Open LCs')}
         />
         <KPICard 
           title="Active Banks" 
@@ -67,6 +81,7 @@ const ExecutiveOverview: React.FC = () => {
           value={formatCurrency(kpis.pending_boe_value, currency)}
           description="Bill of Entry outstanding"
           icon={<AlertCircle />}
+          onClick={() => handleDrillDown('pending_boe', 'Pending Bill of Entries')}
         />
       </div>
 
@@ -76,18 +91,21 @@ const ExecutiveOverview: React.FC = () => {
           value={formatCurrency(kpis.upcoming_due_7d, currency)}
           description="Cash requirement next week"
           icon={<Clock />}
+          onClick={() => handleDrillDown('upcoming_7d', 'Payments Due in 7 Days')}
         />
         <KPICard 
           title="Upcoming Payments (30D)" 
           value={formatCurrency(kpis.upcoming_due_30d, currency)}
           description="Cash requirement next month"
           icon={<Clock />}
+          onClick={() => handleDrillDown('upcoming_30d', 'Payments Due in 30 Days')}
         />
          <KPICard 
           title="Overdue Payments" 
           value={formatCurrency(kpis.overdue_payments, currency)}
           description="Immediate attention required"
           icon={<ShieldAlert />}
+          onClick={() => handleDrillDown('overdue', 'Overdue Payments')}
         />
       </div>
 
@@ -128,6 +146,8 @@ const ExecutiveOverview: React.FC = () => {
           </div>
         </div>
       </div>
+      
+      <DrillDownModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} data={drillData} title={modalTitle} />
     </div>
   )
 }

@@ -11,6 +11,7 @@ import LifecycleTracker from './components/LifecycleTracker'
 import RiskAlerts from './components/RiskAlerts'
 import TransactionList from './components/TransactionList'
 import AICopilot from './components/AICopilot'
+import StrategicIntelligence from './components/StrategicIntelligence'
 
 const App: React.FC = () => {
   const [activePage, setActivePage] = useState('overview')
@@ -35,6 +36,8 @@ const App: React.FC = () => {
         return <RiskAlerts />
       case 'transactions':
         return <TransactionList />
+      case 'intelligence':
+        return <StrategicIntelligence />
       case 'ai':
         return <AICopilot />
       default:

@@ -16,7 +16,7 @@ import {
 const COLORS = ['#0f172a', '#1e293b', '#334155', '#475569', '#64748b', '#94a3b8', '#cbd5e1', '#e2e8f0']
 
 const SupplierAnalytics: React.FC = () => {
-  const { currency } = useStore()
+  const { currency, fy } = useStore()
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -24,7 +24,7 @@ const SupplierAnalytics: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const result = await getSupplierExposure(currency)
+        const result = await getSupplierExposure(currency, fy)
         setData(result)
       } catch (error) {
         console.error('Error fetching supplier analytics:', error)
@@ -33,7 +33,7 @@ const SupplierAnalytics: React.FC = () => {
       }
     }
     fetchData()
-  }, [currency])
+  }, [currency, fy])
 
   if (loading) return <div className="p-8">Loading supplier insights...</div>
 

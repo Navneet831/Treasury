@@ -5,15 +5,15 @@ interface KPICardProps {
   value: string | number
   description?: string
   icon?: React.ReactNode
-  trend?: {
-    value: number
-    label: string
-  }
+  onClick?: () => void
 }
 
-const KPICard: React.FC<KPICardProps> = ({ title, value, description, icon, trend }) => {
+const KPICard: React.FC<KPICardProps> = ({ title, value, description, icon, onClick }) => {
   return (
-    <div className="bg-white p-6 rounded-xl border shadow-sm hover:shadow-md transition-shadow">
+    <div 
+        onClick={onClick}
+        className={`bg-white p-6 rounded-xl border shadow-sm transition-all ${onClick ? 'cursor-pointer hover:shadow-md hover:border-primary active:scale-[0.98]' : ''}`}
+    >
       <div className="flex justify-between items-start mb-4">
         <div>
           <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">{title}</p>
@@ -21,14 +21,9 @@ const KPICard: React.FC<KPICardProps> = ({ title, value, description, icon, tren
         </div>
         {icon && <div className="p-2 bg-primary/5 rounded-lg text-primary">{icon}</div>}
       </div>
-      {(description || trend) && (
+      {description && (
         <div className="flex items-center gap-2 mt-2">
-          {trend && (
-            <span className={`text-xs font-medium ${trend.value >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {trend.value > 0 ? '+' : ''}{trend.value}%
-            </span>
-          )}
-          {description && <p className="text-xs text-muted-foreground">{description}</p>}
+          <p className="text-xs text-muted-foreground">{description}</p>
         </div>
       )}
     </div>

@@ -15,7 +15,7 @@ import {
 } from 'recharts'
 
 const CashFlowForecast: React.FC = () => {
-  const { currency } = useStore()
+  const { currency, fy } = useStore()
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -23,7 +23,7 @@ const CashFlowForecast: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const result = await getCashFlowForecast(currency)
+        const result = await getCashFlowForecast(currency, fy)
         setData(result)
       } catch (error) {
         console.error('Error fetching cash flow forecast:', error)
@@ -32,7 +32,7 @@ const CashFlowForecast: React.FC = () => {
       }
     }
     fetchData()
-  }, [currency])
+  }, [currency, fy])
 
   if (loading) return <div className="p-8">Generating treasury forecast...</div>
 

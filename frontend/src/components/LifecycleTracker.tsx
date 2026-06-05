@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import { getLifecycleTracker, getDrillDown } from '../api'
+import { useStore } from '../store'
 import { formatNumber } from '../utils'
 import { ArrowDown, Info } from 'lucide-react'
 import DrillDownModal from './DrillDownModal'
 
 const LifecycleTracker: React.FC = () => {
+  const { fy } = useStore()
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [drillDownData, setDrillDownData] = useState<any[]>([])
@@ -15,7 +17,7 @@ const LifecycleTracker: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const result = await getLifecycleTracker()
+        const result = await getLifecycleTracker(fy)
         setData(result)
       } catch (error) {
         console.error('Error fetching lifecycle tracker:', error)
@@ -24,11 +26,11 @@ const LifecycleTracker: React.FC = () => {
       }
     }
     fetchData()
-  }, [])
+  }, [fy])
 
   const onStepClick = async (stage: string) => {
     try {
-        const result = await getDrillDown({ lifecycle_stage: stage })
+        const result = await getDrillDown({ lifecycle_stage: stage, fy })
         setDrillDownData(result)
         setTitle(`Lifecycle Drill-down: ${stage}`)
         setIsModalOpen(true)

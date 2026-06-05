@@ -1,16 +1,22 @@
 import React, { useEffect, useState } from 'react'
-import { getRiskAlerts } from '../api'
+import { getRiskAlerts, getDrillDown } from '../api'
+import { useStore } from '../store'
+import DrillDownModal from './DrillDownModal'
 import { AlertTriangle, Clock, FileWarning, ShieldAlert, CheckCircle } from 'lucide-react'
 
 const RiskAlerts: React.FC = () => {
+  const { fy } = useStore()
   const [alerts, setAlerts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [drillData, setDrillData] = useState<any[]>([])
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [modalTitle, setModalTitle] = useState('')
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const result = await getRiskAlerts()
+        const result = await getRiskAlerts(fy)
         setAlerts(result)
       } catch (error) {
         console.error('Error fetching risk alerts:', error)
@@ -19,7 +25,16 @@ const RiskAlerts: React.FC = () => {
       }
     }
     fetchData()
-  }, [])
+  }, [fy])
+
+  const handleDrillDown = async (alertType: string) => {
+    try {
+        const result = await getDrillDown({ alert_type: alertType, fy })
+        setDrillData(result)
+        setModalTitle(`Alert Drill-down: ${alertType}`)
+        setIsModalOpen(true)
+    } catch (e) { console.error(e) }
+  }
 
   if (loading) return <div className="p-8">Scanning for risks...</div>
 
@@ -35,10 +50,12 @@ const RiskAlerts: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="space-y-6">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-red-600 flex items-center gap-2">
-            <ShieldAlert className="w-4 h-4" />
-            High Priority Alerts ({highPriority.length})
-          </h3>
+          <div className="flex justify-between items-center">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-red-600 flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4" />
+                High Priority Alerts ({highPriority.length})
+              </h3>
+          </div>
           <div className="space-y-4">
             {highPriority.length > 0 ? highPriority.map((alert, idx) => (
               <div key={idx} className="bg-red-50 border border-red-100 p-4 rounded-xl flex gap-4 animate-in fade-in duration-300">
@@ -48,7 +65,12 @@ const RiskAlerts: React.FC = () => {
                 <div>
                   <h4 className="font-bold text-red-900">{alert.type}</h4>
                   <p className="text-sm text-red-700 mt-1">{alert.message}</p>
-                  <button className="mt-3 text-xs font-bold text-red-600 underline uppercase tracking-tight">View Transaction Detail</button>
+                  <button 
+                    onClick={() => handleDrillDown(alert.type)}
+                    className="mt-3 text-xs font-bold text-red-600 underline uppercase tracking-tight hover:text-red-800"
+                  >
+                    View Transaction Detail
+                  </button>
                 </div>
               </div>
             )) : (
@@ -74,7 +96,12 @@ const RiskAlerts: React.FC = () => {
                 <div>
                   <h4 className="font-bold text-orange-900">{alert.type}</h4>
                   <p className="text-sm text-orange-700 mt-1">{alert.message}</p>
-                  <button className="mt-3 text-xs font-bold text-orange-600 underline uppercase tracking-tight">Investigate Delay</button>
+                  <button 
+                    onClick={() => handleDrillDown(alert.type)}
+                    className="mt-3 text-xs font-bold text-orange-600 underline uppercase tracking-tight hover:text-orange-800"
+                  >
+                    Investigate Delay
+                  </button>
                 </div>
               </div>
             )) : (
@@ -85,6 +112,7 @@ const RiskAlerts: React.FC = () => {
           </div>
         </div>
       </div>
+      <DrillDownModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} data={drillData} title={modalTitle} />
     </div>
   )
 }

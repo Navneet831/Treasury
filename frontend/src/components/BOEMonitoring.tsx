@@ -26,7 +26,7 @@ const AGING_COLORS: Record<string, string> = {
 const STATUS_COLORS = ['#0f172a', '#334155', '#475569', '#64748b', '#94a3b8']
 
 const BOEMonitoring: React.FC = () => {
-  const { currency } = useStore()
+  const { currency, fy } = useStore()
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
@@ -34,7 +34,7 @@ const BOEMonitoring: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const result = await getBOEMonitoring(currency)
+        const result = await getBOEMonitoring(currency, fy)
         setData(result)
       } catch (error) {
         console.error('Error fetching BOE monitoring data:', error)
@@ -43,7 +43,7 @@ const BOEMonitoring: React.FC = () => {
       }
     }
     fetchData()
-  }, [currency])
+  }, [currency, fy])
 
   if (loading) return <div className="p-8">Loading BOE metrics...</div>
   if (!data) return null

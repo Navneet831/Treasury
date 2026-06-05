@@ -6,7 +6,10 @@ import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import { Download, Search } from 'lucide-react'
 
+import { useStore } from '../store'
+
 const TransactionList: React.FC = () => {
+  const { fy } = useStore()
   const [rowData, setRowData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [gridApi, setGridApi] = useState<any>(null)
@@ -15,7 +18,7 @@ const TransactionList: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const data = await getTransactions()
+        const data = await getTransactions(fy)
         setRowData(data)
       } catch (error) {
         console.error('Error fetching transactions:', error)
@@ -24,7 +27,7 @@ const TransactionList: React.FC = () => {
       }
     }
     fetchData()
-  }, [])
+  }, [fy])
 
   const columnDefs: ColDef[] = useMemo(() => [
     { field: 'LC no.', headerName: 'LC Number', pinned: 'left', filter: true },

@@ -25,7 +25,7 @@ const COLORS: Record<string, string> = {
 }
 
 const CalendarView: React.FC = () => {
-  const { currency } = useStore()
+  const { currency, fy } = useStore()
   const [currentDate, setCurrentDate] = useState(new Date(2026, 5, 1)) // June 2026
   const [viewMode, setViewMode] = useState('summary')
   const [data, setData] = useState<any>(null)
@@ -38,7 +38,7 @@ const CalendarView: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const result = await getCalendarData(currentDate.getMonth() + 1, currentDate.getFullYear(), currency)
+        const result = await getCalendarData(currentDate.getMonth() + 1, currentDate.getFullYear(), currency, fy)
         setData(result)
       } catch (error) {
         console.error('Calendar load error:', error)
@@ -47,7 +47,7 @@ const CalendarView: React.FC = () => {
       }
     }
     fetchData()
-  }, [currentDate, currency])
+  }, [currentDate, currency, fy])
 
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate()
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay()
@@ -61,7 +61,7 @@ const CalendarView: React.FC = () => {
 
   const onCellClick = async (day: number, subItem?: string) => {
     const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-    const params: any = { date: dateStr }
+    const params: any = { date: dateStr, fy }
     let title = `Transactions for ${dateStr}`
 
     if (subItem) {
@@ -207,12 +207,6 @@ const CalendarView: React.FC = () => {
     </div>
   )
 }
-
-// Add these to CSS for cleaner view
-const styles = `
-.custom-scrollbar::-webkit-scrollbar { width: 3px; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 10px; }
-`
 
 import { Sparkles } from 'lucide-react'
 export default CalendarView
