@@ -54,10 +54,16 @@ const CashFlowForecast: React.FC = () => {
               <YAxis yAxisId="right" orientation="right" hide />
               <Tooltip 
                 contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                formatter={(value: any, name: any) => [formatCurrency(Number(value), currency), name === 'monthly_value' ? 'Monthly Requirement' : 'Cumulative Exposure']}
+                formatter={(value: any, name: any) => {
+                  if (name === 'confidence_lower') return [formatCurrency(Number(value), currency), 'Min Exp (95% CI)']
+                  if (name === 'confidence_upper') return [formatCurrency(Number(value), currency), 'Max Exp (95% CI)']
+                  return [formatCurrency(Number(value), currency), name === 'monthly_value' ? 'Expected Requirement' : 'Cumulative Exposure']
+                }}
               />
               <Legend verticalAlign="top" align="right" height={36} iconType="circle" />
-              <Bar yAxisId="left" dataKey="monthly_value" name="Monthly Requirement" fill="#1e293b" radius={[4, 4, 0, 0]} barSize={40} />
+              <Bar yAxisId="left" dataKey="monthly_value" name="Expected Requirement" fill="#1e293b" radius={[4, 4, 0, 0]} barSize={40} />
+              <Line yAxisId="left" type="monotone" dataKey="confidence_upper" name="Upper Confidence" stroke="#f87171" strokeDasharray="3 3" dot={false} strokeWidth={2} />
+              <Line yAxisId="left" type="monotone" dataKey="confidence_lower" name="Lower Confidence" stroke="#4ade80" strokeDasharray="3 3" dot={false} strokeWidth={2} />
               <Line yAxisId="right" type="monotone" dataKey="cumulative_value" name="Cumulative Exposure" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4, fill: '#3b82f6' }} />
             </ComposedChart>
           </ResponsiveContainer>

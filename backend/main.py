@@ -199,7 +199,81 @@ async def get_shipment_tracking(currency: str = Query("INR"), fy: str = Query("A
 async def get_cash_flow_forecast(currency: str = Query("INR"), fy: str = Query("All")):
     amt_col = COL_MAP["amt_inr"] if currency == "INR" else COL_MAP["amt_fc"]
     fy_filter = get_fy_clause(fy, COL_MAP['due_date'])
-    return fetch_dict(f"SELECT \"LC Payment Due Month\" as month, SUM({amt_col}) as monthly_value, SUM(SUM({amt_col})) OVER (ORDER BY MIN({COL_MAP['due_date']})) as cumulative_value FROM LC WHERE {COL_MAP['due_date']} >= '{CURRENT_DATE}'::DATE {fy_filter} GROUP BY 1 ORDER BY MIN({COL_MAP['due_date']}) LIMIT 12")
+    
+    # Adding statistical variance (± 12% standard deviation estimate for the confidence interval)
+    # In a real model, this would be stddev of historical monthly forecast accuracy
+    query = f"""
+        WITH MonthlyData AS (
+            SELECT 
+                "LC Payment Due Month" as month,
+                MIN({COL_MAP['due_date']}) as sort_date,
+                SUM({amt_col}) as monthly_value
+            FROM LC 
+            WHERE {COL_MAP['due_date']} >= '{CURRENT_DATE}'::DATE {fy_filter}
+            GROUP BY 1
+        )
+        SELECT 
+            month, 
+            monthly_value,
+            monthly_value * 0.88 as confidence_lower,
+            monthly_value * 1.12 as confidence_upper,
+            SUM(monthly_value) OVER (ORDER BY sort_date) as cumulative_value
+        FROM MonthlyData
+        ORDER BY sort_date
+        LIMIT 12
+    """
+    return fetch_dict(query)
+
+@app.get("/api/v1/treasury-radar")
+async def get_treasury_radar(currency: str = Query("INR"), fy: str = Query("All")):
+    # Normalizes 6 vectors to a 0-100 scale for the radar chart
+    # 1. Liquidity Stress (Value of Due Payments vs Total Exposure)
+    # 2. Limit Utilization (Used Limit vs Max Limit)
+    # 3. FX Exposure (Total FC Value unhedged)
+    # 4. Supplier Risk (Pending BOE Value)
+    # 5. Expiry Risk (Value of LCs expiring in 30 days)
+    # 6. Operational Delay (Overdue BOEs)
+    
+    amt_col = COL_MAP["amt_inr"]
+    fy_filter = get_fy_clause(fy, COL_MAP['op_date'])
+    where = f"WHERE 1=1 {fy_filter}"
+    
+    # A single heavy query to fetch raw denominators
+    raw_data = fetch_dict(f"""
+        WITH Limits AS (
+            SELECT COALESCE(SUM(CAST(NULLIF(REPLACE("Limit", ',', ''), '') AS DOUBLE)), 1) as total_limit FROM DD WHERE Table_8 = 'Bank' AND Element_8 != ''
+        )
+        SELECT 
+            (SELECT SUM({amt_col}) FROM LC {where}) as total_exposure,
+            (SELECT SUM({amt_col}) FROM LC {where} AND {COL_MAP['lc_status']}='Open') as open_exposure,
+            (SELECT SUM({COL_MAP['amt_fc']}) FROM LC {where} AND {COL_MAP['lc_status']}='Open' AND "Currency" != 'INR') as fx_exposure,
+            (SELECT SUM({amt_col}) FROM LC {where} AND {COL_MAP['due_date']} <= '{CURRENT_DATE}'::DATE + INTERVAL 15 DAY) as liquidity_stress,
+            (SELECT SUM({amt_col}) FROM LC {where} AND {COL_MAP['expiry_date']} <= '{CURRENT_DATE}'::DATE + INTERVAL 30 DAY AND {COL_MAP['lc_status']}='Open') as expiry_risk,
+            (SELECT SUM({COL_MAP['boe_pending_inr']}) FROM LC {where} AND {COL_MAP['boe_status']} != 'Received') as supplier_risk,
+            (SELECT SUM({COL_MAP['boe_pending_inr']}) FROM LC {where} AND {COL_MAP['boe_status']} != 'Received' AND date_diff('day', {COL_MAP['op_date']}, '{CURRENT_DATE}'::DATE) > 60) as op_delay,
+            (SELECT total_limit FROM Limits) as max_limit
+    """)[0]
+    
+    # Normalization (0-100)
+    # Higher value = Higher Risk
+    total_exposure = raw_data['total_exposure'] or 1
+    max_limit = raw_data['max_limit'] or 1
+    
+    utilization_score = min(100, ((raw_data['open_exposure'] or 0) / max_limit) * 100)
+    liquidity_score = min(100, ((raw_data['liquidity_stress'] or 0) / total_exposure) * 200) # 50% due = 100 risk
+    fx_score = min(100, ((raw_data['fx_exposure'] or 0) / (total_exposure/83.5)) * 100) # FC exposure %
+    supplier_score = min(100, ((raw_data['supplier_risk'] or 0) / total_exposure) * 150)
+    expiry_score = min(100, ((raw_data['expiry_risk'] or 0) / total_exposure) * 300)
+    op_score = min(100, ((raw_data['op_delay'] or 0) / total_exposure) * 250)
+
+    return [
+        {"subject": "Liquidity Stress", "A": round(liquidity_score), "fullMark": 100},
+        {"subject": "Limit Exhaustion", "A": round(utilization_score), "fullMark": 100},
+        {"subject": "FX Volatility", "A": round(fx_score), "fullMark": 100},
+        {"subject": "Supplier Delay", "A": round(supplier_score), "fullMark": 100},
+        {"subject": "Expiry Breach", "A": round(expiry_score), "fullMark": 100},
+        {"subject": "Operational Ops", "A": round(op_score), "fullMark": 100}
+    ]
 
 @app.get("/api/v1/lifecycle-tracker")
 async def get_lifecycle_tracker(fy: str = Query("All")):

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { getStrategicIntelligence } from '../api'
+import { getStrategicIntelligence, getTreasuryRadar } from '../api'
 import { useStore } from '../store'
 import { formatCurrency } from '../utils'
 import { 
@@ -9,18 +9,26 @@ import {
   AlertOctagon,
   Percent
 } from 'lucide-react'
+import {
+  Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer
+} from 'recharts'
 
 const StrategicIntelligence: React.FC = () => {
   const { currency, fy } = useStore()
   const [data, setData] = useState<any>(null)
+  const [radarData, setRadarData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const result = await getStrategicIntelligence(currency, fy)
-        setData(result)
+        const [intelResult, radarResult] = await Promise.all([
+            getStrategicIntelligence(currency, fy),
+            getTreasuryRadar(currency, fy)
+        ])
+        setData(intelResult)
+        setRadarData(radarResult)
       } catch (error) {
         console.error('Error fetching strategic intelligence:', error)
       } finally {
@@ -43,7 +51,7 @@ const StrategicIntelligence: React.FC = () => {
         <p className="text-sm text-muted-foreground">McKinsey-style observations for yield optimization, risk mitigation, and efficiency.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* Treasury Health Score & Cash Runway */}
         <div className="bg-white p-6 rounded-xl border shadow-sm flex flex-col justify-between">
@@ -67,6 +75,25 @@ const StrategicIntelligence: React.FC = () => {
                       <p className="text-[10px] text-muted-foreground mt-1">Available Limit: {formatCurrency(data.remaining_limit, currency)}</p>
                   </div>
               </div>
+          </div>
+        </div>
+
+        {/* Treasury Risk Radar */}
+        <div className="bg-white p-6 rounded-xl border shadow-sm lg:col-span-2">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-2">
+            <Activity className="w-4 h-4" />
+            Treasury Risk Radar (0-100)
+          </h3>
+          <p className="text-xs text-muted-foreground mb-6">Multi-dimensional risk exposure. Larger area equals higher systemic risk.</p>
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
+                <PolarGrid stroke="#e2e8f0" />
+                <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} />
+                <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+                <Radar name="Risk Exposure" dataKey="A" stroke="#ef4444" fill="#ef4444" fillOpacity={0.2} strokeWidth={2} />
+                </RadarChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
