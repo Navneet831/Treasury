@@ -2,9 +2,12 @@ import React, { useEffect, useState, useMemo } from 'react'
 import { getTransactions } from '../api'
 import { AgGridReact } from 'ag-grid-react'
 import type { ColDef } from 'ag-grid-community'
+import { ModuleRegistry, ClientSideRowModelModule } from 'ag-grid-community'
 import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import { Download, Search } from 'lucide-react'
+
+ModuleRegistry.registerModules([ClientSideRowModelModule])
 
 import { useStore } from '../store'
 

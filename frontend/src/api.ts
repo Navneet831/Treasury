@@ -66,6 +66,11 @@ export const getTransactions = async (fy: string) => {
   return response.data
 }
 
+export const getPETreasury = async () => {
+  const response = await api.get('/pe-treasury')
+  return response.data
+}
+
 export const getDrillDown = async (params: { 
   status?: string, 
   bank?: string, 

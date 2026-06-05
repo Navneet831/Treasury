@@ -24,6 +24,12 @@ const COLORS: Record<string, string> = {
   'Not Received': 'bg-amber-500',
 }
 
+const getFallbackColor = (str: string) => {
+  const hash = str.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const colors = ['bg-indigo-600', 'bg-pink-600', 'bg-teal-600', 'bg-cyan-600', 'bg-rose-600', 'bg-violet-600', 'bg-fuchsia-600'];
+  return colors[hash % colors.length];
+}
+
 const CalendarView: React.FC = () => {
   const { currency, fy } = useStore()
   const [currentDate, setCurrentDate] = useState(new Date(2026, 5, 1)) // June 2026
@@ -166,7 +172,7 @@ const CalendarView: React.FC = () => {
                             <div 
                                 key={i} 
                                 onClick={(e) => { e.stopPropagation(); onCellClick(day, item.label); }}
-                                className={`text-[9px] px-2 py-1 rounded-md text-white font-bold truncate hover:scale-[1.03] transition-transform active:scale-[0.98] ${COLORS[item.label] || 'bg-slate-800'}`}
+                                className={`text-[9px] px-2 py-1 rounded-md text-white font-bold truncate hover:scale-[1.03] transition-transform active:scale-[0.98] ${COLORS[item.label] || getFallbackColor(item.label)}`}
                             >
                                 {item.label}: {formatCurrency(item.value, currency)}
                             </div>

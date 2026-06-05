@@ -579,6 +579,45 @@ async def get_advanced_quant(currency: str = Query("INR"), fy: str = Query("All"
         "stress_tests": stress_tests
     }
 
+@app.get("/api/v1/pe-treasury")
+async def get_pe_treasury():
+    # 1. Debt Maturity Wall
+    debt_maturity = fetch_dict("SELECT * FROM DEBT_MATURITY ORDER BY year")
+    
+    # 2. Yield Curve
+    yield_curve = fetch_dict("SELECT * FROM YIELD_CURVE")
+    
+    # 3. Capital Stack
+    capital_stack = fetch_dict("SELECT * FROM CAPITAL_STACK")
+    
+    # 4. Return on Treasury Capital (ROTC) & Value Creation
+    # Synthetic metrics representing PE-style savings tracking
+    value_creation = {
+        "working_capital_released": 450, # Cr
+        "debt_reduced": 120, # Cr
+        "treasury_savings": 25.5, # Cr
+        "interest_savings": 14.2, # Cr
+        "fx_savings": 8.1, # Cr
+        "bank_charge_optimization": 3.2 # Cr
+    }
+    
+    # 5. Liquidity Index
+    liquidity_index = {
+        "rbi_liquidity_deficit": "₹1.2 Lakh Cr",
+        "banking_system_liquidity": "Tight",
+        "money_market_rates": "6.75% - 7.10%",
+        "yield_curve_shape": "Normal", # Normal, Flat, Inverted, Steepening
+        "treasury_implication": "Borrow long-term to lock in current yields before tightening."
+    }
+
+    return {
+        "debt_maturity": debt_maturity,
+        "yield_curve": yield_curve,
+        "capital_stack": capital_stack,
+        "value_creation": value_creation,
+        "liquidity_index": liquidity_index
+    }
+
 @app.get("/api/v1/transactions")
 async def get_transactions(fy: str = Query("All")):
     fy_filter = get_fy_clause(fy, COL_MAP['op_date'])

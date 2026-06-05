@@ -14,6 +14,7 @@ import AICopilot from './components/AICopilot'
 import StrategicIntelligence from './components/StrategicIntelligence'
 import ShipmentTracking from './components/ShipmentTracking'
 import AdvancedQuant from './components/AdvancedQuant'
+import PETreasury from './components/PETreasury'
 
 const App: React.FC = () => {
   const [activePage, setActivePage] = useState('overview')
@@ -42,6 +43,8 @@ const App: React.FC = () => {
         return <StrategicIntelligence />
       case 'quant':
         return <AdvancedQuant />
+      case 'pe':
+        return <PETreasury />
       case 'shipment':
         return <ShipmentTracking />
       case 'ai':

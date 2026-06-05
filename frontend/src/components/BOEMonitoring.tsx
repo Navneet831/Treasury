@@ -67,7 +67,7 @@ const BOEMonitoring: React.FC = () => {
                 <Tooltip 
                   cursor={{ fill: '#f8fafc' }}
                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                  formatter={(value: any) => [formatCurrency(Number(value), currency), 'Pending Value']}
+                  formatter={(value: any) => [formatCurrency(Number(value || 0), currency), 'Pending Value']}
                 />
                 <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={60}>
                   {data.aging_buckets.map((entry: any, index: number) => (
@@ -100,7 +100,7 @@ const BOEMonitoring: React.FC = () => {
                 </Pie>
                 <Tooltip 
                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                   formatter={(value: any) => [formatCurrency(Number(value), currency), 'Value']}
+                   formatter={(value: any) => [formatCurrency(Number(value || 0), currency), 'Value']}
                 />
                 <Legend iconType="circle" />
               </PieChart>
