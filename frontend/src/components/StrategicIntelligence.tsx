@@ -118,9 +118,9 @@ const StrategicIntelligence: React.FC = () => {
           </h3>
           <p className="text-xs text-muted-foreground mb-6">Ranking vendors by average delay between Shipment Date and BOE Submission.</p>
           
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
               {data.supplier_reliability.map((supp: any, idx: number) => (
-                  <div key={idx} className="p-4 border rounded-lg hover:border-primary transition-colors">
+                  <div key={idx} className="p-4 border rounded-lg hover:border-primary transition-colors min-w-[200px] flex-shrink-0">
                       <p className="text-xs font-bold truncate mb-2">{supp.supplier}</p>
                       <div className="flex items-end gap-2">
                           <p className={`text-2xl font-black ${supp.avg_delay_days > 20 ? 'text-red-600' : 'text-green-600'}`}>

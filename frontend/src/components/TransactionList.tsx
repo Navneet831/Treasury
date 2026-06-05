@@ -34,13 +34,24 @@ const TransactionList: React.FC = () => {
     { field: 'Bank Name', filter: true },
     { field: 'Supplier Name', filter: true },
     { field: 'LC Op. Date', headerName: 'Opening Date', filter: 'agDateColumnFilter' },
-    { field: 'LC Amt \n(in INR)', headerName: 'Amount (INR)', valueFormatter: (params: any) => params.value?.toLocaleString('en-IN') },
+    { field: 'LC Amt (in INR)', headerName: 'Amount (INR)', valueFormatter: (params: any) => params.value?.toLocaleString('en-IN') },
     { field: 'Currency', width: 100 },
     { field: 'Final LC Amt (in FC)', headerName: 'Amount (FC)' },
-    { field: 'LC Status', filter: true, cellClass: (params: any) => params.value === 'OPEN' ? 'text-green-600 font-bold' : 'text-gray-600' },
+    { field: 'LC Status', filter: true, cellClass: (params: any) => params.value === 'Open' ? 'text-green-600 font-bold' : 'text-gray-600' },
     { field: 'BOE Status', filter: true },
     { field: 'Payment Status', filter: true },
-    { field: 'Product Name', tooltipField: 'Product Name' }
+    { field: 'Product Name', tooltipField: 'Product Name' },
+    { 
+      field: 'risk_flag', 
+      headerName: 'Risk Flag', 
+      filter: true, 
+      pinned: 'right',
+      cellClass: (params: any) => {
+        if (params.value === 'Safe') return 'text-green-600 font-bold bg-green-50 text-xs px-2 py-1 rounded'
+        if (params.value === 'Expiry Risk') return 'text-orange-600 font-bold bg-orange-50 text-xs px-2 py-1 rounded'
+        return 'text-red-600 font-bold bg-red-50 text-xs px-2 py-1 rounded'
+      }
+    }
   ], [])
 
   const onGridReady = (params: any) => {

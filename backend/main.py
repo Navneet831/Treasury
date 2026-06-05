@@ -176,9 +176,24 @@ async def get_boe_monitoring(currency: str = Query("INR"), fy: str = Query("All"
                 ELSE '90+ Days'
             END as bucket,
             SUM({boe_pending_col}) as value, COUNT(*) as count
-        FROM LC WHERE {COL_MAP['boe_status']} != 'Received' AND {boe_pending_col} > 0 {fy_filter} GROUP BY 1 ORDER BY bucket
+        FROM LC WHERE {COL_MAP['boe_status']} != 'Received' {fy_filter} GROUP BY 1 ORDER BY bucket
     """
     return {"status_breakdown": fetch_dict(status_query), "aging_buckets": fetch_dict(aging_query)}
+
+@app.get("/api/v1/shipment-tracking")
+async def get_shipment_tracking(currency: str = Query("INR"), fy: str = Query("All")):
+    amt_col = COL_MAP["amt_inr"] if currency == "INR" else COL_MAP["amt_fc"]
+    fy_filter = get_fy_clause(fy, COL_MAP['op_date'])
+    
+    query = f"""
+        SELECT 
+            SUM(CASE WHEN {COL_MAP['shipment_date']} > '{CURRENT_DATE}' THEN 1 ELSE 0 END) as pending_count,
+            SUM(CASE WHEN {COL_MAP['shipment_date']} <= '{CURRENT_DATE}' THEN 1 ELSE 0 END) as completed_count,
+            SUM(CASE WHEN "Material Receipt Date" > {COL_MAP['shipment_date']} THEN 1 ELSE 0 END) as delayed_count,
+            SUM(CASE WHEN {COL_MAP['expiry_date']} < '{CURRENT_DATE}' AND {COL_MAP['shipment_date']} IS NULL THEN 1 ELSE 0 END) as expired_count
+        FROM LC WHERE 1=1 {fy_filter}
+    """
+    return fetch_dict(query)[0]
 
 @app.get("/api/v1/cash-flow-forecast")
 async def get_cash_flow_forecast(currency: str = Query("INR"), fy: str = Query("All")):
@@ -192,7 +207,7 @@ async def get_lifecycle_tracker(fy: str = Query("All")):
     query = f"""
         SELECT
             COUNT(*) as total,
-            COUNT(CASE WHEN {COL_MAP['shipment_date']} <= '2026-06-05' THEN 1 END) as shipped,
+            COUNT(CASE WHEN {COL_MAP['shipment_date']} <= '{CURRENT_DATE}' THEN 1 END) as shipped,
             COUNT(CASE WHEN "DOCUMENTS RECEIVED" = 'YES' THEN 1 END) as docs_received,
             COUNT(CASE WHEN "Bill Lodge date" IS NOT NULL THEN 1 END) as bill_lodged,
             COUNT(CASE WHEN "Bill Acceptance date" IS NOT NULL THEN 1 END) as bill_accepted,
@@ -247,22 +262,30 @@ async def get_strategic_intelligence(currency: str = Query("INR"), fy: str = Que
         GROUP BY 1 HAVING COUNT(*) > 1 ORDER BY 2 DESC LIMIT 5
     """)
 
-    # 3. Bank Utilization & Limit Exhaustion
+    # 3. Bank Utilization & Limit Exhaustion (Using DD table for limits)
     utilization = fetch_dict(f"""
-        SELECT {COL_MAP['bank']} as bank, SUM({amt_col}) as used_limit, MAX({COL_MAP['limit_avail']}) as max_limit
-        FROM LC {where} AND {COL_MAP['lc_status']} = 'Open'
+        SELECT 
+            LC.{COL_MAP['bank']} as bank, 
+            SUM(LC.{amt_col}) as used_limit, 
+            COALESCE(MAX(CAST(NULLIF(REPLACE(DD."Limit", ',', ''), '') AS DOUBLE)), 0) as max_limit
+        FROM LC
+        LEFT JOIN DD ON TRIM(UPPER(LC.{COL_MAP['bank']})) = TRIM(UPPER(DD.Element_8)) AND DD.Table_8 = 'Bank'
+        {where} AND LC.{COL_MAP['lc_status']} = 'Open'
         GROUP BY 1 ORDER BY 2 DESC
     """)
 
     # 4. Tolerance Tracking
     tolerance = fetch_dict(f"SELECT SUM({COL_MAP['tolerance']}) as total_variance FROM LC {where}")[0]
 
-    # 5. Cash Runway & Treasury Health Score
+    # 5. Cash Runway & Treasury Health Score (Using limits from DD table)
     runway_data = fetch_dict(f"""
+        WITH BankLimits AS (
+            SELECT COALESCE(SUM(CAST(NULLIF(REPLACE("Limit", ',', ''), '') AS DOUBLE)), 0) as total_limit
+            FROM DD WHERE Table_8 = 'Bank' AND Element_8 != ''
+        )
         SELECT 
-            SUM(CASE WHEN {COL_MAP['lc_status']} = 'Open' THEN {amt_col} ELSE 0 END) as open_lc_val,
-            MAX({COL_MAP['limit_avail']}) * COUNT(DISTINCT {COL_MAP['bank']}) as approx_total_limit
-        FROM LC {where}
+            (SELECT SUM(CASE WHEN {COL_MAP['lc_status']} = 'Open' THEN {amt_col} ELSE 0 END) FROM LC {where}) as open_lc_val,
+            (SELECT total_limit FROM BankLimits) as approx_total_limit
     """)[0]
     
     daily_avg_burn = fetch_dict(f"""
@@ -302,7 +325,17 @@ async def get_strategic_intelligence(currency: str = Query("INR"), fy: str = Que
 @app.get("/api/v1/transactions")
 async def get_transactions(fy: str = Query("All")):
     fy_filter = get_fy_clause(fy, COL_MAP['op_date'])
-    return fetch_dict(f'SELECT * FROM LC WHERE 1=1 {fy_filter} ORDER BY {COL_MAP["op_date"]} DESC')
+    query = f"""
+        SELECT LC.*,
+        CASE
+            WHEN {COL_MAP['lc_status']} = 'Open' AND {COL_MAP['expiry_date']} BETWEEN '{CURRENT_DATE}' AND '{CURRENT_DATE}'::DATE + INTERVAL 15 DAY THEN 'Expiry Risk'
+            WHEN {COL_MAP['payment_status']} != 'Paid' AND {COL_MAP['due_date']} BETWEEN '{CURRENT_DATE}' AND '{CURRENT_DATE}'::DATE + INTERVAL 7 DAY THEN 'Payment Due'
+            WHEN {COL_MAP['boe_status']} != 'Received' AND date_diff('day', {COL_MAP['op_date']}, '{CURRENT_DATE}'::DATE) > 90 THEN 'BOE Overdue'
+            ELSE 'Safe'
+        END as risk_flag
+        FROM LC WHERE 1=1 {fy_filter} ORDER BY {COL_MAP["op_date"]} DESC
+    """
+    return fetch_dict(query)
 
 @app.post("/api/v1/ai-copilot")
 async def ai_copilot(query: str = Body(..., embed=True)):
