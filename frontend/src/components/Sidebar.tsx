@@ -1,10 +1,10 @@
 import React from 'react'
-import { 
-  LayoutDashboard, 
-  Calendar, 
-  RefreshCcw, 
-  Building, 
-  Truck, 
+import {
+  LayoutDashboard,
+  Calendar,
+  RefreshCcw,
+  Building,
+  Truck,
   FileCheck,
   Zap,
   ShieldCheck,
@@ -12,7 +12,11 @@ import {
   BarChart3,
   Sparkles,
   Activity,
-  Cpu
+  Cpu,
+  Users,
+  Globe,
+  TrendingUp,
+  Gauge
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -20,25 +24,50 @@ interface SidebarProps {
   setActivePage: (page: string) => void
 }
 
-const navItems = [
-  { id: 'overview', label: 'Executive Overview', icon: LayoutDashboard },
-  { id: 'intelligence', label: 'Strategic Intel', icon: Activity },
-  { id: 'quant', label: 'Advanced Quant', icon: Cpu },
-  { id: 'pe', label: 'PE Portfolio Monitor', icon: Building },
-  { id: 'ai', label: 'AI Copilot', icon: Sparkles },
-  { id: 'calendar', label: 'Calendar Command', icon: Calendar },
-  { id: 'transactions', label: 'All Transactions', icon: BarChart3 },
-  { id: 'lifecycle', label: 'LC Lifecycle', icon: RefreshCcw },
-  { id: 'forecast', label: 'Cash Forecast', icon: Zap },
-  { id: 'bank', label: 'Bank Exposure', icon: Building },
-  { id: 'supplier', label: 'Supplier Analytics', icon: UsersIcon }, // UsersIcon is handled below
-  { id: 'boe', label: 'BOE Monitoring', icon: FileCheck },
-  { id: 'shipment', label: 'Shipment Tracking', icon: Truck },
-  { id: 'risk', label: 'Risk & Alerts', icon: ShieldCheck },
+const navGroups = [
+  {
+    label: 'Command',
+    items: [
+      { id: 'overview', label: 'Executive Overview', icon: LayoutDashboard },
+      { id: 'intelligence', label: 'Strategic Intel', icon: Activity },
+      { id: 'quant', label: 'Advanced Quant', icon: Cpu },
+      { id: 'ai', label: 'AI Copilot', icon: Sparkles },
+    ]
+  },
+  {
+    label: 'Analytics',
+    items: [
+      { id: 'calendar', label: 'Calendar Command', icon: Calendar },
+      { id: 'forecast', label: 'Cash Forecast', icon: Zap },
+      { id: 'fx', label: 'FX Exposure', icon: Globe },
+      { id: 'trend', label: 'Trend & Cohort', icon: TrendingUp },
+      { id: 'limit', label: 'Limit Utilization', icon: Gauge },
+    ]
+  },
+  {
+    label: 'Operations',
+    items: [
+      { id: 'lifecycle', label: 'LC Lifecycle', icon: RefreshCcw },
+      { id: 'bank', label: 'Bank Exposure', icon: Building },
+      { id: 'supplier', label: 'Supplier Analytics', icon: Users },
+      { id: 'boe', label: 'BOE Monitoring', icon: FileCheck },
+      { id: 'shipment', label: 'Shipment Tracking', icon: Truck },
+    ]
+  },
+  {
+    label: 'Risk & Compliance',
+    items: [
+      { id: 'risk', label: 'Risk & Alerts', icon: ShieldCheck },
+      { id: 'pe', label: 'PE Portfolio Monitor', icon: Building },
+    ]
+  },
+  {
+    label: 'Data',
+    items: [
+      { id: 'transactions', label: 'All Transactions', icon: BarChart3 },
+    ]
+  }
 ]
-
-// Fixing the missing Users icon or using Building as placeholder if needed
-import { Users as UsersIcon } from 'lucide-react'
 
 const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage }) => {
   return (
@@ -46,33 +75,47 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage }) => {
       <div className="p-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input 
-            type="text" 
-            placeholder="Global Search..." 
+          <input
+            type="text"
+            placeholder="Global Search..."
             className="w-full pl-10 pr-4 py-2 bg-muted/50 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
         </div>
       </div>
 
-      <nav className="flex-1 px-4 py-2 space-y-1 overflow-y-auto">
-        {navItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => setActivePage(item.id)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-              activePage === item.id 
-                ? 'bg-primary text-primary-foreground' 
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-            }`}
-          >
-            <item.icon className="w-4 h-4" />
-            {item.label}
-          </button>
+      <nav className="flex-1 px-3 py-2 space-y-4 overflow-y-auto">
+        {navGroups.map((group) => (
+          <div key={group.label}>
+            <p className="px-3 mb-1 text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground/60">
+              {group.label}
+            </p>
+            <div className="space-y-0.5">
+              {group.items.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setActivePage(item.id)}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                    activePage === item.id
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  }`}
+                >
+                  <item.icon className="w-4 h-4 flex-shrink-0" />
+                  <span className="truncate">{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
 
-      <div className="p-4 border-t text-[10px] text-muted-foreground uppercase font-bold tracking-widest">
-        System Health: Online
+      <div className="p-4 border-t">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">
+            System Online
+          </span>
+        </div>
       </div>
     </aside>
   )

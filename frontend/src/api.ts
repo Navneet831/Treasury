@@ -4,7 +4,17 @@ const API_BASE_URL = 'http://localhost:8000/api/v1'
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 30000,
 })
+
+// Add response interceptor for consistent error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    console.error('[API Error]', error.config?.url, error.message)
+    return Promise.reject(error)
+  }
+)
 
 export const getExecutiveOverview = async (currency: string, fy: string) => {
   const response = await api.get('/executive-overview', { params: { currency, fy } })
@@ -71,14 +81,14 @@ export const getPETreasury = async () => {
   return response.data
 }
 
-export const getDrillDown = async (params: { 
-  status?: string, 
-  bank?: string, 
-  boe_status?: string, 
-  date?: string,
-  lifecycle_stage?: string,
-  kpi?: string,
-  alert_type?: string,
+export const getDrillDown = async (params: {
+  status?: string
+  bank?: string
+  boe_status?: string
+  date?: string
+  lifecycle_stage?: string
+  kpi?: string
+  alert_type?: string
   fy?: string
 }) => {
   const response = await api.get('/drill-down', { params })
@@ -87,6 +97,32 @@ export const getDrillDown = async (params: {
 
 export const askAICopilot = async (query: string) => {
   const response = await api.post('/ai-copilot', { query })
+  return response.data
+}
+
+// New endpoints
+export const getFXExposure = async (fy: string) => {
+  const response = await api.get('/fx-exposure', { params: { fy } })
+  return response.data
+}
+
+export const getTrendAnalysis = async (currency: string, fy: string) => {
+  const response = await api.get('/trend-analysis', { params: { currency, fy } })
+  return response.data
+}
+
+export const getCohortAnalysis = async (currency: string, fy: string) => {
+  const response = await api.get('/cohort-analysis', { params: { currency, fy } })
+  return response.data
+}
+
+export const getBottleneckAnalysis = async (fy: string) => {
+  const response = await api.get('/bottleneck-analysis', { params: { fy } })
+  return response.data
+}
+
+export const getLimitUtilization = async (currency: string, fy: string) => {
+  const response = await api.get('/limit-utilization', { params: { currency, fy } })
   return response.data
 }
 

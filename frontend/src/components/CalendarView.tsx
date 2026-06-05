@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import { Sparkles, ChevronLeft, ChevronRight, Filter, TrendingDown, Target, Building, ShieldAlert } from 'lucide-react'
 import { getCalendarData, getDrillDown } from '../api'
 import { useStore } from '../store'
 import { formatCurrency } from '../utils'
-import { ChevronLeft, ChevronRight, Filter, TrendingDown, Target, Building, ShieldAlert } from 'lucide-react'
 import DrillDownModal from './DrillDownModal'
 
 const VIEW_MODES = [
@@ -25,14 +25,14 @@ const COLORS: Record<string, string> = {
 }
 
 const getFallbackColor = (str: string) => {
-  const hash = str.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const colors = ['bg-indigo-600', 'bg-pink-600', 'bg-teal-600', 'bg-cyan-600', 'bg-rose-600', 'bg-violet-600', 'bg-fuchsia-600'];
-  return colors[hash % colors.length];
+  const hash = str.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+  const colors = ['bg-indigo-600', 'bg-pink-600', 'bg-teal-600', 'bg-cyan-600', 'bg-rose-600', 'bg-violet-600', 'bg-fuchsia-600']
+  return colors[hash % colors.length]
 }
 
 const CalendarView: React.FC = () => {
   const { currency, fy } = useStore()
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 5, 1)) // June 2026
+  const [currentDate, setCurrentDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1))
   const [viewMode, setViewMode] = useState('summary')
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -58,12 +58,13 @@ const CalendarView: React.FC = () => {
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate()
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay()
 
+  // FIX: include all needed dependencies in useMemo
   const days = useMemo(() => {
-    const arr = []
+    const arr: (number | null)[] = []
     for (let i = 0; i < firstDayOfMonth; i++) arr.push(null)
     for (let i = 1; i <= daysInMonth; i++) arr.push(i)
     return arr
-  }, [currentDate])
+  }, [daysInMonth, firstDayOfMonth])
 
   const onCellClick = async (day: number, subItem?: string) => {
     const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
@@ -71,48 +72,73 @@ const CalendarView: React.FC = () => {
     let title = `Transactions for ${dateStr}`
 
     if (subItem) {
-        if (viewMode === 'bank') { params.bank = subItem; title = `${subItem} exposure on ${dateStr}`; }
-        if (viewMode === 'status') { params.status = subItem; title = `LC Status: ${subItem} on ${dateStr}`; }
-        if (viewMode === 'boe') { params.boe_status = subItem; title = `BOE Status: ${subItem} on ${dateStr}`; }
+      if (viewMode === 'bank') { params.bank = subItem; title = `${subItem} on ${dateStr}` }
+      if (viewMode === 'status') { params.status = subItem; title = `LC Status: ${subItem} on ${dateStr}` }
+      if (viewMode === 'boe') { params.boe_status = subItem; title = `BOE: ${subItem} on ${dateStr}` }
     }
 
     try {
-        const result = await getDrillDown(params)
-        setDrillData(result)
-        setModalTitle(title)
-        setIsModalOpen(true)
+      const result = await getDrillDown(params)
+      setDrillData(result)
+      setModalTitle(title)
+      setIsModalOpen(true)
     } catch (e) { console.error(e) }
   }
 
   const getDayDetails = (day: number) => {
     if (!data) return []
     const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-    
-    if (viewMode === 'bank') return data.bank_breakdown.filter((d: any) => d.date === dateStr).map((d: any) => ({ label: d.bank, value: d.value }))
-    if (viewMode === 'status') return data.status_breakdown.filter((d: any) => d.date === dateStr).map((d: any) => ({ label: d.status, value: d.value }))
-    if (viewMode === 'boe') return data.boe_breakdown.filter((d: any) => d.date === dateStr).map((d: any) => ({ label: d.boe_status, value: d.value }))
-    
-    const summary = data.daily_summary.find((d: any) => d.date === dateStr)
-    return summary ? [
-      { label: 'Total', value: summary.total_value }, 
-      ...(summary.limit_balance ? [{ label: 'Limit Bal', value: summary.limit_balance }] : [])
-    ] : []
+
+    if (viewMode === 'bank') return data.bank_breakdown.filter((d: any) => d.date?.startsWith(dateStr)).map((d: any) => ({ label: d.bank, value: d.value }))
+    if (viewMode === 'status') return data.status_breakdown.filter((d: any) => d.date?.startsWith(dateStr)).map((d: any) => ({ label: d.status, value: d.value }))
+    if (viewMode === 'boe') return data.boe_breakdown.filter((d: any) => d.date?.startsWith(dateStr)).map((d: any) => ({ label: d.boe_status, value: d.value }))
+
+    const summary = data.daily_summary.find((d: any) => d.date?.startsWith(dateStr))
+    const dueItems = data.due_breakdown?.filter((d: any) => d.date?.startsWith(dateStr)) || []
+    const items = []
+    if (summary?.total_value) items.push({ label: 'Opened', value: summary.total_value, type: 'open' })
+    if (dueItems.length > 0) items.push({ label: 'Due', value: dueItems.reduce((a: number, d: any) => a + (d.due_value || 0), 0), type: 'due' })
+    return items
   }
 
   const strategicInsights = useMemo(() => {
-      if (!data || !data.daily_summary.length) return []
-      const total = data.daily_summary.reduce((acc: number, d: any) => acc + d.total_value, 0)
-      const avg = total / data.daily_summary.length
-      const maxDay = [...data.daily_summary].sort((a, b) => b.total_value - a.total_value)[0]
+    if (!data || !data.daily_summary?.length) return []
+    const summary = data.daily_summary
+    const total = summary.reduce((acc: number, d: any) => acc + (d.total_value || 0), 0)
+    const avg = total / summary.length
+    const maxDay = [...summary].sort((a: any, b: any) => (b.total_value || 0) - (a.total_value || 0))[0]
 
-      return [
-          { label: 'Treasury Velocity', value: `${formatCurrency(avg, currency)} / Day`, desc: 'Average daily LC issuance volume.' },
-          { label: 'Peak Exposure Date', value: maxDay?.date ? maxDay.date.split('T')[0] : 'N/A', desc: `Highest daily activity recorded at ${formatCurrency(maxDay?.total_value || 0, currency)}.` },
-          { label: 'Operating Efficiency', value: '88.4%', desc: 'Transaction processing time vs. benchmark.' }
-      ]
+    // Compute efficiency from due vs opened
+    const dueTotal = data.due_breakdown?.reduce((a: number, d: any) => a + (d.due_value || 0), 0) || 0
+    const openedTotal = summary.reduce((a: number, d: any) => a + (d.opened_value || 0), 0)
+    const efficiency = openedTotal > 0 ? Math.min(100, (1 - (dueTotal / openedTotal)) * 100).toFixed(1) + '%' : 'N/A'
+
+    return [
+      { label: 'Treasury Velocity', value: `${formatCurrency(avg, currency)} / Day`, desc: 'Average daily LC issuance volume for this month.' },
+      { label: 'Peak Exposure Date', value: maxDay?.date ? String(maxDay.date).split('T')[0] : 'N/A', desc: `Highest daily activity at ${formatCurrency(maxDay?.total_value || 0, currency)}.` },
+      { label: 'Obligation Coverage', value: efficiency, desc: 'Ratio of due obligations to opened LCs this month.' }
+    ]
   }, [data, currency])
 
-  if (loading) return <div className="p-8">Syncing treasury calendar...</div>
+  if (loading) {
+    return (
+      <div className="p-8 space-y-6">
+        <div className="h-8 w-64 bg-muted animate-pulse rounded" />
+        <div className="bg-white border rounded-2xl overflow-hidden shadow-xl">
+          <div className="grid grid-cols-7 bg-muted/50 border-b">
+            {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
+              <div key={d} className="py-4 text-center text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">{d}</div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7">
+            {Array.from({length: 35}).map((_, i) => (
+              <div key={i} className="h-36 border-b border-r bg-muted/5 animate-pulse" />
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-8 space-y-6">
@@ -121,7 +147,7 @@ const CalendarView: React.FC = () => {
           <h2 className="text-2xl font-bold">Calendar Command Center</h2>
           <p className="text-sm text-muted-foreground">Strategic distribution of LC issuance and obligation mapping.</p>
         </div>
-        
+
         <div className="flex items-center gap-3 bg-white p-1.5 border rounded-xl shadow-sm overflow-x-auto">
           {VIEW_MODES.map(m => (
             <button
@@ -151,65 +177,72 @@ const CalendarView: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          <div className="lg:col-span-3">
-            <div className="bg-white border rounded-2xl overflow-hidden shadow-xl border-black/[0.03]">
-                <div className="grid grid-cols-7 bg-muted/50 border-b">
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                    <div key={day} className="py-4 text-center text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
-                    {day}
-                    </div>
-                ))}
+        <div className="lg:col-span-3">
+          <div className="bg-white border rounded-2xl overflow-hidden shadow-xl border-black/[0.03]">
+            <div className="grid grid-cols-7 bg-muted/50 border-b">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                <div key={day} className="py-4 text-center text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+                  {day}
                 </div>
-                <div className="grid grid-cols-7">
-                {days.map((day, idx) => {
-                    if (day === null) return <div key={`empty-${idx}`} className="h-36 border-b border-r last:border-r-0 bg-muted/5" />
-                    const details = getDayDetails(day)
-                    return (
-                    <div key={day} className="h-36 border-b border-r last:border-r-0 p-2 flex flex-col gap-1.5 hover:bg-muted/10 transition-colors group relative cursor-pointer" onClick={() => onCellClick(day)}>
-                        <span className="text-sm font-black text-muted-foreground/40 group-hover:text-primary transition-colors">{day}</span>
-                        <div className="flex flex-col gap-1 overflow-y-auto custom-scrollbar pr-1">
-                        {details.map((item: any, i: number) => (
-                            <div 
-                                key={i} 
-                                onClick={(e) => { e.stopPropagation(); onCellClick(day, item.label); }}
-                                className={`text-[9px] px-2 py-1 rounded-md text-white font-bold truncate hover:scale-[1.03] transition-transform active:scale-[0.98] ${COLORS[item.label] || getFallbackColor(item.label)}`}
-                            >
-                                {item.label}: {formatCurrency(item.value, currency)}
-                            </div>
-                        ))}
+              ))}
+            </div>
+            <div className="grid grid-cols-7">
+              {days.map((day, idx) => {
+                if (day === null) return <div key={`empty-${idx}`} className="h-36 border-b border-r last:border-r-0 bg-muted/5" />
+                const details = getDayDetails(day)
+                const hasActivity = details.length > 0
+                return (
+                  <div
+                    key={day}
+                    className={`h-36 border-b border-r last:border-r-0 p-2 flex flex-col gap-1.5 hover:bg-muted/10 transition-colors group relative cursor-pointer ${hasActivity ? 'bg-blue-50/30' : ''}`}
+                    onClick={() => onCellClick(day)}
+                  >
+                    <span className="text-sm font-black text-muted-foreground/40 group-hover:text-primary transition-colors">{day}</span>
+                    <div className="flex flex-col gap-1 overflow-y-auto custom-scrollbar pr-1">
+                      {details.map((item: any, i: number) => (
+                        <div
+                          key={i}
+                          onClick={(e) => { e.stopPropagation(); onCellClick(day, item.label) }}
+                          className={`text-[9px] px-2 py-1 rounded-md text-white font-bold truncate hover:scale-[1.03] transition-transform active:scale-[0.98] ${
+                            item.type === 'due' ? 'bg-red-500' : (COLORS[item.label] || getFallbackColor(item.label))
+                          }`}
+                        >
+                          {item.label}: {formatCurrency(item.value, currency)}
                         </div>
+                      ))}
                     </div>
-                    )
-                })}
-                </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
+        </div>
 
-          <div className="space-y-6">
-              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                  <TrendingDown className="w-4 h-4" />
-                  Strategic Insights
-              </h3>
-              <div className="space-y-4">
-                  {strategicInsights.map((insight, idx) => (
-                      <div key={idx} className="bg-white p-5 rounded-2xl border border-black/[0.03] shadow-sm hover:shadow-md transition-shadow">
-                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{insight.label}</p>
-                          <p className="text-xl font-black mt-1 text-primary">{insight.value}</p>
-                          <p className="text-[11px] text-muted-foreground mt-2 leading-relaxed italic">{insight.desc}</p>
-                      </div>
-                  ))}
+        <div className="space-y-6">
+          <h3 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+            <TrendingDown className="w-4 h-4" />
+            Strategic Insights
+          </h3>
+          <div className="space-y-4">
+            {strategicInsights.map((insight, idx) => (
+              <div key={idx} className="bg-white p-5 rounded-2xl border border-black/[0.03] shadow-sm hover:shadow-md transition-shadow">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{insight.label}</p>
+                <p className="text-xl font-black mt-1 text-primary">{insight.value}</p>
+                <p className="text-[11px] text-muted-foreground mt-2 leading-relaxed italic">{insight.desc}</p>
               </div>
-
-              <div className="bg-primary p-6 rounded-2xl text-primary-foreground shadow-xl relative overflow-hidden group">
-                  <div className="relative z-10">
-                    <h4 className="text-sm font-bold uppercase tracking-widest mb-2 opacity-80">Consultant Note</h4>
-                    <p className="text-xs leading-relaxed font-medium">
-                        Exposure concentration in the first week of June suggests high liquidity demand. Recommend hedging at least 40% of FC obligations.
-                    </p>
-                  </div>
-                  <Sparkles className="absolute -bottom-4 -right-4 w-24 h-24 text-white opacity-10 group-hover:rotate-12 transition-transform duration-500" />
-              </div>
+            ))}
           </div>
+
+          <div className="bg-primary p-6 rounded-2xl text-primary-foreground shadow-xl relative overflow-hidden group">
+            <div className="relative z-10">
+              <h4 className="text-sm font-bold uppercase tracking-widest mb-2 opacity-80">Analyst Note</h4>
+              <p className="text-xs leading-relaxed font-medium">
+                Click any day to drill into individual LCs. Red badges indicate payments due that day. Use the Bank/Status/BOE toggles to slice by dimension.
+              </p>
+            </div>
+            <Sparkles className="absolute -bottom-4 -right-4 w-24 h-24 text-white opacity-10 group-hover:rotate-12 transition-transform duration-500" />
+          </div>
+        </div>
       </div>
 
       <DrillDownModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} data={drillData} title={modalTitle} />
@@ -217,5 +250,4 @@ const CalendarView: React.FC = () => {
   )
 }
 
-import { Sparkles } from 'lucide-react'
 export default CalendarView

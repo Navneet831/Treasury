@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react'
 import { getPETreasury } from '../api'
-import { formatCurrency } from '../utils'
 import { 
   Building2,
   LineChart as LineChartIcon,
@@ -79,11 +78,11 @@ const PETreasury: React.FC = () => {
                 <XAxis dataKey="year" axisLine={false} tickLine={false} tick={{ fontWeight: 'bold' }} />
                 <YAxis hide />
                 <Tooltip 
-                  formatter={(value: any, name: any, props: any) => [`₹${value} Cr`, props.payload.debt_type]}
+                  formatter={(value: any, _name: any, props: any) => [`₹${value} Cr`, props.payload.debt_type]}
                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                 />
                 <Bar dataKey="amount_cr" radius={[4, 4, 0, 0]} barSize={40}>
-                    {data.debt_maturity.map((entry: any, index: number) => (
+                    {data.debt_maturity.map((_entry: any, index: number) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                 </Bar>

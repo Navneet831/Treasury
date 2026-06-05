@@ -5,7 +5,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DB_PATH = os.getenv("DB_PATH", r"..\..\..\..\GrewAnalytics\warehouse.duckdb")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Default to warehouse.duckdb in the root LC directory (one level up from backend)
+DEFAULT_DB_PATH = os.path.join(os.path.dirname(BASE_DIR), "warehouse.duckdb")
+DB_PATH = os.getenv("DB_PATH", DEFAULT_DB_PATH)
 
 def get_db_connection():
     return duckdb.connect(DB_PATH, read_only=True)
