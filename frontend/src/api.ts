@@ -51,6 +51,17 @@ export const getTransactions = async () => {
   return response.data
 }
 
+export const getDrillDown = async (params: { 
+  status?: string, 
+  bank?: string, 
+  boe_status?: string, 
+  date?: string,
+  lifecycle_stage?: string 
+}) => {
+  const response = await api.get('/drill-down', { params })
+  return response.data
+}
+
 export const askAICopilot = async (query: string) => {
   const response = await api.post('/ai-copilot', { query })
   return response.data

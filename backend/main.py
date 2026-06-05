@@ -109,7 +109,7 @@ async def get_executive_overview(currency: str = Query("INR", enum=["INR", "FC"]
 async def get_calendar_data(month: int, year: int, currency: str = Query("INR", enum=["INR", "FC"])):
     amt_col = COL_MAP["amt_inr"] if currency == "INR" else COL_MAP["amt_fc"]
     
-    query = f"""
+    daily_query = f"""
         SELECT 
             {COL_MAP['op_date']} as date,
             SUM(CASE WHEN {COL_MAP['lc_status']} = 'Open' THEN {amt_col} ELSE 0 END) as opened_value,
@@ -120,6 +120,69 @@ async def get_calendar_data(month: int, year: int, currency: str = Query("INR", 
         GROUP BY 1
         ORDER BY 1
     """
+
+    bank_query = f"""
+        SELECT 
+            {COL_MAP['op_date']} as date,
+            {COL_MAP['bank']} as bank,
+            SUM({amt_col}) as value
+        FROM LC
+        WHERE EXTRACT(MONTH FROM {COL_MAP['op_date']}) = {month} AND EXTRACT(YEAR FROM {COL_MAP['op_date']}) = {year}
+        GROUP BY 1, 2
+    """
+
+    status_query = f"""
+        SELECT 
+            {COL_MAP['op_date']} as date,
+            {COL_MAP['lc_status']} as status,
+            SUM({amt_col}) as value
+        FROM LC
+        WHERE EXTRACT(MONTH FROM {COL_MAP['op_date']}) = {month} AND EXTRACT(YEAR FROM {COL_MAP['op_date']}) = {year}
+        GROUP BY 1, 2
+    """
+
+    boe_query = f"""
+        SELECT 
+            {COL_MAP['op_date']} as date,
+            {COL_MAP['boe_status']} as boe_status,
+            SUM({amt_col}) as value
+        FROM LC
+        WHERE EXTRACT(MONTH FROM {COL_MAP['op_date']}) = {month} AND EXTRACT(YEAR FROM {COL_MAP['op_date']}) = {year}
+        GROUP BY 1, 2
+    """
+
+    return {
+        "daily_summary": fetch_dict(daily_query),
+        "bank_breakdown": fetch_dict(bank_query),
+        "status_breakdown": fetch_dict(status_query),
+        "boe_breakdown": fetch_dict(boe_query)
+    }
+
+@app.get("/api/v1/drill-down")
+async def get_drill_down(
+    status: Optional[str] = None, 
+    bank: Optional[str] = None, 
+    boe_status: Optional[str] = None, 
+    date: Optional[str] = None,
+    lifecycle_stage: Optional[str] = None
+):
+    where_clauses = []
+    if status: where_clauses.append(f"{COL_MAP['lc_status']} = '{status}'")
+    if bank: where_clauses.append(f"{COL_MAP['bank']} = '{bank}'")
+    if boe_status: where_clauses.append(f"{COL_MAP['boe_status']} = '{boe_status}'")
+    if date: where_clauses.append(f"{COL_MAP['op_date']} = '{date}'")
+    
+    if lifecycle_stage:
+        if lifecycle_stage == "Open LC": where_clauses.append(f"{COL_MAP['lc_status']} = 'Open'")
+        elif lifecycle_stage == "Shipment Done": where_clauses.append(f"{COL_MAP['shipment_date']} <= '{CURRENT_DATE}'")
+        elif lifecycle_stage == "Docs Received": where_clauses.append('"DOCUMENTS RECEIVED" = \'YES\'')
+        elif lifecycle_stage == "Bill Lodged": where_clauses.append('"Bill Lodge date" IS NOT NULL')
+        elif lifecycle_stage == "Bill Accepted": where_clauses.append('"Bill Acceptance date" IS NOT NULL')
+        elif lifecycle_stage == "Payment Done": where_clauses.append(f"{COL_MAP['payment_status']} = 'Paid'")
+        elif lifecycle_stage == "LC Closed": where_clauses.append(f"{COL_MAP['lc_status']} = 'Closed'")
+
+    where_stmt = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+    query = f'SELECT * FROM LC {where_stmt} ORDER BY {COL_MAP["op_date"]} DESC'
     return fetch_dict(query)
 
 @app.get("/api/v1/bank-exposure")
