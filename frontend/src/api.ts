@@ -56,6 +56,11 @@ export const getTreasuryRadar = async (currency: string, fy: string) => {
   return response.data
 }
 
+export const getAdvancedQuant = async (currency: string, fy: string) => {
+  const response = await api.get('/advanced-quant', { params: { currency, fy } })
+  return response.data
+}
+
 export const getTransactions = async (fy: string) => {
   const response = await api.get('/transactions', { params: { fy } })
   return response.data

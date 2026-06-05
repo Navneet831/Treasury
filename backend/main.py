@@ -451,6 +451,134 @@ async def get_strategic_intelligence(currency: str = Query("INR"), fy: str = Que
         }
     }
 
+@app.get("/api/v1/advanced-quant")
+async def get_advanced_quant(currency: str = Query("INR"), fy: str = Query("All")):
+    amt_col = COL_MAP["amt_inr"] if currency == "INR" else COL_MAP["amt_fc"]
+    fy_filter = get_fy_clause(fy, COL_MAP['op_date'])
+    where = f"WHERE 1=1 {fy_filter}"
+    
+    # Early Warning Index (EWI)
+    # Composites: Upcoming expiries, delayed BOEs, high concentration, short cash runway
+    runway_data = fetch_dict(f"""
+        WITH BankLimits AS (
+            SELECT COALESCE(SUM(CAST(NULLIF(REPLACE("Limit", ',', ''), '') AS DOUBLE)), 0) as total_limit
+            FROM DD WHERE Table_8 = 'Bank' AND Element_8 != ''
+        )
+        SELECT 
+            (SELECT SUM(CASE WHEN {COL_MAP['lc_status']} = 'Open' THEN {amt_col} ELSE 0 END) FROM LC {where}) as open_lc_val,
+            (SELECT total_limit FROM BankLimits) as approx_total_limit
+    """)[0]
+    
+    total_limit = runway_data['approx_total_limit'] or 1
+    open_val = runway_data['open_lc_val'] or 0
+    utilization = min(1.0, open_val / total_limit)
+    
+    overdue_boe_val = fetch_dict(f"SELECT SUM({COL_MAP['boe_pending_inr']}) as val FROM LC {where} AND {COL_MAP['boe_status']} != 'Received' AND date_diff('day', {COL_MAP['op_date']}, '{CURRENT_DATE}'::DATE) > 60")[0]['val'] or 0
+    
+    ewi_score = min(100, (utilization * 50) + ((overdue_boe_val / max(open_val, 1)) * 50))
+    
+    # Network Analysis (Bank -> Supplier flows)
+    network_data = fetch_dict(f"""
+        SELECT {COL_MAP['bank']} as source, {COL_MAP['supplier']} as target, SUM({amt_col}) as value
+        FROM LC {where} AND {COL_MAP['lc_status']} = 'Open'
+        GROUP BY 1, 2
+        ORDER BY 3 DESC
+        LIMIT 15
+    """)
+    
+    # Liquidity at Risk (LAR) - 95% Confidence Interval of worst-case 30-day outflow
+    # Rough estimate: Average 30-day flow + 1.645 * StdDev
+    # Simplified here to 1.5 * Average Monthly Outflow
+    monthly_flows = fetch_dict(f"""
+        SELECT date_trunc('month', {COL_MAP['due_date']}) as m, SUM({amt_col}) as flow
+        FROM LC {where}
+        GROUP BY 1
+    """)
+    flows = [x['flow'] for x in monthly_flows if x['flow']]
+    avg_flow = sum(flows) / len(flows) if flows else 0
+    lar_95 = avg_flow * 1.5 
+    
+    # Stress Test Scenarios
+    # Baseline: Current open
+    # Scenario A (Mild): INR depreciates 5%
+    # Scenario B (Severe): INR drops 10%, Limits cut by 20%
+    fc_exposure = fetch_dict(f"SELECT SUM({COL_MAP['amt_inr']}) as val FROM LC {where} AND {COL_MAP['lc_status']} = 'Open' AND \"Currency\" != 'INR'")[0]['val'] or 0
+    inr_exposure = open_val - fc_exposure
+    
+    stress_tests = [
+        {"scenario": "Baseline", "exposure": open_val, "limit": total_limit, "utilization": utilization * 100},
+        {"scenario": "Mild (FX +5%)", "exposure": inr_exposure + (fc_exposure * 1.05), "limit": total_limit, "utilization": ((inr_exposure + (fc_exposure * 1.05)) / total_limit) * 100},
+        {"scenario": "Severe (FX +10%, Limit -20%)", "exposure": inr_exposure + (fc_exposure * 1.10), "limit": total_limit * 0.8, "utilization": ((inr_exposure + (fc_exposure * 1.10)) / (total_limit * 0.8)) * 100}
+    ]
+
+    return {
+        "early_warning_index": ewi_score,
+        "liquidity_at_risk": lar_95,
+        "network": network_data,
+        "stress_tests": stress_tests
+    }
+
+@app.get("/api/v1/advanced-quant")
+async def get_advanced_quant(currency: str = Query("INR"), fy: str = Query("All")):
+    amt_col = COL_MAP["amt_inr"] if currency == "INR" else COL_MAP["amt_fc"]
+    fy_filter = get_fy_clause(fy, COL_MAP['op_date'])
+    where = f"WHERE 1=1 {fy_filter}"
+    
+    # Early Warning Index (EWI)
+    runway_data = fetch_dict(f"""
+        WITH BankLimits AS (
+            SELECT COALESCE(SUM(CAST(NULLIF(REPLACE("Limit", ',', ''), '') AS DOUBLE)), 0) as total_limit
+            FROM DD WHERE Table_8 = 'Bank' AND Element_8 != ''
+        )
+        SELECT 
+            (SELECT SUM(CASE WHEN {COL_MAP['lc_status']} = 'Open' THEN {amt_col} ELSE 0 END) FROM LC {where}) as open_lc_val,
+            (SELECT total_limit FROM BankLimits) as approx_total_limit
+    """)[0]
+    
+    total_limit = runway_data['approx_total_limit'] or 1
+    open_val = runway_data['open_lc_val'] or 0
+    utilization = min(1.0, open_val / total_limit)
+    
+    overdue_boe_val = fetch_dict(f"SELECT SUM({COL_MAP['boe_pending_inr']}) as val FROM LC {where} AND {COL_MAP['boe_status']} != 'Received' AND date_diff('day', {COL_MAP['op_date']}, '{CURRENT_DATE}'::DATE) > 60")[0]['val'] or 0
+    
+    ewi_score = min(100, (utilization * 50) + ((overdue_boe_val / max(open_val, 1)) * 50))
+    
+    # Network Analysis (Bank -> Supplier flows)
+    network_data = fetch_dict(f"""
+        SELECT {COL_MAP['bank']} as source, {COL_MAP['supplier']} as target, SUM({amt_col}) as value
+        FROM LC {where} AND {COL_MAP['lc_status']} = 'Open'
+        GROUP BY 1, 2
+        ORDER BY 3 DESC
+        LIMIT 15
+    """)
+    
+    # Liquidity at Risk (LAR)
+    monthly_flows = fetch_dict(f"""
+        SELECT date_trunc('month', {COL_MAP['due_date']}) as m, SUM({amt_col}) as flow
+        FROM LC {where}
+        GROUP BY 1
+    """)
+    flows = [x['flow'] for x in monthly_flows if x['flow']]
+    avg_flow = sum(flows) / len(flows) if flows else 0
+    lar_95 = avg_flow * 1.5 
+    
+    # Stress Test Scenarios
+    fc_exposure = fetch_dict(f"SELECT SUM({COL_MAP['amt_inr']}) as val FROM LC {where} AND {COL_MAP['lc_status']} = 'Open' AND \"Currency\" != 'INR'")[0]['val'] or 0
+    inr_exposure = open_val - fc_exposure
+    
+    stress_tests = [
+        {"scenario": "Baseline", "exposure": open_val, "limit": total_limit, "utilization": utilization * 100},
+        {"scenario": "Mild (FX +5%)", "exposure": inr_exposure + (fc_exposure * 1.05), "limit": total_limit, "utilization": ((inr_exposure + (fc_exposure * 1.05)) / total_limit) * 100},
+        {"scenario": "Severe (FX +10%, Limit -20%)", "exposure": inr_exposure + (fc_exposure * 1.10), "limit": total_limit * 0.8, "utilization": ((inr_exposure + (fc_exposure * 1.10)) / (total_limit * 0.8)) * 100}
+    ]
+
+    return {
+        "early_warning_index": ewi_score,
+        "liquidity_at_risk": lar_95,
+        "network": network_data,
+        "stress_tests": stress_tests
+    }
+
 @app.get("/api/v1/transactions")
 async def get_transactions(fy: str = Query("All")):
     fy_filter = get_fy_clause(fy, COL_MAP['op_date'])

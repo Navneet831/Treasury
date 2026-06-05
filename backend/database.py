@@ -17,24 +17,35 @@ def fetch_data(query: str, params=None):
         else:
             return con.execute(query).fetchall()
 
+import math
+
 def fetch_dict(query: str, params=None):
     with get_db_connection() as con:
+        cursor = con.cursor()
         if params:
-            df = con.execute(query, params).df()
+            cursor.execute(query, params)
         else:
-            df = con.execute(query).df()
+            cursor.execute(query)
+            
+        columns = [desc[0] for desc in cursor.description]
+        records = cursor.fetchall()
         
-        records = df.to_dict(orient="records")
-        cleaned = []
+        result = []
         for row in records:
-            clean_row = {}
-            for k, v in row.items():
-                if pd.isna(v):
-                    clean_row[k] = None
+            row_dict = {}
+            for i, val in enumerate(row):
+                if val is None:
+                    row_dict[columns[i]] = None
+                elif isinstance(val, float) and math.isnan(val):
+                    row_dict[columns[i]] = None
                 else:
-                    clean_row[k] = v
-            cleaned.append(clean_row)
-        return cleaned
+                    # Convert datetimes to isoformat strings for safe JSON serialization
+                    if hasattr(val, 'isoformat'):
+                        row_dict[columns[i]] = val.isoformat()
+                    else:
+                        row_dict[columns[i]] = val
+            result.append(row_dict)
+        return result
 
 def fetch_one(query: str, params=None):
     with get_db_connection() as con:

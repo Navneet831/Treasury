@@ -11,7 +11,8 @@ import {
   Search,
   BarChart3,
   Sparkles,
-  Activity
+  Activity,
+  Cpu
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -22,6 +23,7 @@ interface SidebarProps {
 const navItems = [
   { id: 'overview', label: 'Executive Overview', icon: LayoutDashboard },
   { id: 'intelligence', label: 'Strategic Intel', icon: Activity },
+  { id: 'quant', label: 'Advanced Quant', icon: Cpu },
   { id: 'ai', label: 'AI Copilot', icon: Sparkles },
   { id: 'calendar', label: 'Calendar Command', icon: Calendar },
   { id: 'transactions', label: 'All Transactions', icon: BarChart3 },

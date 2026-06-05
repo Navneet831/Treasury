@@ -30,22 +30,40 @@ const TransactionList: React.FC = () => {
   }, [fy])
 
   const columnDefs: ColDef[] = useMemo(() => [
-    { field: 'LC no.', headerName: 'LC Number', pinned: 'left', filter: true },
-    { field: 'Bank Name', filter: true },
-    { field: 'Supplier Name', filter: true },
-    { field: 'LC Op. Date', headerName: 'Opening Date', filter: 'agDateColumnFilter' },
-    { field: 'LC Amt (in INR)', headerName: 'Amount (INR)', valueFormatter: (params: any) => params.value?.toLocaleString('en-IN') },
-    { field: 'Currency', width: 100 },
-    { field: 'Final LC Amt (in FC)', headerName: 'Amount (FC)' },
-    { field: 'LC Status', filter: true, cellClass: (params: any) => params.value === 'Open' ? 'text-green-600 font-bold' : 'text-gray-600' },
-    { field: 'BOE Status', filter: true },
-    { field: 'Payment Status', filter: true },
-    { field: 'Product Name', tooltipField: 'Product Name' },
+    { field: 'LC no.', headerName: 'LC Number', pinned: 'left', filter: true, width: 160 },
+    { field: 'Bank Name', filter: true, width: 120 },
+    { field: 'Supplier Name', filter: true, width: 200 },
+    { field: 'LC Op. Date', headerName: 'Opening Date', filter: 'agDateColumnFilter', width: 130 },
+    { field: 'LC EXPIRY DATE', headerName: 'Expiry Date', filter: 'agDateColumnFilter', width: 130 },
+    { field: 'LC Amt (in INR)', headerName: 'Amount (INR)', valueFormatter: (params: any) => params.value?.toLocaleString('en-IN'), width: 140 },
+    { field: 'Currency', width: 90 },
+    { field: 'Final LC Amt (in FC)', headerName: 'Amount (FC)', width: 140 },
+    { field: 'LC Status', filter: true, width: 110, cellClass: (params: any) => params.value === 'Open' ? 'text-green-600 font-bold' : 'text-gray-600' },
+    
+    // BG / SBLC / Margin Details
+    { field: 'SBLC Status', headerName: 'SBLC Status', filter: true, width: 120 },
+    { field: 'Margin', headerName: 'Margin %', width: 90 },
+    { field: 'FD Number', headerName: 'FD Number', filter: true, width: 140 },
+    { field: 'Margin FD Made', headerName: 'FD Amount', valueFormatter: (params: any) => params.value?.toLocaleString('en-IN'), width: 140 },
+    { field: 'LC Limit Available', headerName: 'Limit Available', valueFormatter: (params: any) => params.value?.toLocaleString('en-IN'), width: 140 },
+
+    // BOE / Shipment Details
+    { field: 'LC SHIPMENT DATE', headerName: 'Shipment Date', filter: 'agDateColumnFilter', width: 130 },
+    { field: 'Bill of Entry No.', headerName: 'BOE Number', filter: true, width: 140 },
+    { field: 'Date of Bill of Entry Submitted to Bank', headerName: 'BOE Date', filter: 'agDateColumnFilter', width: 130 },
+    { field: 'Pending BOE Amt (in INR)', headerName: 'Pending BOE (INR)', valueFormatter: (params: any) => params.value?.toLocaleString('en-IN'), width: 140 },
+    { field: 'BOE Status', filter: true, width: 120 },
+    
+    // Payment Details
+    { field: 'LC Payment Due Date', headerName: 'Due Date', filter: 'agDateColumnFilter', width: 130 },
+    { field: 'Payment Status', filter: true, width: 130 },
+    { field: 'Product Name', tooltipField: 'Product Name', width: 150 },
     { 
       field: 'risk_flag', 
       headerName: 'Risk Flag', 
       filter: true, 
       pinned: 'right',
+      width: 140,
       cellClass: (params: any) => {
         if (params.value === 'Safe') return 'text-green-600 font-bold bg-green-50 text-xs px-2 py-1 rounded'
         if (params.value === 'Expiry Risk') return 'text-orange-600 font-bold bg-orange-50 text-xs px-2 py-1 rounded'
