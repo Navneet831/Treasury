@@ -101,7 +101,7 @@ const CalendarView: React.FC = () => {
 
       return [
           { label: 'Treasury Velocity', value: `${formatCurrency(avg, currency)} / Day`, desc: 'Average daily LC issuance volume.' },
-          { label: 'Peak Exposure Date', value: maxDay?.date || 'N/A', desc: `Highest daily activity recorded at ${formatCurrency(maxDay?.total_value || 0, currency)}.` },
+          { label: 'Peak Exposure Date', value: maxDay?.date ? maxDay.date.split('T')[0] : 'N/A', desc: `Highest daily activity recorded at ${formatCurrency(maxDay?.total_value || 0, currency)}.` },
           { label: 'Operating Efficiency', value: '88.4%', desc: 'Transaction processing time vs. benchmark.' }
       ]
   }, [data, currency])
