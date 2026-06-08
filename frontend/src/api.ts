@@ -1,6 +1,7 @@
 import axios from 'axios'
 
-const API_BASE_URL = window.location.origin === 'http://localhost:5173' ? 'http://localhost:8000/api/v1' : '/api/v1'
+const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API_BASE_URL = isDev ? 'http://127.0.0.1:8080/api/v1' : '/api/v1';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -21,8 +22,8 @@ export const getExecutiveOverview = async (currency: string, fy: string) => {
   return response.data
 }
 
-export const getCalendarData = async (month: number, year: number, currency: string, fy: string) => {
-  const response = await api.get('/calendar', { params: { month, year, currency, fy } })
+export const getCalendarData = async (month: number, year: number, currency: string, fy: string, bank?: string) => {
+  const response = await api.get('/calendar', { params: { month, year, currency, fy, bank } })
   return response.data
 }
 
@@ -92,6 +93,11 @@ export const getDrillDown = async (params: {
   fy?: string
 }) => {
   const response = await api.get('/drill-down', { params })
+  return response.data
+}
+
+export const getCommandData = async (currency: string, fy: string) => {
+  const response = await api.get('/treasury-command', { params: { currency, fy } })
   return response.data
 }
 

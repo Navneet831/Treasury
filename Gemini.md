@@ -1,6 +1,8 @@
 NO mock Data should have fetch all the data from the DB only.
 I want to see LC limits available, LC, SBLC, and cash. Total current NFB limit, FB limit, utilisation, (LC outstanding, LC in process) total LC exposure, SBLC utilisation,  (SBLC outstanding), Available balance, (existing balance - LC outstanding), limit utilisation %, working capital frozen in FD, bank wise, margin wise bifurcation. BOE status wise bifurcation, Outstanding payables, total unpaid bills, hedged vs unhedged bifurcation. in calendar show the payment to be made in each respective date. when select the bank wise, instrument wise outstanding and paid in the calendar, instead of mentioning in the calendar open and close with each transaction mention amount only in the calendar as it clearly visible and colour indicates its status. and bank wise and other relevant filter on the very top of the calendar. also want the daily Reco. of LC opening, Closing , open and closed in each respective day. show all the data as its presentable and insightful and actionable.
 
+
+
 Run the app, and add a .bat to run the app also it should show the URL where the app is running. fix the bug if any, and also implement the
 
 &#x20;  requirement in the gemini.md. anything which is less significant don't show that in the KPI, and can show some relevant as micro KPIs.
@@ -16,13 +18,32 @@ Run the app, and add a .bat to run the app also it should show the URL where the
 &#x20;  app.
 
 NO MOCK DATA AT ANY COST, in calendar command it says due, opened no need to mention this every time, this is to be indicative with the colours.
-every assumption Skills, and methodologies will have to save in the skill.md and that skill.md will be used as the user verification tool and audit to understand each element how derived in the app. 
+every assumption Skills, and methodologies will have to save in the skill.md and that skill.md will be used as the user verification tool and audit to understand each element how derived in the app.
 
 First make each tab, sandboxed in separate and then sandbox each sub element in each tab.
 i want Micro-frontend + domain isolation architecture. Monorepo, Each section of the page should responsible for its own data, its own load, its own error, its own loading state.
 
 
+
 Also i want Architecture map document, mermaid diagram, call graph, folder responsibility map, dependency graph. add agentation (npm install agentation), load Claude mem, graphipyy, claude graph.Search should be elastic search if any.
+
+
+also look the DESIGN-supabase.md, what we can improve, i want the compact and maximum insigts in minimum space, use space,and place the
+
+element intelegently. avoid using the pure white colour use the combination of light colours, keep in mind how we can reduce the cognitive
+
+overload.
+remove the word:Sandbox from the frontend make it professiona,fix the  error:  Failed to load executive overview. Check API connection. whole
+
+
+Do all improvisation as mentioned in the gemini.md, very first add git, second make the app modular, first sandbox tabs, then
+
+each section and do other improvisation mentioned in the gemini.md. 
+
+app is blank fix the same. i want maximum insights in minimum space think how each information important and can it be shows beter way, beter
+
+place and decide the hirarcy space based on the importance. refere the DESIGN-apple.md for refrence.
+
 
 
 Can refer this DB schema for you reference.

@@ -12,60 +12,54 @@ const Header: React.FC = () => {
     return () => clearInterval(timer)
   }, [])
 
-  const timeStr = currentTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-  const dateStr = currentTime.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
+  const timeStr = currentTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+  const dateStr = currentTime.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' })
 
   return (
-    <header className="h-16 border-b bg-white flex items-center justify-between px-6 sticky top-0 z-10 shadow-sm">
-      <div className="flex items-center gap-2">
-        <Coins className="w-6 h-6 text-primary" />
-        <div>
-          <h1 className="text-lg font-black tracking-tight leading-none">LC Analytics Command Center</h1>
-          <p className="text-[10px] text-muted-foreground font-medium">Treasury Operations Platform</p>
+    <header className="h-[52px] border-b border-[#f0f0f0] bg-white/80 backdrop-blur-md flex items-center justify-between px-12 sticky top-0 z-50">
+      <div className="flex items-center gap-8">
+        <div className="flex items-center gap-2">
+           <Coins className="w-5 h-5 text-[#1d1d1f]" />
+           <h1 className="text-[17px] font-bold text-[#1d1d1f] tracking-tight">Treasury Intel</h1>
         </div>
+        
+        <nav className="hidden md:flex items-center gap-6">
+          <span className="text-[12px] font-medium text-[#86868b] cursor-default">{dateStr}</span>
+          <span className="text-[12px] font-bold text-[#1d1d1f] tracking-tighter">{timeStr}</span>
+        </nav>
       </div>
 
-      <div className="flex items-center gap-4">
-        {/* Live Clock */}
-        <div className="flex items-center gap-2 bg-muted/30 px-3 py-1.5 rounded-lg">
-          <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-          <div className="text-right">
-            <p className="text-xs font-black font-mono tracking-tighter leading-none">{timeStr}</p>
-            <p className="text-[9px] text-muted-foreground leading-none mt-0.5">{dateStr}</p>
-          </div>
-        </div>
-
+      <div className="flex items-center gap-6">
         {/* FY Selector */}
-        <div className="flex items-center gap-2 bg-muted p-1 rounded-md">
-          <CalIcon className="w-4 h-4 ml-2 text-muted-foreground" />
+        <div className="flex items-center gap-2">
           <select
             value={fy}
             onChange={(e) => setFy(e.target.value)}
-            className="bg-transparent text-sm font-bold border-none focus:ring-0 outline-none cursor-pointer pr-2"
+            className="bg-transparent text-[12px] font-bold text-[#1d1d1f] border-none focus:ring-0 outline-none cursor-pointer hover:text-[#0066cc] transition-colors"
           >
-            <option value="All">All Years</option>
+            <option value="All">All FY</option>
             <option value="FY25-26">FY 25-26</option>
             <option value="FY26-27">FY 26-27</option>
           </select>
         </div>
 
         {/* Currency Toggle */}
-        <div className="flex bg-muted p-1 rounded-md">
+        <div className="flex gap-4">
           <button
             onClick={() => setCurrency('INR')}
-            className={`px-3 py-1 text-sm font-bold rounded-sm transition-all ${
-              currency === 'INR' ? 'bg-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            className={`text-[12px] font-bold transition-all ${
+              currency === 'INR' ? 'text-[#0066cc]' : 'text-[#86868b] hover:text-[#1d1d1f]'
             }`}
           >
-            ₹ INR
+            INR
           </button>
           <button
             onClick={() => setCurrency('FC')}
-            className={`px-3 py-1 text-sm font-bold rounded-sm transition-all ${
-              currency === 'FC' ? 'bg-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            className={`text-[12px] font-bold transition-all ${
+              currency === 'FC' ? 'text-[#0066cc]' : 'text-[#86868b] hover:text-[#1d1d1f]'
             }`}
           >
-            $ FC
+            FC
           </button>
         </div>
       </div>

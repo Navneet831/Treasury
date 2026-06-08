@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import Header from './components/Header'
 import Sidebar from './components/Sidebar'
+import TreasuryCommand from './components/TreasuryCommand'
 import ExecutiveOverview from './components/ExecutiveOverview'
 import CalendarView from './components/CalendarView'
 import BankExposure from './components/BankExposure'
@@ -57,11 +58,12 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 const App: React.FC = () => {
   const [activePage, setActivePage] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    return params.get('view') || 'overview';
+    return params.get('view') || 'command';
   });
 
   const renderPage = () => {
     switch (activePage) {
+      case 'command': return <TreasuryCommand />
       case 'overview': return <ExecutiveOverview />
       case 'calendar': return <CalendarView />
       case 'bank': return <BankExposure />

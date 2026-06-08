@@ -3,47 +3,19 @@ import { getExecutiveOverview, getDrillDown } from '../api'
 import { useStore } from '../store'
 import KPICard from './KPICard'
 import DrillDownModal from './DrillDownModal'
-import { formatCurrencyCompact, formatNumber, formatPercent } from '../utils'
+import { formatCurrencyCompact, formatNumber } from '../utils'
 import {
   FileText,
   Building2,
   Users,
   Clock,
   AlertCircle,
-  TrendingUp,
   ShieldAlert,
-  CheckCircle2,
-  XCircle,
   AlertTriangle,
   RefreshCw,
-  Zap
+  XCircle,
+  ChevronRight
 } from 'lucide-react'
-
-const HealthGauge: React.FC<{ score: number }> = ({ score }) => {
-  const color = score >= 75 ? 'hsl(var(--success))' : score >= 50 ? 'hsl(var(--warning))' : 'hsl(var(--destructive))'
-  const label = score >= 75 ? 'Healthy' : score >= 50 ? 'Moderate' : 'Critical'
-  return (
-    <div className="relative flex items-center justify-center flex-col">
-      <svg width="120" height="70" viewBox="0 0 120 70">
-        {/* Background arc */}
-        <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="#e2e8f0" strokeWidth="12" strokeLinecap="round" />
-        {/* Value arc */}
-        <path
-          d="M 10 60 A 50 50 0 0 1 110 60"
-          fill="none"
-          stroke={color}
-          strokeWidth="12"
-          strokeLinecap="round"
-          strokeDasharray={`${(score / 100) * 157} 157`}
-        />
-        <text x="60" y="55" textAnchor="middle" fontSize="22" fontWeight="900" fill={color}>
-          {Math.round(score)}
-        </text>
-      </svg>
-      <span className="text-xs font-bold mt-1" style={{ color }}>{label}</span>
-    </div>
-  )
-}
 
 const ExecutiveOverview: React.FC = () => {
   const { currency, fy } = useStore()
@@ -63,7 +35,7 @@ const ExecutiveOverview: React.FC = () => {
       setData(result)
       setLastRefresh(new Date())
     } catch (err: any) {
-      setError('Failed to load executive overview. Check API connection.')
+      setError('System connection error. Executive intelligence unavailable.')
       console.error('Error fetching executive overview:', err)
     } finally {
       setLoading(false)
@@ -83,15 +55,10 @@ const ExecutiveOverview: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="md:col-span-3 grid grid-cols-2 lg:grid-cols-4 gap-6">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="bg-white border rounded-xl p-6 shadow-sm animate-pulse">
-              <div className="h-3 w-24 bg-muted rounded mb-3" />
-              <div className="h-8 w-32 bg-muted rounded mb-2" />
-              <div className="h-3 w-20 bg-muted rounded" />
-            </div>
-          ))}
+      <div className="p-12 animate-pulse space-y-12">
+        <div className="h-12 w-1/3 bg-[#f5f5f7] rounded-lg" />
+        <div className="grid grid-cols-4 gap-6">
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-32 bg-[#f5f5f7] rounded-[18px]" />)}
         </div>
       </div>
     )
@@ -99,11 +66,12 @@ const ExecutiveOverview: React.FC = () => {
 
   if (error) {
     return (
-      <div className="p-8 flex flex-col items-center justify-center gap-4 h-[400px]">
-        <XCircle className="w-12 h-12 text-destructive" />
-        <p className="text-destructive font-bold">{error}</p>
-        <button onClick={fetchData} className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-bold text-sm">
-          <RefreshCw className="w-4 h-4" /> Retry
+      <div className="p-20 flex flex-col items-center justify-center text-center">
+        <XCircle className="w-12 h-12 text-[#dc2626] mb-4 opacity-20" />
+        <h3 className="text-[24px] font-bold text-[#1d1d1f] mb-2">Connectivity Offline</h3>
+        <p className="text-[#86868b] mb-8 max-w-sm">{error}</p>
+        <button onClick={fetchData} className="px-6 py-3 bg-[#0066cc] text-white rounded-full font-bold text-[14px] hover:bg-[#0071e3] transition-colors">
+          Retry Connection
         </button>
       </div>
     )
@@ -112,177 +80,142 @@ const ExecutiveOverview: React.FC = () => {
   if (!data) return null
 
   const kpis = data.kpis
-  const healthScore = kpis.treasury_health_score || 0
-
-  // CFO Decision Box items
-  const decisions: Array<{ level: 'red' | 'orange' | 'green', message: string }> = []
-  if (kpis.overdue_payments > 0) decisions.push({ level: 'red', message: `₹${(kpis.overdue_payments / 1e7).toFixed(2)} Cr payments are OVERDUE — immediate action needed` })
-  if (kpis.expired_lcs > 0) decisions.push({ level: 'red', message: `${kpis.expired_lcs} LCs have expired while still Open — must be closed/amended` })
-  if (kpis.upcoming_due_7d > 0) decisions.push({ level: 'orange', message: `${currency} ${formatCurrencyCompact(kpis.upcoming_due_7d, currency)} due within 7 days — arrange liquidity now` })
-  if (kpis.limit_utilization_pct > 85) decisions.push({ level: 'orange', message: `Limit utilization at ${kpis.limit_utilization_pct}% — near exhaustion, talk to banks` })
-  if (kpis.upcoming_due_30d > 0) decisions.push({ level: 'orange', message: `${formatCurrencyCompact(kpis.upcoming_due_30d, currency)} payable in next 30 days — plan cash reserves` })
-  if (data.top_bank_concentration?.pct > 50) decisions.push({ level: 'orange', message: `${data.top_bank_concentration.bank} holds ${data.top_bank_concentration.pct}% of exposure — diversify` })
-  if (decisions.length === 0) decisions.push({ level: 'green', message: 'No critical actions required today — treasury is stable.' })
 
   return (
-    <div className="p-10 space-y-8 min-h-[calc(100vh-64px)] animate-slide-up-fade bg-grid-pattern text-balance relative">
-      {/* Header row */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Executive Overview</h2>
-          <p className="text-xs text-muted-foreground mt-1">Last refreshed: {lastRefresh.toLocaleTimeString()}</p>
-        </div>
-        <button onClick={fetchData} className="flex items-center gap-2 px-3 py-2 border rounded-lg text-sm font-bold hover:bg-muted transition-colors">
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </button>
-      </div>
-
-      {/* Row 1 — Core KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <KPICard
-          title="Open LC Value"
-          value={formatCurrencyCompact(kpis.open_lc_value, currency)}
-          description={`${formatNumber(kpis.open_lc_count)} active LCs`}
-          icon={<FileText />}
-          onClick={() => handleDrillDown('open_lc', 'Currently Open LCs')}
-        />
-        <KPICard
-          title="Active Banks"
-          value={formatNumber(kpis.active_banks)}
-          description="Total participating banks"
-          icon={<Building2 />}
-        />
-        <KPICard
-          title="Active Suppliers"
-          value={formatNumber(kpis.active_suppliers)}
-          description="Total active counterparts"
-          icon={<Users />}
-        />
-        <KPICard
-          title="Pending BOE Value"
-          value={formatCurrencyCompact(kpis.pending_boe_value, currency)}
-          description="Bill of Entry outstanding"
-          icon={<AlertCircle />}
-          onClick={() => handleDrillDown('pending_boe', 'Pending Bill of Entries')}
-        />
-      </div>
-
-      {/* Row 2 — Payments & Alerts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <KPICard
-          title="Upcoming Payments (7D)"
-          value={formatCurrencyCompact(kpis.upcoming_due_7d, currency)}
-          description="Unpaid obligations due this week"
-          icon={<Clock />}
-          variant={kpis.upcoming_due_7d > 0 ? 'warning' : 'default'}
-          onClick={() => handleDrillDown('upcoming_7d', 'Payments Due in 7 Days')}
-        />
-        <KPICard
-          title="Upcoming Payments (30D)"
-          value={formatCurrencyCompact(kpis.upcoming_due_30d, currency)}
-          description="Next month's cash requirement"
-          icon={<Clock />}
-          onClick={() => handleDrillDown('upcoming_30d', 'Payments Due in 30 Days')}
-        />
-        <KPICard
-          title="Overdue Payments"
-          value={formatCurrencyCompact(kpis.overdue_payments, currency)}
-          description="Past maturity, unpaid"
-          icon={<ShieldAlert />}
-          variant={kpis.overdue_payments > 0 ? 'danger' : 'default'}
-          onClick={() => handleDrillDown('overdue', 'Overdue Payments')}
-        />
-        <KPICard
-          title="Expired LCs (Open)"
-          value={formatNumber(kpis.expired_lcs)}
-          description="Expired but still open — action needed"
-          icon={<AlertTriangle />}
-          variant={kpis.expired_lcs > 0 ? 'danger' : 'default'}
-        />
-      </div>
-
-      {/* Row 3 — Limit & Health */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Treasury Health Score */}
-        <div className="glass-card rounded-xl p-6 flex flex-col justify-between">
+    <div className="bg-white min-h-screen">
+      <section className="px-12 pt-16 pb-12">
+        <div className="max-w-[1200px] mx-auto flex justify-between items-end">
           <div>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-1 flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 text-primary" />
-              Treasury Health
-            </h3>
-            <p className="text-[10px] text-muted-foreground leading-tight">Multi-factor risk & liquidity score</p>
+            <h1 className="text-[56px] font-bold text-[#1d1d1f] tracking-[-0.02em] leading-[1.07]">Intelligence.</h1>
+            <p className="text-[24px] text-[#86868b] mt-4 font-normal tracking-tight leading-[1.4]">
+              High-level decision metrics for treasury management.
+            </p>
           </div>
-          <div className="flex-1 flex items-center justify-center mt-6">
-            <HealthGauge score={healthScore} />
-            <div className="space-y-2 flex-1">
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Limit Utilization</span>
-                <span className={`font-bold ${kpis.limit_utilization_pct > 80 ? 'text-red-600' : 'text-green-600'}`}>
-                  {formatPercent(kpis.limit_utilization_pct)}
-                </span>
+          <p className="text-[12px] font-bold text-[#86868b] tracking-wider uppercase mb-2">Updated: {lastRefresh.toLocaleTimeString()}</p>
+        </div>
+      </section>
+
+      <section className="px-12 pb-12">
+        <div className="max-w-[1200px] mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+           <KPICard
+            title="Open LC Value"
+            value={formatCurrencyCompact(kpis.open_lc_value, currency)}
+            description={`${formatNumber(kpis.open_lc_count)} Active instruments`}
+            icon={<FileText />}
+            onClick={() => handleDrillDown('open_lc', 'Currently Open LCs')}
+          />
+          <KPICard
+            title="Counterparties"
+            value={formatNumber(kpis.active_suppliers)}
+            description="Active global suppliers"
+            icon={<Users />}
+          />
+          <KPICard
+            title="Bank Exposure"
+            value={formatNumber(kpis.active_banks)}
+            description="Participating institutions"
+            icon={<Building2 />}
+          />
+          <KPICard
+            title="Pending BOE"
+            value={formatCurrencyCompact(kpis.pending_boe_value, currency)}
+            description="Outstanding compliance value"
+            icon={<AlertCircle />}
+            variant={kpis.pending_boe_value > 0 ? 'warning' : 'default'}
+            onClick={() => handleDrillDown('pending_boe', 'Pending Bill of Entries')}
+          />
+        </div>
+      </section>
+
+      <section className="px-12 pb-24">
+        <div className="max-w-[1200px] mx-auto grid grid-cols-1 lg:grid-cols-3 gap-12">
+          {/* Liquidity Alerts */}
+          <div className="lg:col-span-2 space-y-8">
+            <h2 className="text-[24px] font-bold text-[#1d1d1f]">Liquidity Operations</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div 
+                onClick={() => handleDrillDown('upcoming_7d', 'Payments Due in 7 Days')}
+                className="p-8 rounded-[18px] border border-[#f0f0f0] hover:border-[#0066cc] cursor-pointer transition-all group"
+              >
+                <div className="flex justify-between items-start mb-6">
+                  <Clock className="w-5 h-5 text-[#86868b] group-hover:text-[#0066cc]" />
+                  <span className="text-[10px] font-bold text-[#0066cc] uppercase tracking-wider">7-Day Outlook</span>
+                </div>
+                <h3 className="text-[14px] font-bold text-[#86868b] uppercase tracking-tight mb-1">Upcoming Payments</h3>
+                <p className="text-[32px] font-bold text-[#1d1d1f] tracking-tighter">{formatCurrencyCompact(kpis.upcoming_due_7d, currency)}</p>
+                <p className="text-[12px] text-[#86868b] mt-4 flex items-center gap-1 group-hover:text-[#0066cc]">
+                  View Maturity Schedule <ChevronRight className="w-4 h-4" />
+                </p>
               </div>
-              <div className="w-full bg-muted h-1.5 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${kpis.limit_utilization_pct > 85 ? 'bg-red-500' : kpis.limit_utilization_pct > 60 ? 'bg-orange-500' : 'bg-green-500'}`}
-                  style={{ width: `${Math.min(kpis.limit_utilization_pct || 0, 100)}%` }}
+
+              <div 
+                onClick={() => handleDrillDown('overdue', 'Overdue Payments')}
+                className="p-8 rounded-[18px] border border-[#f0f0f0] hover:border-[#dc2626] cursor-pointer transition-all group"
+              >
+                <div className="flex justify-between items-start mb-6">
+                  <ShieldAlert className="w-5 h-5 text-[#dc2626]" />
+                  <span className="text-[10px] font-bold text-[#dc2626] uppercase tracking-wider">Critical Risk</span>
+                </div>
+                <h3 className="text-[14px] font-bold text-[#86868b] uppercase tracking-tight mb-1">Overdue Portfolio</h3>
+                <p className="text-[32px] font-bold text-[#dc2626] tracking-tighter">{formatCurrencyCompact(kpis.overdue_payments, currency)}</p>
+                <p className="text-[12px] text-[#86868b] mt-4 flex items-center gap-1 group-hover:text-[#dc2626]">
+                  Immediate Action Required <ChevronRight className="w-4 h-4" />
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-[#f5f5f7] p-8 rounded-[24px]">
+               <h3 className="text-[17px] font-bold text-[#1d1d1f] mb-6">Strategic Insights</h3>
+               <ul className="space-y-4">
+                 {data.insights.map((insight: string, idx: number) => (
+                   <li key={idx} className="flex items-start gap-4 text-[14px] text-[#1d1d1f] font-medium leading-[1.5]">
+                     <div className="w-1.5 h-1.5 rounded-full bg-[#0066cc] mt-1.5 flex-shrink-0" />
+                     {insight}
+                   </li>
+                 ))}
+               </ul>
+            </div>
+          </div>
+
+          {/* Concentration Risk */}
+          <div className="space-y-8">
+            <h2 className="text-[24px] font-bold text-[#1d1d1f]">Risk Profile</h2>
+            <div className="bg-white p-8 rounded-[18px] border border-[#f0f0f0]">
+              <h3 className="text-[14px] font-bold text-[#86868b] uppercase tracking-wider mb-6">Top Bank Concentration</h3>
+              <div className="flex items-end justify-between mb-4">
+                <span className="text-[32px] font-bold text-[#1d1d1f] tracking-tighter">{data.top_bank_concentration.pct}%</span>
+                <span className="text-[14px] font-bold text-[#86868b] mb-1">{data.top_bank_concentration.bank}</span>
+              </div>
+              <div className="w-full bg-[#f5f5f7] h-2 rounded-full overflow-hidden">
+                <div 
+                  className="bg-[#0066cc] h-full transition-all duration-1000" 
+                  style={{ width: `${data.top_bank_concentration.pct}%` }} 
                 />
               </div>
-              <div className="flex justify-between text-xs mt-2">
-                <span className="text-muted-foreground">Available Limit</span>
-                <span className="font-bold text-green-600">{formatCurrencyCompact(kpis.available_lc_limit, currency)}</span>
+              <p className="text-[12px] text-[#86868b] mt-6 leading-[1.5]">
+                Exposure concentration at {data.top_bank_concentration.bank} should be monitored against internal diversification limits.
+              </p>
+            </div>
+
+            <div className="bg-white p-8 rounded-[18px] border border-[#f0f0f0]">
+              <div className="flex items-center gap-3 mb-4 text-[#d97706]">
+                <AlertTriangle className="w-5 h-5" />
+                <span className="text-[14px] font-bold uppercase tracking-wider">Compliance Alert</span>
               </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Closing This Month</span>
-                <span className="font-bold">{kpis.lcs_closing_this_month}</span>
-              </div>
+              <p className="text-[14px] text-[#1d1d1f] font-medium leading-[1.5]">
+                {kpis.expired_lcs} LCs have passed expiry but remain open in system.
+              </p>
             </div>
           </div>
         </div>
+      </section>
 
-        {/* AI Insights */}
-        <div className="bg-white p-6 rounded-xl border shadow-sm">
-          <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-primary" />
-            Executive AI Insights
-          </h3>
-          <ul className="space-y-3">
-            {data.insights.map((insight: string, idx: number) => (
-              <li key={idx} className="flex gap-3 text-sm p-3 bg-muted/30 rounded-lg">
-                <span className="text-primary mt-0.5">•</span>
-                <span className="leading-relaxed">{insight}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* CFO Decision Box */}
-        <div className="bg-white p-6 rounded-xl border shadow-sm">
-          <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-            <Zap className="w-5 h-5 text-amber-500" />
-            CFO Decision Box
-          </h3>
-          <p className="text-xs text-muted-foreground mb-4">What requires your attention today?</p>
-          <div className="space-y-3">
-            {decisions.map((d, idx) => (
-              <div key={idx} className={`flex gap-3 p-3 rounded-lg text-sm ${
-                d.level === 'red' ? 'bg-red-50 border border-red-100' :
-                d.level === 'orange' ? 'bg-orange-50 border border-orange-100' :
-                'bg-green-50 border border-green-100'
-              }`}>
-                {d.level === 'red' ? <XCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" /> :
-                 d.level === 'orange' ? <AlertTriangle className="w-4 h-4 text-orange-600 flex-shrink-0 mt-0.5" /> :
-                 <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />}
-                <span className={`font-medium text-xs leading-relaxed ${
-                  d.level === 'red' ? 'text-red-800' : d.level === 'orange' ? 'text-orange-800' : 'text-green-800'
-                }`}>{d.message}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <DrillDownModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} data={drillData} title={modalTitle} />
+      <DrillDownModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={modalTitle}
+        data={drillData}
+      />
     </div>
   )
 }

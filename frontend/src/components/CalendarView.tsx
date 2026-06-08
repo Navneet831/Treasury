@@ -1,41 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { Sparkles, ChevronLeft, ChevronRight, Filter, TrendingDown, Target, Building, ShieldAlert } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Building, Calendar as CalIcon } from 'lucide-react'
 import { getCalendarData, getDrillDown } from '../api'
 import { useStore } from '../store'
-import { formatCurrency } from '../utils'
+import { formatCurrencyCompact } from '../utils'
 import DrillDownModal from './DrillDownModal'
-
-const VIEW_MODES = [
-  { id: 'summary', label: 'Summary', icon: Target },
-  { id: 'bank', label: 'By Bank', icon: Building },
-  { id: 'status', label: 'By Status', icon: ShieldAlert },
-  { id: 'boe', label: 'By BOE', icon: Filter },
-]
-
-const COLORS: Record<string, string> = {
-  'ICICI BANK': 'bg-blue-600',
-  'HDFC BANK': 'bg-red-600',
-  'SBI BANK': 'bg-green-600',
-  'YES BANK': 'bg-orange-600',
-  'Open': 'bg-emerald-500',
-  'Closed': 'bg-slate-400',
-  'Cancelled': 'bg-red-500',
-  'Received': 'bg-indigo-500',
-  'Not Received': 'bg-amber-500',
-}
-
-const getFallbackColor = (str: string) => {
-  const hash = str.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
-  const colors = ['bg-indigo-600', 'bg-pink-600', 'bg-teal-600', 'bg-cyan-600', 'bg-rose-600', 'bg-violet-600', 'bg-fuchsia-600']
-  return colors[hash % colors.length]
-}
 
 const CalendarView: React.FC = () => {
   const { currency, fy } = useStore()
   const [currentDate, setCurrentDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1))
-  const [viewMode, setViewMode] = useState('summary')
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  
+  // Filters
+  const [selectedBank, setSelectedBank] = useState<string>('All')
+  
   const [drillData, setDrillData] = useState<any[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalTitle, setModalTitle] = useState('')
@@ -44,7 +22,7 @@ const CalendarView: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const result = await getCalendarData(currentDate.getMonth() + 1, currentDate.getFullYear(), currency, fy)
+        const result = await getCalendarData(currentDate.getMonth() + 1, currentDate.getFullYear(), currency, fy, selectedBank)
         setData(result)
       } catch (error) {
         console.error('Calendar load error:', error)
@@ -53,12 +31,11 @@ const CalendarView: React.FC = () => {
       }
     }
     fetchData()
-  }, [currentDate, currency, fy])
+  }, [currentDate, currency, fy, selectedBank])
 
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate()
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay()
 
-  // FIX: include all needed dependencies in useMemo
   const days = useMemo(() => {
     const arr: (number | null)[] = []
     for (let i = 0; i < firstDayOfMonth; i++) arr.push(null)
@@ -66,16 +43,18 @@ const CalendarView: React.FC = () => {
     return arr
   }, [daysInMonth, firstDayOfMonth])
 
-  const onCellClick = async (day: number, subItem?: string) => {
+  const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))
+  const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))
+
+  const onCellClick = async (day: number, type: string) => {
     const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
     const params: any = { date: dateStr, fy }
-    let title = `Transactions for ${dateStr}`
+    if (selectedBank !== 'All') params.bank = selectedBank
 
-    if (subItem) {
-      if (viewMode === 'bank') { params.bank = subItem; title = `${subItem} on ${dateStr}` }
-      if (viewMode === 'status') { params.status = subItem; title = `LC Status: ${subItem} on ${dateStr}` }
-      if (viewMode === 'boe') { params.boe_status = subItem; title = `BOE: ${subItem} on ${dateStr}` }
-    }
+    let title = `Details for ${dateStr}`
+    if (type === 'opened') title = `Opened LCs on ${dateStr}`
+    if (type === 'closed') title = `Closed LCs on ${dateStr}`
+    if (type === 'due') title = `Payments Due on ${dateStr}`
 
     try {
       const result = await getDrillDown(params)
@@ -89,163 +68,134 @@ const CalendarView: React.FC = () => {
     if (!data) return []
     const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 
-    if (viewMode === 'bank') return data.bank_breakdown.filter((d: any) => d.date?.startsWith(dateStr)).map((d: any) => ({ label: d.bank, value: d.value }))
-    if (viewMode === 'status') return data.status_breakdown.filter((d: any) => d.date?.startsWith(dateStr)).map((d: any) => ({ label: d.status, value: d.value }))
-    if (viewMode === 'boe') return data.boe_breakdown.filter((d: any) => d.date?.startsWith(dateStr)).map((d: any) => ({ label: d.boe_status, value: d.value }))
-
-    const summary = data.daily_summary.find((d: any) => d.date?.startsWith(dateStr))
-    const dueItems = data.due_breakdown?.filter((d: any) => d.date?.startsWith(dateStr)) || []
     const items = []
-    if (summary?.total_value) items.push({ label: 'Opened', value: summary.total_value, type: 'open' })
-    if (dueItems.length > 0) items.push({ label: 'Due', value: dueItems.reduce((a: number, d: any) => a + (d.due_value || 0), 0), type: 'due' })
+    
+    // Opened
+    const openedItems = (data.opened || []).filter((d: any) => d.date?.startsWith(dateStr))
+    const totalOpened = openedItems.reduce((acc: number, val: any) => acc + (val.opened_value || 0), 0)
+    if (totalOpened > 0) items.push({ value: totalOpened, color: 'bg-[#0066cc]', type: 'opened' })
+
+    // Closed
+    const closedItems = (data.closed || []).filter((d: any) => d.date?.startsWith(dateStr))
+    const totalClosed = closedItems.reduce((acc: number, val: any) => acc + (val.closed_value || 0), 0)
+    if (totalClosed > 0) items.push({ value: totalClosed, color: 'bg-[#333333]', type: 'closed' })
+
+    // Due
+    const dueItems = (data.due || []).filter((d: any) => d.date?.startsWith(dateStr))
+    dueItems.forEach((item: any) => {
+      if (item.due_value > 0) {
+        const isPaid = item.payment_status === 'Paid'
+        items.push({ 
+          value: item.due_value, 
+          color: isPaid ? 'bg-[#86868b]' : 'bg-[#dc2626]', 
+          type: 'due' 
+        })
+      }
+    })
+
     return items
   }
 
-  const strategicInsights = useMemo(() => {
-    if (!data || !data.daily_summary?.length) return []
-    const summary = data.daily_summary
-    const total = summary.reduce((acc: number, d: any) => acc + (d.total_value || 0), 0)
-    const avg = total / summary.length
-    const maxDay = [...summary].sort((a: any, b: any) => (b.total_value || 0) - (a.total_value || 0))[0]
-
-    // Compute efficiency from due vs opened
-    const dueTotal = data.due_breakdown?.reduce((a: number, d: any) => a + (d.due_value || 0), 0) || 0
-    const openedTotal = summary.reduce((a: number, d: any) => a + (d.opened_value || 0), 0)
-    const efficiency = openedTotal > 0 ? Math.min(100, (1 - (dueTotal / openedTotal)) * 100).toFixed(1) + '%' : 'N/A'
-
-    return [
-      { label: 'Treasury Velocity', value: `${formatCurrency(avg, currency)} / Day`, desc: 'Average daily LC issuance volume for this month.' },
-      { label: 'Peak Exposure Date', value: maxDay?.date ? String(maxDay.date).split('T')[0] : 'N/A', desc: `Highest daily activity at ${formatCurrency(maxDay?.total_value || 0, currency)}.` },
-      { label: 'Obligation Coverage', value: efficiency, desc: 'Ratio of due obligations to opened LCs this month.' }
-    ]
-  }, [data, currency])
-
-  if (loading) {
-    return (
-      <div className="p-8 space-y-6">
-        <div className="h-8 w-64 bg-muted animate-pulse rounded" />
-        <div className="bg-white border rounded-2xl overflow-hidden shadow-xl">
-          <div className="grid grid-cols-7 bg-muted/50 border-b">
-            {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
-              <div key={d} className="py-4 text-center text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">{d}</div>
-            ))}
-          </div>
-          <div className="grid grid-cols-7">
-            {Array.from({length: 35}).map((_, i) => (
-              <div key={i} className="h-36 border-b border-r bg-muted/5 animate-pulse" />
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className="p-8 space-y-6">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-        <div>
-          <h2 className="text-2xl font-bold">Calendar Command Center</h2>
-          <p className="text-sm text-muted-foreground">Strategic distribution of LC issuance and obligation mapping.</p>
-        </div>
-
-        <div className="flex items-center gap-3 bg-white p-1.5 border rounded-xl shadow-sm overflow-x-auto">
-          {VIEW_MODES.map(m => (
-            <button
-              key={m.id}
-              onClick={() => setViewMode(m.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-                viewMode === m.id ? 'bg-primary text-primary-foreground shadow-lg scale-[1.02]' : 'text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              <m.icon className="w-3.5 h-3.5" />
-              {m.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-4 bg-white border rounded-xl p-1.5 shadow-sm">
-          <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))} className="p-2 hover:bg-muted rounded-lg transition-colors">
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <span className="text-sm font-black min-w-[140px] text-center uppercase tracking-tighter">
-            {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
-          </span>
-          <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))} className="p-2 hover:bg-muted rounded-lg transition-colors">
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        <div className="lg:col-span-3">
-          <div className="bg-white border rounded-2xl overflow-hidden shadow-xl border-black/[0.03]">
-            <div className="grid grid-cols-7 bg-muted/50 border-b">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                <div key={day} className="py-4 text-center text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
-                  {day}
-                </div>
-              ))}
-            </div>
-            <div className="grid grid-cols-7">
-              {days.map((day, idx) => {
-                if (day === null) return <div key={`empty-${idx}`} className="h-36 border-b border-r last:border-r-0 bg-muted/5" />
-                const details = getDayDetails(day)
-                const hasActivity = details.length > 0
-                return (
-                  <div
-                    key={day}
-                    className={`h-36 border-b border-r last:border-r-0 p-2 flex flex-col gap-1.5 hover:bg-muted/10 transition-colors group relative cursor-pointer ${hasActivity ? 'bg-blue-50/30' : ''}`}
-                    onClick={() => onCellClick(day)}
-                  >
-                    <span className="text-sm font-black text-muted-foreground/40 group-hover:text-primary transition-colors">{day}</span>
-                    <div className="flex flex-col gap-1 overflow-y-auto custom-scrollbar pr-1">
-                      {details.map((item: any, i: number) => (
-                        <div
-                          key={i}
-                          onClick={(e) => { e.stopPropagation(); onCellClick(day, item.label) }}
-                          className={`text-[9px] px-2 py-1 rounded-md text-white font-bold truncate hover:scale-[1.03] transition-transform active:scale-[0.98] ${
-                            item.type === 'due' ? 'bg-red-500' : (COLORS[item.label] || getFallbackColor(item.label))
-                          }`}
-                        >
-                          {item.label}: {formatCurrency(item.value, currency)}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          <h3 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-            <TrendingDown className="w-4 h-4" />
-            Strategic Insights
-          </h3>
-          <div className="space-y-4">
-            {strategicInsights.map((insight, idx) => (
-              <div key={idx} className="bg-white p-5 rounded-2xl border border-black/[0.03] shadow-sm hover:shadow-md transition-shadow">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{insight.label}</p>
-                <p className="text-xl font-black mt-1 text-primary">{insight.value}</p>
-                <p className="text-[11px] text-muted-foreground mt-2 leading-relaxed italic">{insight.desc}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="bg-primary p-6 rounded-2xl text-primary-foreground shadow-xl relative overflow-hidden group">
-            <div className="relative z-10">
-              <h4 className="text-sm font-bold uppercase tracking-widest mb-2 opacity-80">Analyst Note</h4>
-              <p className="text-xs leading-relaxed font-medium">
-                Click any day to drill into individual LCs. Red badges indicate payments due that day. Use the Bank/Status/BOE toggles to slice by dimension.
+    <div className="bg-white min-h-screen">
+      <section className="px-12 pt-16 pb-12">
+        <div className="max-w-[1200px] mx-auto flex flex-col md:flex-row justify-between items-end gap-8">
+           <div>
+              <h1 className="text-[56px] font-bold text-[#1d1d1f] tracking-[-0.02em] leading-[1.07]">Schedules.</h1>
+              <p className="text-[24px] text-[#86868b] mt-4 font-normal tracking-tight leading-[1.4]">
+                Maturity tracking and operational timeline.
               </p>
-            </div>
-            <Sparkles className="absolute -bottom-4 -right-4 w-24 h-24 text-white opacity-10 group-hover:rotate-12 transition-transform duration-500" />
-          </div>
+           </div>
+           
+           <div className="flex items-center gap-6 bg-[#f5f5f7] p-1.5 rounded-full px-4">
+              <button onClick={prevMonth} className="p-1 hover:text-[#0066cc] transition-colors"><ChevronLeft className="w-4 h-4" /></button>
+              <span className="text-[14px] font-bold text-[#1d1d1f] min-w-[140px] text-center">
+                {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+              </span>
+              <button onClick={nextMonth} className="p-1 hover:text-[#0066cc] transition-colors"><ChevronRight className="w-4 h-4" /></button>
+           </div>
         </div>
-      </div>
+      </section>
 
-      <DrillDownModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} data={drillData} title={modalTitle} />
+      <section className="px-12 pb-24">
+        <div className="max-w-[1200px] mx-auto space-y-8">
+           <div className="flex items-center justify-between border-b border-[#f0f0f0] pb-6">
+              <div className="flex items-center gap-2 bg-white border border-[#e0e0e0] px-3 py-1.5 rounded-full shadow-sm">
+                <Building className="w-3.5 h-3.5 text-[#86868b]" />
+                <select 
+                  className="text-[12px] font-bold bg-transparent outline-none cursor-pointer"
+                  value={selectedBank}
+                  onChange={(e) => setSelectedBank(e.target.value)}
+                >
+                  <option value="All">All Banks</option>
+                  <option value="ICICI BANK">ICICI Bank</option>
+                  <option value="HDFC BANK">HDFC Bank</option>
+                  <option value="SBI BANK">SBI</option>
+                  <option value="YES BANK">Yes Bank</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-6">
+                 <div className="flex items-center gap-2 text-[11px] font-bold text-[#86868b]">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#0066cc]" /> Opened
+                 </div>
+                 <div className="flex items-center gap-2 text-[11px] font-bold text-[#86868b]">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#333333]" /> Closed
+                 </div>
+                 <div className="flex items-center gap-2 text-[11px] font-bold text-[#86868b]">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#86868b]" /> Paid
+                 </div>
+                 <div className="flex items-center gap-2 text-[11px] font-bold text-[#86868b]">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#dc2626]" /> Unpaid Due
+                 </div>
+              </div>
+           </div>
+
+           <div className="bg-white rounded-[24px] border border-[#f0f0f0] overflow-hidden">
+              <div className="grid grid-cols-7 bg-[#fafafa] border-b border-[#f0f0f0]">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                  <div key={day} className="py-4 text-center text-[10px] font-black text-[#86868b] uppercase tracking-widest">
+                    {day}
+                  </div>
+                ))}
+              </div>
+
+              {loading ? (
+                <div className="h-[600px] flex items-center justify-center text-[#86868b] font-medium animate-pulse">Synchronizing Schedules...</div>
+              ) : (
+                <div className="grid grid-cols-7 h-[700px]">
+                  {days.map((day, i) => (
+                    <div key={i} className={`border-r border-b border-[#f0f0f0] last:border-r-0 p-4 transition-colors ${!day ? 'bg-[#fafafa]' : 'hover:bg-[#fafafa]'}`}>
+                      {day && (
+                        <>
+                          <span className="text-[13px] font-bold text-[#1d1d1f] mb-3 block opacity-40">{day}</span>
+                          <div className="space-y-1.5 overflow-y-auto max-h-[100px] no-scrollbar">
+                            {getDayDetails(day).map((item, idx) => (
+                              <div 
+                                key={idx} 
+                                onClick={() => onCellClick(day, item.type)}
+                                className={`${item.color} text-white text-[10px] font-bold px-2 py-1 rounded-md cursor-pointer hover:opacity-80 transition-all flex justify-between shadow-sm`}
+                              >
+                                <span>{formatCurrencyCompact(item.value, currency)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+           </div>
+        </div>
+      </section>
+
+      <DrillDownModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={modalTitle}
+        data={drillData}
+      />
     </div>
   )
 }

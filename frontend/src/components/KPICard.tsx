@@ -10,55 +10,37 @@ interface KPICardProps {
   trend?: { value: number; label: string }
 }
 
-const variantStyles = {
-  default: 'bg-white border',
-  warning: 'bg-orange-50 border-orange-200',
-  danger: 'bg-red-50 border-red-200',
-  success: 'bg-green-50 border-green-100',
-}
-
-const iconStyles = {
-  default: 'bg-primary/5 text-primary',
-  warning: 'bg-orange-100 text-orange-600',
-  danger: 'bg-red-100 text-red-600',
-  success: 'bg-green-100 text-green-600',
-}
-
-const valueStyles = {
-  default: 'text-foreground',
-  warning: 'text-orange-800',
-  danger: 'text-red-800',
-  success: 'text-green-800',
-}
-
-const KPICard: React.FC<KPICardProps> = ({ title, value, description, icon, onClick, variant = 'default', trend }) => {
+const KPICard: React.FC<KPICardProps> = ({ title, value, description, icon, onClick, variant = 'default' }) => {
+  const isDanger = variant === 'danger'
+  const isWarning = variant === 'warning'
+  
   return (
     <div
       onClick={onClick}
-      className={`p-6 rounded-xl shadow-sm transition-all ${variantStyles[variant]} ${
-        onClick ? 'cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99]' : ''
+      className={`p-8 rounded-[18px] border transition-all duration-300 ${
+        isDanger ? 'bg-red-50 border-red-200' : isWarning ? 'bg-orange-50 border-orange-100' : 'bg-white border-[#e0e0e0]'
+      } ${
+        onClick ? 'cursor-pointer hover:border-[#0066cc] group' : ''
       }`}
     >
-      <div className="flex justify-between items-start mb-3">
-        <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider leading-tight pr-2">{title}</p>
+      <div className="flex justify-between items-start mb-6">
+        <p className="text-[12px] font-bold text-[#86868b] uppercase tracking-wider">{title}</p>
         {icon && (
-          <div className={`p-2 rounded-lg flex-shrink-0 ${iconStyles[variant]}`}>
+          <div className={`text-[#86868b] ${onClick ? 'group-hover:text-[#0066cc]' : ''} transition-colors`}>
             <span className="w-4 h-4 block [&>svg]:w-4 [&>svg]:h-4">{icon}</span>
           </div>
         )}
       </div>
-      <h3 className={`text-2xl font-black tracking-tight ${valueStyles[variant]}`}>{value}</h3>
+      <h3 className={`text-[28px] font-bold tracking-tighter leading-none ${
+        isDanger ? 'text-[#dc2626]' : 'text-[#1d1d1f]'
+      }`}>{value}</h3>
       {description && (
-        <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{description}</p>
-      )}
-      {trend && (
-        <div className={`mt-3 flex items-center gap-1 text-xs font-bold ${trend.value >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-          <span>{trend.value >= 0 ? '▲' : '▼'}</span>
-          <span>{Math.abs(trend.value).toFixed(1)}% {trend.label}</span>
-        </div>
+        <p className="text-[12px] text-[#86868b] mt-4 font-medium leading-relaxed">{description}</p>
       )}
       {onClick && (
-        <p className="text-[10px] text-muted-foreground/60 mt-2 italic">Click to drill down →</p>
+        <div className="mt-6 flex items-center gap-1 text-[11px] font-bold text-[#0066cc] opacity-0 group-hover:opacity-100 transition-opacity">
+          DRILL DOWN →
+        </div>
       )}
     </div>
   )

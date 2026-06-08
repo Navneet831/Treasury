@@ -97,7 +97,7 @@ async def get_executive_overview(currency: str = Query("INR"), fy: str = Query("
     boe_pending_col = COL_MAP["boe_pending_inr"] if currency == "INR" else COL_MAP["boe_pending_fc"]
     fy_filter = get_fy_clause(fy, COL_MAP['op_date'])
 
-    stats = fetch_one(f"""
+    stats_res = fetch_one(f"""
         SELECT
             COUNT(*) as total_count,
             SUM({amt_col}) as total_value,
@@ -105,37 +105,45 @@ async def get_executive_overview(currency: str = Query("INR"), fy: str = Query("
             COUNT(DISTINCT {COL_MAP['supplier']}) as active_suppliers
         FROM LC WHERE ({COL_MAP['lc_status']} = 'Open' OR {COL_MAP['lc_status']} IS NULL) {fy_filter}
     """)
+    stats = stats_res if stats_res else (0, 0, 0, 0)
 
     # FIX: exclude already-paid LCs from upcoming/overdue sums
-    upcoming_7 = fetch_one(f"""
+    u7_res = fetch_one(f"""
         SELECT SUM({amt_col}) FROM LC
         WHERE {COL_MAP['due_date']} BETWEEN '{cd}' AND '{cd}'::DATE + INTERVAL 7 DAY
         AND ({COL_MAP['payment_status']} IS NULL OR {COL_MAP['payment_status']} != 'Paid')
         {get_fy_clause(fy, COL_MAP['due_date'])}
-    """)[0] or 0
+    """)
+    upcoming_7 = u7_res[0] if u7_res and u7_res[0] is not None else 0
 
-    upcoming_30 = fetch_one(f"""
+    u30_res = fetch_one(f"""
         SELECT SUM({amt_col}) FROM LC
         WHERE {COL_MAP['due_date']} BETWEEN '{cd}' AND '{cd}'::DATE + INTERVAL 30 DAY
         AND ({COL_MAP['payment_status']} IS NULL OR {COL_MAP['payment_status']} != 'Paid')
         {get_fy_clause(fy, COL_MAP['due_date'])}
-    """)[0] or 0
+    """)
+    upcoming_30 = u30_res[0] if u30_res and u30_res[0] is not None else 0
 
-    overdue = fetch_one(f"""
+    ov_res = fetch_one(f"""
         SELECT SUM({amt_col}) FROM LC
         WHERE {COL_MAP['due_date']} < '{cd}'
         AND ({COL_MAP['payment_status']} IS NULL OR {COL_MAP['payment_status']} != 'Paid')
         {get_fy_clause(fy, COL_MAP['due_date'])}
-    """)[0] or 0
+    """)
+    overdue = ov_res[0] if ov_res and ov_res[0] is not None else 0
 
-    pending_boe = fetch_one(f"""
+    pb_res = fetch_one(f"""
         SELECT SUM({boe_pending_col}) FROM LC
         WHERE ({COL_MAP['boe_status']} IS NULL OR {COL_MAP['boe_status']} != 'Received')
         {fy_filter}
-    """)[0] or 0
+    """)
+    pending_boe = pb_res[0] if pb_res and pb_res[0] is not None else 0
 
-    expired = fetch_one(f"SELECT COUNT(*) FROM LC WHERE {COL_MAP['expiry_date']} < '{cd}' AND {COL_MAP['lc_status']} = 'Open' {fy_filter}")[0] or 0
-    closing_this_month = fetch_one(f"SELECT COUNT(*) FROM LC WHERE date_trunc('month', {COL_MAP['expiry_date']}) = date_trunc('month', '{cd}'::DATE) {fy_filter}")[0] or 0
+    ex_res = fetch_one(f"SELECT COUNT(*) FROM LC WHERE {COL_MAP['expiry_date']} < '{cd}' AND {COL_MAP['lc_status']} = 'Open' {fy_filter}")
+    expired = ex_res[0] if ex_res else 0
+
+    cl_res = fetch_one(f"SELECT COUNT(*) FROM LC WHERE date_trunc('month', {COL_MAP['expiry_date']}) = date_trunc('month', '{cd}'::DATE) {fy_filter}")
+    closing_this_month = cl_res[0] if cl_res else 0
 
     # Enhanced: Treasury health score & limit KPIs
     limit_data = fetch_dict("""
@@ -223,25 +231,60 @@ async def get_executive_overview(currency: str = Query("INR"), fy: str = Query("
 # PAGE 2 — Calendar
 # ══════════════════════════════════════════════════════════
 @app.get("/api/v1/calendar")
-async def get_calendar_data(month: int, year: int, currency: str = Query("INR"), fy: str = Query("All")):
+async def get_calendar_data(month: int, year: int, currency: str = Query("INR"), fy: str = Query("All"), bank: Optional[str] = None):
     amt_col = COL_MAP["amt_inr"] if currency == "INR" else COL_MAP["amt_fc"]
-    limit_col = COL_MAP["limit_avail"]
-    fy_filter = get_fy_clause(fy, COL_MAP['op_date'])
-    base_where = f"WHERE EXTRACT(MONTH FROM {COL_MAP['op_date']}) = {month} AND EXTRACT(YEAR FROM {COL_MAP['op_date']}) = {year} {fy_filter}"
+    
+    bank_filter = ""
+    if bank and bank != "All":
+        safe_bank = sanitize_string(bank, set())
+        bank_filter = f" AND {COL_MAP['bank']} = '{safe_bank}'"
 
+    # FY filters
+    fy_filter_op = get_fy_clause(fy, COL_MAP['op_date'])
+    fy_filter_due = get_fy_clause(fy, COL_MAP['due_date'])
+    fy_filter_close = get_fy_clause(fy, "LC Close date") # Assume this is COL_MAP['lc_close_date'] or just the string
+
+    # Opened on this day
+    opened = fetch_dict(f"""
+        SELECT {COL_MAP['op_date']} as date,
+               SUM({amt_col}) as opened_value
+        FROM LC 
+        WHERE EXTRACT(MONTH FROM {COL_MAP['op_date']}) = {month} 
+          AND EXTRACT(YEAR FROM {COL_MAP['op_date']}) = {year} 
+          {fy_filter_op} {bank_filter}
+        GROUP BY 1
+    """)
+
+    # Closed on this day (assuming "LC Close date" column)
+    closed = fetch_dict(f"""
+        SELECT "LC Close date" as date,
+               SUM({amt_col}) as closed_value
+        FROM LC 
+        WHERE "LC Close date" IS NOT NULL
+          AND EXTRACT(MONTH FROM "LC Close date") = {month} 
+          AND EXTRACT(YEAR FROM "LC Close date") = {year} 
+          {fy_filter_close} {bank_filter}
+        GROUP BY 1
+    """)
+
+    # Due on this day
+    due = fetch_dict(f"""
+        SELECT {COL_MAP['due_date']} as date,
+               {COL_MAP['payment_status']} as payment_status,
+               SUM({amt_col}) as due_value
+        FROM LC 
+        WHERE EXTRACT(MONTH FROM {COL_MAP['due_date']}) = {month} 
+          AND EXTRACT(YEAR FROM {COL_MAP['due_date']}) = {year} 
+          {fy_filter_due} {bank_filter}
+        GROUP BY 1, 2
+    """)
+
+    # Instrument-wise / Type outstanding and paid could be aggregated similarly
+    
     return {
-        "daily_summary": fetch_dict(f"""
-            SELECT {COL_MAP['op_date']} as date,
-                SUM(CASE WHEN {COL_MAP['lc_status']} = 'Open' THEN {amt_col} ELSE 0 END) as opened_value,
-                SUM(CASE WHEN {COL_MAP['lc_status']} = 'Closed' THEN {amt_col} ELSE 0 END) as closed_value,
-                SUM({amt_col}) as total_value,
-                SUM({limit_col}) as limit_balance
-            FROM LC {base_where} GROUP BY 1 ORDER BY 1
-        """),
-        "bank_breakdown": fetch_dict(f"SELECT {COL_MAP['op_date']} as date, {COL_MAP['bank']} as bank, SUM({amt_col}) as value FROM LC {base_where} GROUP BY 1, 2"),
-        "status_breakdown": fetch_dict(f"SELECT {COL_MAP['op_date']} as date, {COL_MAP['lc_status']} as status, SUM({amt_col}) as value FROM LC {base_where} GROUP BY 1, 2"),
-        "boe_breakdown": fetch_dict(f"SELECT {COL_MAP['op_date']} as date, {COL_MAP['boe_status']} as boe_status, SUM({amt_col}) as value FROM LC {base_where} GROUP BY 1, 2"),
-        "due_breakdown": fetch_dict(f"SELECT {COL_MAP['due_date']} as date, SUM({amt_col}) as due_value, COUNT(*) as due_count FROM LC WHERE EXTRACT(MONTH FROM {COL_MAP['due_date']}) = {month} AND EXTRACT(YEAR FROM {COL_MAP['due_date']}) = {year} {get_fy_clause(fy, COL_MAP['due_date'])} GROUP BY 1 ORDER BY 1"),
+        "opened": opened,
+        "closed": closed,
+        "due": due,
     }
 
 
@@ -429,7 +472,8 @@ async def get_shipment_tracking(currency: str = Query("INR"), fy: str = Query("A
             SUM(CASE WHEN {COL_MAP['material_date']} > {COL_MAP['shipment_date']} THEN {amt_col} ELSE 0 END) as delayed_value
         FROM LC WHERE 1=1 {fy_filter}
     """
-    return fetch_dict(query)[0]
+    res = fetch_dict(query)
+    return res[0] if res else {}
 
 
 # ══════════════════════════════════════════════════════════
@@ -1242,6 +1286,99 @@ async def ai_copilot(query: str = Body(..., embed=True)):
 
 
 # Removed root route to allow StaticFiles mount at "/" to work correctly
+
+
+# ══════════════════════════════════════════════════════════
+# PAGE - Treasury Command
+# ══════════════════════════════════════════════════════════
+@app.get("/api/v1/treasury-command")
+async def get_command_data(currency: str = Query("INR"), fy: str = Query("All")):
+    cd = get_current_date()
+    amt_col = COL_MAP["amt_inr"] if currency == "INR" else COL_MAP["amt_fc"]
+    fy_filter = get_fy_clause(fy, COL_MAP['op_date'])
+
+    limits = fetch_dict("""
+        SELECT Element_8 as bank,
+               CAST(NULLIF(REPLACE("Limit", ',', ''), '') AS DOUBLE) as limit_amt
+        FROM DD WHERE Table_8 = 'Bank' AND Element_8 != ''
+    """)
+    total_nfb_limit = sum((r['limit_amt'] or 0) for r in limits) if limits else 0
+
+    lc_stats_res = fetch_one(f"""
+        SELECT
+            SUM(CASE WHEN {COL_MAP['lc_status']} = 'Open' THEN {amt_col} ELSE 0 END) as lc_outstanding,
+            SUM(CASE WHEN {COL_MAP['lc_status']} = 'In Process' THEN {amt_col} ELSE 0 END) as lc_in_process,
+            SUM(CASE WHEN {COL_MAP['lc_status']} IN ('Open', 'In Process') THEN {amt_col} ELSE 0 END) as total_lc_exposure,
+            SUM({COL_MAP['limit_avail']}) as limit_avail,
+            SUM({COL_MAP['margin_fd']}) as margin_fd
+        FROM LC WHERE 1=1 {fy_filter}
+    """)
+    lc_stats = lc_stats_res if lc_stats_res else (0, 0, 0, 0, 0)
+    lc_outstanding = lc_stats[0] if lc_stats[0] is not None else 0
+    lc_in_process = lc_stats[1] if lc_stats[1] is not None else 0
+    total_lc_exposure = lc_stats[2] if lc_stats[2] is not None else 0
+    limit_avail = lc_stats[3] if lc_stats[3] is not None else 0
+    margin_fd = lc_stats[4] if lc_stats[4] is not None else 0
+
+    sblc_stats_res = fetch_one(f"""
+        SELECT
+            SUM({amt_col}) as sblc_outstanding
+        FROM LC WHERE "SBLC Status" LIKE 'Yes%' AND {COL_MAP['lc_status']} = 'Open' {fy_filter}
+    """)
+    sblc_outstanding = sblc_stats_res[0] if sblc_stats_res and sblc_stats_res[0] is not None else 0
+    sblc_utilisation = sblc_outstanding
+
+    available_balance = max(0, total_nfb_limit - lc_outstanding)
+    limit_util_pct = (lc_outstanding / total_nfb_limit * 100) if total_nfb_limit > 0 else 0
+
+    payables_res = fetch_one(f"""
+        SELECT SUM({amt_col}) as unpaid_bills
+        FROM LC WHERE ({COL_MAP['payment_status']} IS NULL OR {COL_MAP['payment_status']} != 'Paid') {fy_filter}
+    """)
+    unpaid_bills = payables_res[0] if payables_res and payables_res[0] is not None else 0
+
+    bank_wise = fetch_dict(f"""
+        SELECT {COL_MAP['bank']} as bank,
+               SUM(CASE WHEN {COL_MAP['lc_status']} = 'Open' THEN {amt_col} ELSE 0 END) as lc_outstanding,
+               SUM({COL_MAP['margin_fd']}) as margin_fd
+        FROM LC WHERE 1=1 {fy_filter} GROUP BY 1
+    """)
+
+    margin_wise = fetch_dict(f"""
+        SELECT "Margin" as margin_pct, SUM({amt_col}) as value
+        FROM LC WHERE "Margin" IS NOT NULL AND {COL_MAP['lc_status']} = 'Open' {fy_filter} GROUP BY 1
+    """)
+
+    boe_status_wise = fetch_dict(f"""
+        SELECT {COL_MAP['boe_status']} as boe_status, SUM({amt_col}) as value
+        FROM LC WHERE {COL_MAP['boe_status']} IS NOT NULL {fy_filter} GROUP BY 1
+    """)
+
+    hedging = fetch_dict(f"""
+        SELECT "Type" as type, SUM({amt_col}) as value
+        FROM LC WHERE "Type" IS NOT NULL AND {COL_MAP['lc_status']} = 'Open' {fy_filter} GROUP BY 1
+    """)
+
+    return {
+        "summary": {
+            "total_nfb_limit": total_nfb_limit,
+            "fb_limit": 0,
+            "limit_utilization_pct": limit_util_pct,
+            "lc_outstanding": lc_outstanding,
+            "lc_in_process": lc_in_process,
+            "total_lc_exposure": total_lc_exposure,
+            "sblc_outstanding": sblc_outstanding,
+            "sblc_utilisation": sblc_utilisation,
+            "available_balance": available_balance,
+            "working_capital_frozen": margin_fd,
+            "unpaid_bills": unpaid_bills,
+            "outstanding_payables": unpaid_bills
+        },
+        "bank_wise": bank_wise,
+        "margin_wise": margin_wise,
+        "boe_status_wise": boe_status_wise,
+        "hedging_wise": hedging
+    }
 
 
 import logging
