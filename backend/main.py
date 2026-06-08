@@ -1,7 +1,10 @@
 from fastapi import FastAPI, Query, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from typing import Optional
 import os
+import sys
+from pathlib import Path
 from database import fetch_dict, fetch_one
 from datetime import datetime, date
 import math
@@ -58,6 +61,14 @@ COL_MAP = {
 ALLOWED_STATUS = {"Open", "Closed", "Cancelled", "Expired"}
 ALLOWED_BOE_STATUS = {"Received", "Not Received", "Pending", "Accepted"}
 ALLOWED_PAYMENT_STATUS = {"Paid", "Unpaid", "Pending"}
+
+def get_config(key: str, default: float) -> float:
+    """Helper to fetch config constants from DB."""
+    try:
+        res = fetch_one(f"SELECT value FROM APP_CONFIG WHERE key = '{key}'")
+        return res[0] if res else default
+    except:
+        return default
 
 def sanitize_string(val: Optional[str], allowed: set) -> Optional[str]:
     """Whitelist-based sanitizer for enum-like fields."""
@@ -632,7 +643,7 @@ async def get_strategic_intelligence(currency: str = Query("INR"), fy: str = Que
     # 1. Yield Optimization
     fd_query = fetch_dict(f"SELECT SUM({COL_MAP['margin_fd']}) as locked_fd FROM LC {where}")[0]
     locked_fd = fd_query['locked_fd'] or 0
-    yield_lost = locked_fd * 0.07
+    yield_lost = locked_fd * get_config('yield_rate', 0.07)
 
     # 2. Cost of Inefficiency
     delayed_boe_val = fetch_dict(f"""
@@ -647,7 +658,7 @@ async def get_strategic_intelligence(currency: str = Query("INR"), fy: str = Que
         AND {COL_MAP['due_date']} < '{cd}'::DATE
     """)[0]['val'] or 0
 
-    inefficiency_cost = (delayed_boe_val * 0.10) + (overdue_payment_val * 0.12) + yield_lost
+    inefficiency_cost = (delayed_boe_val * get_config('inefficiency_boe_rate', 0.10)) + (overdue_payment_val * get_config('inefficiency_overdue_rate', 0.12)) + yield_lost
 
     # 3. Supplier Reliability (avg days shipment → BOE submission)
     reliability = fetch_dict(f"""
@@ -729,7 +740,8 @@ async def get_strategic_intelligence(currency: str = Query("INR"), fy: str = Que
         health_score -= 10  # High FX concentration
 
     health_score = max(0, min(100, health_score))
-    expected_fx_loss = fx_exposure_val * 0.03
+    expected_fx_loss = fx_exposure_val * get_config('fx_var_rate', 0.03)
+
 
     # FIXED: prob_liquidity_stress properly bounded
     prob_liquidity_stress = max(1, min(99, (100 - health_score) * 1.0))
@@ -1122,56 +1134,16 @@ async def get_limit_utilization(currency: str = Query("INR"), fy: str = Query("A
 # ══════════════════════════════════════════════════════════
 @app.get("/api/v1/pe-treasury")
 async def get_pe_treasury():
-    # Try fetching from actual tables; fall back to synthetic data if tables don't exist
-    try:
-        debt_maturity = fetch_dict("SELECT * FROM DEBT_MATURITY ORDER BY year")
-    except Exception:
-        debt_maturity = [
-            {"year": 2024, "amount": 120, "type": "Term Loan"},
-            {"year": 2025, "amount": 180, "type": "LC Facility"},
-            {"year": 2026, "amount": 250, "type": "Working Capital"},
-            {"year": 2027, "amount": 90, "type": "NCD"},
-        ]
+    debt_maturity = fetch_dict("SELECT * FROM DEBT_MATURITY ORDER BY year")
+    yield_curve = fetch_dict("SELECT * FROM YIELD_CURVE")
+    capital_stack = fetch_dict("SELECT * FROM CAPITAL_STACK")
 
-    try:
-        yield_curve = fetch_dict("SELECT * FROM YIELD_CURVE")
-    except Exception:
-        yield_curve = [
-            {"tenor": "3M", "yield": 6.75},
-            {"tenor": "6M", "yield": 6.90},
-            {"tenor": "1Y", "yield": 7.05},
-            {"tenor": "2Y", "yield": 7.20},
-            {"tenor": "3Y", "yield": 7.35},
-            {"tenor": "5Y", "yield": 7.50},
-            {"tenor": "10Y", "yield": 7.65},
-        ]
+    # Fetch textual insights from TREASURY_INSIGHTS
+    value_creation_raw = fetch_dict("SELECT key, value FROM TREASURY_INSIGHTS WHERE category = 'value_creation' ORDER BY priority")
+    value_creation = {item['key']: float(item['value']) if item['value'].replace('.','',1).isdigit() else item['value'] for item in value_creation_raw}
 
-    try:
-        capital_stack = fetch_dict("SELECT * FROM CAPITAL_STACK")
-    except Exception:
-        capital_stack = [
-            {"type": "Equity", "amount": 500, "cost": 14.0, "pct": 35},
-            {"type": "Term Debt", "amount": 400, "cost": 9.5, "pct": 28},
-            {"type": "Working Capital", "amount": 300, "cost": 8.5, "pct": 21},
-            {"type": "LC Facility", "amount": 230, "cost": 7.0, "pct": 16},
-        ]
-
-    value_creation = {
-        "working_capital_released": 450,
-        "debt_reduced": 120,
-        "treasury_savings": 25.5,
-        "interest_savings": 14.2,
-        "fx_savings": 8.1,
-        "bank_charge_optimization": 3.2
-    }
-
-    liquidity_index = {
-        "rbi_liquidity_deficit": "₹1.2 Lakh Cr",
-        "banking_system_liquidity": "Tight",
-        "money_market_rates": "6.75% - 7.10%",
-        "yield_curve_shape": "Normal",
-        "treasury_implication": "Borrow long-term to lock in current yields before potential tightening."
-    }
+    liquidity_index_raw = fetch_dict("SELECT key, value FROM TREASURY_INSIGHTS WHERE category = 'liquidity_index' ORDER BY priority")
+    liquidity_index = {item['key']: item['value'] for item in liquidity_index_raw}
 
     return {
         "debt_maturity": debt_maturity,
@@ -1269,11 +1241,78 @@ async def ai_copilot(query: str = Body(..., embed=True)):
     }
 
 
-@app.get("/")
-async def root():
-    return {"message": "LC Analytics API is running", "date": get_current_date()}
+# Removed root route to allow StaticFiles mount at "/" to work correctly
 
+
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+from database import DB_PATH
+logger.info(f"Using database at: {DB_PATH}")
+
+def get_static_path():
+    if getattr(sys, 'frozen', False):
+        # Path for PyInstaller bundle
+        # Try both common patterns
+        path1 = Path(sys._MEIPASS) / "frontend" / "dist"
+        path2 = Path(sys._MEIPASS) / "dist"
+        if path1.exists(): return path1
+        if path2.exists(): return path2
+        return path1 # Default
+    else:
+        # Local development path
+        return Path(__file__).parent.parent / "frontend" / "dist"
+
+static_path = get_static_path()
+logger.info(f"Static files path: {static_path} (Exists: {static_path.exists()})")
+
+if static_path.exists():
+    app.mount("/", StaticFiles(directory=str(static_path), html=True), name="static")
+else:
+    logger.warning("Static files directory not found! Frontend will not be served.")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import os
+    import threading
+    import webview
+    import time
+    import sys
+    
+    # Fix for windowed mode: sys.stdout and sys.stderr are None, which causes uvicorn logging to fail
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, "w")
+    if sys.stderr is None:
+        sys.stderr = open(os.devnull, "w")
+
+    # Use port 8000 by default, but allow override
+    port = int(os.getenv("PORT", 8000))
+    # Default to 127.0.0.1 for local standalone app to avoid firewall prompts
+    host = os.getenv("HOST", "127.0.0.1")
+
+    def start_uvicorn():
+        uvicorn.run(app, host=host, port=port, log_level="error")
+
+    # Start server in a background thread
+    server_thread = threading.Thread(target=start_uvicorn, daemon=True)
+    server_thread.start()
+
+    # Give the server a second to initialize
+    time.sleep(1.5)
+
+    # Launch the native desktop window
+    # This will block until the window is closed
+    webview.create_window(
+        "Treasury Dashboard", 
+        f"http://{host}:{port}",
+        width=1366,
+        height=850,
+        min_size=(1024, 720),
+        background_color='#ffffff'
+    )
+    webview.start()
+    
+    # When webview.start() returns, the window was closed, so the process can exit
+    sys.exit(0)

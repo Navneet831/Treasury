@@ -1,0 +1,51 @@
+# --- UNNECESSARY FILES & DIRECTORIES (NOT DIRECTLY RELATED TO APP RUNTIME) ---
+
+# Local Excel Sheets (Original data sources, not used directly by the app runtime which uses DuckDB)
+sheets/
+
+# Development Scripts & Documentation (Not needed for the final executable)
+Scripts/Gemini.md
+Scripts/Task.md
+Scripts/run_app.bat
+Scripts/diag.py
+Scripts/test_*.py
+Scripts/inspect_data.py
+Scripts/seed_*.py
+Scripts/reload_clean.py
+
+# Docker & Infrastructure Configs (Only needed for containerized deployment)
+Scripts/docker-compose.yml
+Scripts/prometheus.yml
+Scripts/alertmanager.yml
+
+# --- STANDARD IGNORE PATTERNS ---
+
+# Python Build and Cache
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+build/
+dist/
+*.spec
+.env
+
+# Node.js Build and Dependencies
+node_modules/
+frontend/node_modules/
+frontend/dist/
+.npm
+npm-debug.log*
+
+# Databases & Temporary Files
+*.duckdb
+*.duckdb.wal
+*.log
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+desktop.ini

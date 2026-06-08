@@ -55,7 +55,10 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 }
 
 const App: React.FC = () => {
-  const [activePage, setActivePage] = useState('overview')
+  const [activePage, setActivePage] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('view') || 'overview';
+  });
 
   const renderPage = () => {
     switch (activePage) {
@@ -86,11 +89,13 @@ const App: React.FC = () => {
     }
   }
 
+  const isEmbedded = window.self !== window.top;
+
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
-      <Header />
+      {!isEmbedded && <Header />}
       <div className="flex">
-        <Sidebar activePage={activePage} setActivePage={setActivePage} />
+        {!isEmbedded && <Sidebar activePage={activePage} setActivePage={setActivePage} />}
         <main className="flex-1 overflow-x-hidden">
           <ErrorBoundary key={activePage}>
             {renderPage()}

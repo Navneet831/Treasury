@@ -1,6 +1,0 @@
-route:
-  receiver: 'default-receiver'
-
-receivers:
-  - name: 'default-receiver'
-    # Add your slack/email config here
