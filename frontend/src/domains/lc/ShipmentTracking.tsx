@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { useStore } from '../store'
-import api from '../api'
-import { formatNumber } from '../utils'
+import { useStore } from '../../store'
+import { getShipmentTracking } from '../../api'
+import { formatNumber } from '../../utils'
 import { Truck, Clock, AlertTriangle, AlertCircle } from 'lucide-react'
-import KPICard from './KPICard'
+import KPICard from '../../components/KPICard'
 
 const ShipmentTracking: React.FC = () => {
   const { fy } = useStore()
@@ -14,8 +14,8 @@ const ShipmentTracking: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const response = await api.get('/shipment-tracking', { params: { fy } })
-        setData(response.data)
+        const response = await getShipmentTracking(fy)
+        setData(response)
       } catch (error) {
         console.error('Error fetching shipment tracking:', error)
       } finally {

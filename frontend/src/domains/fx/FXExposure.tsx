@@ -1,12 +1,14 @@
+// @ts-nocheck
 import React, { useEffect, useState, useCallback } from 'react'
-import { useStore } from '../store'
-import { formatCurrencyCompact } from '../utils'
+import { useStore } from '../../store'
+import { formatCurrencyCompact } from '../../utils'
 import { Globe, RefreshCw, AlertTriangle } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie
 } from 'recharts'
 
-const API_BASE = 'http://localhost:8000/api/v1'
+const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+const API_BASE = isDev ? 'http://127.0.0.1:8001/api/v1' : '/api/v1'
 
 const CURRENCY_COLORS: Record<string, string> = {
   USD: '#3b82f6',

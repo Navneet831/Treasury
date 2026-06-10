@@ -1,86 +1,63 @@
-import React, { useState } from 'react'
+import * as React from 'react';
+import { useState, lazy } from 'react'
 import Header from './components/Header'
 import Sidebar from './components/Sidebar'
-import TreasuryCommand from './components/TreasuryCommand'
-import ExecutiveOverview from './components/ExecutiveOverview'
-import CalendarView from './components/CalendarView'
-import BankExposure from './components/BankExposure'
-import SupplierAnalytics from './components/SupplierAnalytics'
-import BOEMonitoring from './components/BOEMonitoring'
-import CashFlowForecast from './components/CashFlowForecast'
-import LifecycleTracker from './components/LifecycleTracker'
-import RiskAlerts from './components/RiskAlerts'
-import TransactionList from './components/TransactionList'
-import AICopilot from './components/AICopilot'
-import StrategicIntelligence from './components/StrategicIntelligence'
-import ShipmentTracking from './components/ShipmentTracking'
-import AdvancedQuant from './components/AdvancedQuant'
-import PETreasury from './components/PETreasury'
-import FXExposure from './components/FXExposure'
-import TrendAnalysis from './components/TrendAnalysis'
-import LimitUtilization from './components/LimitUtilization'
+import { DomainSandbox } from './shared/DomainSandbox'
+import { Agentation } from 'agentation'
 
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: string }> {
-  constructor(props: any) {
-    super(props)
-    this.state = { hasError: false, error: '' }
-  }
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error: error.message }
-  }
-  componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error('Page error:', error, info)
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="p-8 flex flex-col items-center justify-center h-64 text-center gap-4">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
-            <span className="text-2xl">⚠️</span>
-          </div>
-          <div>
-            <h3 className="font-bold text-lg text-red-800">Something went wrong</h3>
-            <p className="text-sm text-muted-foreground mt-1 max-w-md">{this.state.error}</p>
-          </div>
-          <button
-            onClick={() => this.setState({ hasError: false, error: '' })}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-bold text-sm hover:opacity-90"
-          >
-            Try Again
-          </button>
-        </div>
-      )
-    }
-    return this.props.children
-  }
-}
+// Lazy load domain modules for true sandboxing
+const TreasuryCommand = lazy(() => import('./components/TreasuryCommand'))
+const TransactionList = lazy(() => import('./components/TransactionList'))
+const AICopilot = lazy(() => import('./components/AICopilot'))
+
+// Domain components
+const ExecutiveOverview = lazy(() => import('./domains/executive').then(m => ({ default: m.ExecutiveOverview })))
+const StrategicIntelligence = lazy(() => import('./domains/executive').then(m => ({ default: m.StrategicIntelligence })))
+const AdvancedQuant = lazy(() => import('./domains/executive').then(m => ({ default: m.AdvancedQuant })))
+const PETreasury = lazy(() => import('./domains/executive').then(m => ({ default: m.PETreasury })))
+const RiskAlerts = lazy(() => import('./domains/executive').then(m => ({ default: m.RiskAlerts })))
+
+const CalendarView   = lazy(() => import('./domains/calendar').then(m => ({ default: m.CalendarView })))
+const FXExposure     = lazy(() => import('./domains/fx').then(m => ({ default: m.FXExposure })))
+const HedgeCoverage  = lazy(() => import('./domains/fx').then(m => ({ default: m.HedgeCoverage })))
+
+const BOEMonitoring = lazy(() => import('./domains/lc').then(m => ({ default: m.BOEMonitoring })))
+const LifecycleTracker = lazy(() => import('./domains/lc').then(m => ({ default: m.LifecycleTracker })))
+const ShipmentTracking = lazy(() => import('./domains/lc').then(m => ({ default: m.ShipmentTracking })))
+const TrendAnalysis = lazy(() => import('./domains/lc').then(m => ({ default: m.TrendAnalysis })))
+
+const SupplierAnalytics = lazy(() => import('./domains/payables').then(m => ({ default: m.SupplierAnalytics })))
+const CashFlowForecast = lazy(() => import('./domains/payables').then(m => ({ default: m.CashFlowForecast })))
+
+const BankExposure = lazy(() => import('./domains/utilization').then(m => ({ default: m.BankExposure })))
+const LimitUtilization = lazy(() => import('./domains/utilization').then(m => ({ default: m.LimitUtilization })))
 
 const App: React.FC = () => {
   const [activePage, setActivePage] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    return params.get('view') || 'command';
+    return params.get('view') || 'limit';
   });
 
   const renderPage = () => {
     switch (activePage) {
-      case 'command': return <TreasuryCommand />
-      case 'overview': return <ExecutiveOverview />
-      case 'calendar': return <CalendarView />
-      case 'bank': return <BankExposure />
-      case 'supplier': return <SupplierAnalytics />
-      case 'boe': return <BOEMonitoring />
-      case 'lifecycle': return <LifecycleTracker />
-      case 'forecast': return <CashFlowForecast />
-      case 'risk': return <RiskAlerts />
-      case 'transactions': return <TransactionList />
-      case 'intelligence': return <StrategicIntelligence />
-      case 'quant': return <AdvancedQuant />
-      case 'pe': return <PETreasury />
-      case 'shipment': return <ShipmentTracking />
-      case 'ai': return <AICopilot />
-      case 'fx': return <FXExposure />
-      case 'trend': return <TrendAnalysis />
-      case 'limit': return <LimitUtilization />
+      case 'limit': return <DomainSandbox name="Limit Utilization"><LimitUtilization /></DomainSandbox>
+      case 'overview': return <DomainSandbox name="Executive Overview"><ExecutiveOverview /></DomainSandbox>
+      case 'calendar': return <DomainSandbox name="Calendar"><CalendarView /></DomainSandbox>
+      case 'bank': return <DomainSandbox name="Bank Exposure"><BankExposure /></DomainSandbox>
+      case 'supplier': return <DomainSandbox name="Supplier Analytics"><SupplierAnalytics /></DomainSandbox>
+      case 'boe': return <DomainSandbox name="BOE Monitoring"><BOEMonitoring /></DomainSandbox>
+      case 'lifecycle': return <DomainSandbox name="Lifecycle Tracker"><LifecycleTracker /></DomainSandbox>
+      case 'forecast': return <DomainSandbox name="Cash Flow Forecast"><CashFlowForecast /></DomainSandbox>
+      case 'risk': return <DomainSandbox name="Risk Alerts"><RiskAlerts /></DomainSandbox>
+      case 'transactions': return <DomainSandbox name="Transaction List"><TransactionList /></DomainSandbox>
+      case 'intelligence': return <DomainSandbox name="Strategic Intelligence"><StrategicIntelligence /></DomainSandbox>
+      case 'quant': return <DomainSandbox name="Advanced Quant"><AdvancedQuant /></DomainSandbox>
+      case 'pe': return <DomainSandbox name="PE Treasury"><PETreasury /></DomainSandbox>
+      case 'shipment': return <DomainSandbox name="Shipment Tracking"><ShipmentTracking /></DomainSandbox>
+      case 'ai': return <DomainSandbox name="AI Copilot"><AICopilot /></DomainSandbox>
+      case 'fx':    return <DomainSandbox name="FX Exposure"><FXExposure /></DomainSandbox>
+      case 'hedge': return <DomainSandbox name="Hedge Coverage"><HedgeCoverage /></DomainSandbox>
+      case 'trend': return <DomainSandbox name="Trend Analysis"><TrendAnalysis /></DomainSandbox>
       default:
         return (
           <div className="p-8">
@@ -94,16 +71,15 @@ const App: React.FC = () => {
   const isEmbedded = window.self !== window.top;
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
+    <div className="min-h-screen bg-[#f8fafc]">
       {!isEmbedded && <Header />}
       <div className="flex">
         {!isEmbedded && <Sidebar activePage={activePage} setActivePage={setActivePage} />}
         <main className="flex-1 overflow-x-hidden">
-          <ErrorBoundary key={activePage}>
-            {renderPage()}
-          </ErrorBoundary>
+          {renderPage()}
         </main>
       </div>
+      <Agentation />
     </div>
   )
 }

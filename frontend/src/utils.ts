@@ -1,3 +1,16 @@
+export const formatCurrencyAbsolute = (value: number | null | undefined, currency: string): string => {
+  if (value === null || value === undefined || isNaN(value)) return '—'
+  
+  const currencyCode = currency === 'INR' ? 'INR' : 'USD'
+  
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: currencyCode,
+    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+  }).format(value)
+}
+
 export const formatCurrency = (value: number | null | undefined, currency: string): string => {
   if (value === null || value === undefined || isNaN(value)) return '—'
   
@@ -15,8 +28,17 @@ export const formatCurrency = (value: number | null | undefined, currency: strin
 export const formatCurrencyCompact = (value: number | null | undefined, currency: string): string => {
   if (value === null || value === undefined || isNaN(value)) return '—'
   const abs = Math.abs(value)
-  const currencyCode = currency === 'INR' ? 'INR' : 'USD'
-  const symbol = currency === 'INR' ? '₹' : '$'
+  const currencyCode = currency === 'INR' ? 'INR' : currency === 'EUR' ? 'EUR' : currency === 'GBP' ? 'GBP' : 'USD'
+  
+  const symbolMap: Record<string, string> = {
+    'INR': '₹',
+    'USD': '$',
+    'EUR': '€',
+    'GBP': '£',
+    'AED': 'DH',
+    'CNY': '¥'
+  }
+  const symbol = symbolMap[currency] || '$'
   
   if (abs >= 1e7) return `${symbol}${(value / 1e7).toFixed(2)} Cr`
   if (abs >= 1e5) return `${symbol}${(value / 1e5).toFixed(2)} L`

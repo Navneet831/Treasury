@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import { getRiskAlerts, getDrillDown } from '../api'
-import { useStore } from '../store'
-import DrillDownModal from './DrillDownModal'
+import { getRiskAlerts, getDrillDown } from '../../api'
+import { useStore } from '../../store'
+import DrillDownModal from '../../components/DrillDownModal'
 import { AlertTriangle, Clock, FileWarning, ShieldAlert, CheckCircle } from 'lucide-react'
 
 const RiskAlerts: React.FC = () => {
@@ -16,7 +16,7 @@ const RiskAlerts: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const result = await getRiskAlerts(fy)
+        const result = await getRiskAlerts()
         setAlerts(result)
       } catch (error) {
         console.error('Error fetching risk alerts:', error)
@@ -25,7 +25,8 @@ const RiskAlerts: React.FC = () => {
       }
     }
     fetchData()
-  }, [fy])
+  }, [])
+
 
   const handleDrillDown = async (alertType: string) => {
     try {
@@ -38,8 +39,9 @@ const RiskAlerts: React.FC = () => {
 
   if (loading) return <div className="p-8">Scanning for risks...</div>
 
-  const highPriority = alerts.filter(a => a.priority === 'HIGH')
-  const mediumPriority = alerts.filter(a => a.priority === 'MEDIUM')
+  // Backend returns numeric priorities: 1 = Limit Breach, 2 = Payment Due, 3 = FD Maturity, 4 = FX Risk
+  const highPriority = alerts.filter(a => Number(a.priority) <= 2)
+  const mediumPriority = alerts.filter(a => Number(a.priority) >= 3)
 
   return (
     <div className="p-8 space-y-8 animate-in slide-in-from-left-4 duration-500">

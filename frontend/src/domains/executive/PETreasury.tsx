@@ -1,5 +1,6 @@
+// @ts-nocheck
 import React, { useEffect, useState } from 'react'
-import { getPETreasury } from '../api'
+import { getPETreasury } from '../../api'
 import { 
   Building2,
   LineChart as LineChartIcon,

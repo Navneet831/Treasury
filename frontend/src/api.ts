@@ -1,14 +1,16 @@
 import axios from 'axios'
 
-const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const API_BASE_URL = isDev ? 'http://127.0.0.1:8080/api/v1' : '/api/v1';
+// Embedded in the platform shell (any origin) → same-origin gateway /api/treasury.
+// Standalone dev is the explicit exception: the Treasury UI dev server runs on
+// :5175 (strictPort) against its own backend on :8001 (routes mounted at root).
+const isStandaloneDev = window.location.port === '5175';
+const API_BASE_URL = isStandaloneDev ? 'http://127.0.0.1:8001' : '/api/treasury';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
 })
 
-// Add response interceptor for consistent error handling
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -17,119 +19,158 @@ api.interceptors.response.use(
   }
 )
 
+// ─── Core Domain Endpoints ────────────────────────────────────────────────────
+
 export const getExecutiveOverview = async (currency: string, fy: string) => {
-  const response = await api.get('/executive-overview', { params: { currency, fy } })
-  return response.data
-}
-
-export const getCalendarData = async (month: number, year: number, currency: string, fy: string, bank?: string) => {
-  const response = await api.get('/calendar', { params: { month, year, currency, fy, bank } })
-  return response.data
-}
-
-export const getBankExposure = async (currency: string, fy: string) => {
-  const response = await api.get('/bank-exposure', { params: { currency, fy } })
-  return response.data
-}
-
-export const getSupplierExposure = async (currency: string, fy: string) => {
-  const response = await api.get('/supplier-exposure', { params: { currency, fy } })
-  return response.data
-}
-
-export const getBOEMonitoring = async (currency: string, fy: string) => {
-  const response = await api.get('/boe-monitoring', { params: { currency, fy } })
-  return response.data
-}
-
-export const getCashFlowForecast = async (currency: string, fy: string) => {
-  const response = await api.get('/cash-flow-forecast', { params: { currency, fy } })
-  return response.data
-}
-
-export const getLifecycleTracker = async (fy: string) => {
-  const response = await api.get('/lifecycle-tracker', { params: { fy } })
-  return response.data
-}
-
-export const getRiskAlerts = async (fy: string) => {
-  const response = await api.get('/risk-alerts', { params: { fy } })
-  return response.data
-}
-
-export const getStrategicIntelligence = async (currency: string, fy: string) => {
-  const response = await api.get('/strategic-intelligence', { params: { currency, fy } })
-  return response.data
-}
-
-export const getTreasuryRadar = async (currency: string, fy: string) => {
-  const response = await api.get('/treasury-radar', { params: { currency, fy } })
-  return response.data
-}
-
-export const getAdvancedQuant = async (currency: string, fy: string) => {
-  const response = await api.get('/advanced-quant', { params: { currency, fy } })
-  return response.data
-}
-
-export const getTransactions = async (fy: string) => {
-  const response = await api.get('/transactions', { params: { fy } })
-  return response.data
-}
-
-export const getPETreasury = async () => {
-  const response = await api.get('/pe-treasury')
-  return response.data
-}
-
-export const getDrillDown = async (params: {
-  status?: string
-  bank?: string
-  boe_status?: string
-  date?: string
-  lifecycle_stage?: string
-  kpi?: string
-  alert_type?: string
-  fy?: string
-}) => {
-  const response = await api.get('/drill-down', { params })
-  return response.data
+  const { data } = await api.get('/executive-overview', { params: { currency, fy } })
+  return data
 }
 
 export const getCommandData = async (currency: string, fy: string) => {
-  const response = await api.get('/treasury-command', { params: { currency, fy } })
-  return response.data
+  const { data } = await api.get('/command-data', { params: { currency, fy } })
+  return data
 }
 
-export const askAICopilot = async (query: string) => {
-  const response = await api.post('/ai-copilot', { query })
-  return response.data
+export const getLCExposure = async (currency: string, fy: string) => {
+  const { data } = await api.get('/lc-exposure', { params: { currency, fy } })
+  return data
 }
 
-// New endpoints
-export const getFXExposure = async (fy: string) => {
-  const response = await api.get('/fx-exposure', { params: { fy } })
-  return response.data
+export const getSBLCModule = async (currency: string, fy: string) => {
+  const { data } = await api.get('/sblc-module', { params: { currency, fy } })
+  return data
 }
 
+export const getBOEAnalytics = async (currency: string, fy: string) => {
+  const { data } = await api.get('/boe-analytics', { params: { currency, fy } })
+  return data
+}
+
+export const getPayablesRisk = async (currency: string, fy: string) => {
+  const { data } = await api.get('/payables-risk', { params: { currency, fy } })
+  return data
+}
+
+export const getFXRisk = async (fy: string) => {
+  const { data } = await api.get('/fx-risk', { params: { fy } })
+  return data
+}
+
+// calendar: fy scopes which LCs to include; bank & payment_status are optional server-side filters
+export const getCalendarData = async (month: number, year: number, currency: string, fy: string, bank?: string, status?: string, paymentStatus?: string) => {
+  const { data } = await api.get('/calendar', { params: { month, year, currency, fy, bank, status, payment_status: paymentStatus || undefined } })
+  return data
+}
+
+export const getDailyReco = async (date: string) => {
+  const { data } = await api.get('/daily-reco', { params: { date } })
+  return data
+}
+
+export const getFDModule = async () => {
+  const { data } = await api.get('/fd-module')
+  return data
+}
+
+export const getBGModule = async () => {
+  const { data } = await api.get('/bg-module')
+  return data
+}
+
+export const getLimitUtilisation = async (currency: string, fy: string) => {
+  const { data } = await api.get('/limit-utilisation', { params: { currency, fy } })
+  return data
+}
+
+export const getTreasuryActions = async () => {
+  const { data } = await api.get('/treasury-actions')
+  return data
+}
+
+export const getTrendCohort = async (currency: string) => {
+  const { data } = await api.get('/trend-cohort', { params: { currency } })
+  return data
+}
+
+// ─── New Dedicated Endpoints ──────────────────────────────────────────────────
+
+/** Returns distinct bank names from LC table — never hardcoded */
+export const getBanksList = async (): Promise<string[]> => {
+  const { data } = await api.get('/banks')
+  return data
+}
+
+/** Returns distinct Payment Status values from LC table — never hardcoded */
+export const getPaymentStatuses = async (): Promise<string[]> => {
+  const { data } = await api.get('/payment-statuses')
+  return data
+}
+
+/** Hedge coverage: per-product unpaid bills split by Hedged (CAPEX) vs Unhedged */
+export const getHedgeCoverage = async (currency: string, fy: string) => {
+  const { data } = await api.get('/hedge-coverage', { params: { currency, fy } })
+  return data
+}
+
+/** Cash flow forecast with 95% CI bands, using BOE Bill Amt as payment basis */
+export const getCashFlowForecast = async (currency: string, fy: string) => {
+  const { data } = await api.get('/cash-flow-forecast', { params: { currency, fy } })
+  return data
+}
+
+/** Monthly LC opening/closure trend + monthly due payment trend */
 export const getTrendAnalysis = async (currency: string, fy: string) => {
-  const response = await api.get('/trend-analysis', { params: { currency, fy } })
-  return response.data
+  const { data } = await api.get('/trend-analysis', { params: { currency, fy } })
+  return data
 }
 
+/** LC cohort analysis grouped by opening month */
 export const getCohortAnalysis = async (currency: string, fy: string) => {
-  const response = await api.get('/cohort-analysis', { params: { currency, fy } })
-  return response.data
+  const { data } = await api.get('/cohort-analysis', { params: { currency, fy } })
+  return data
 }
 
-export const getBottleneckAnalysis = async (fy: string) => {
-  const response = await api.get('/bottleneck-analysis', { params: { fy } })
-  return response.data
+// ─── Shared / Utility Endpoints ───────────────────────────────────────────────
+
+export const getLifecycleTracker = async (fy: string) => {
+  const { data } = await api.get('/lifecycle-tracker', { params: { fy } })
+  return data
+}
+export const getStrategicIntelligence = async (currency: string, fy: string) => {
+  const { data } = await api.get('/strategic-intelligence', { params: { currency, fy } })
+  return data
+}
+export const getTreasuryRadar = async (currency: string, fy: string) => {
+  const { data } = await api.get('/treasury-radar', { params: { currency, fy } })
+  return data
+}
+export const getAdvancedQuant = async (currency: string, fy: string) => {
+  const { data } = await api.get('/advanced-quant', { params: { currency, fy } })
+  return data
+}
+export const getTransactions = async (fy: string) => {
+  const { data } = await api.get('/transactions', { params: { fy } })
+  return data
+}
+export const getPETreasury = async () => {
+  const { data } = await api.get('/pe-treasury')
+  return data
+}
+export const getShipmentTracking = async (fy: string) => {
+  const { data } = await api.get('/shipment-tracking', { params: { fy } })
+  return data
+}
+export const getDrillDown = async (params: any) => {
+  const { data } = await api.get('/drill-down', { params })
+  return data
+}
+export const askAICopilot = async (query: string) => {
+  const { data } = await api.post('/ai-copilot', { query })
+  return data
 }
 
-export const getLimitUtilization = async (currency: string, fy: string) => {
-  const response = await api.get('/limit-utilization', { params: { currency, fy } })
-  return response.data
-}
+// ─── Aliases (backward compat for legacy domain imports) ─────────────────────
+export const getBOEMonitoring = getBOEAnalytics
+export const getRiskAlerts = getTreasuryActions
 
 export default api

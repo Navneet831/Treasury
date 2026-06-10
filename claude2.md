@@ -1,55 +1,67 @@
+When FC selected it should show all FC Wether its USD or Euro whatever is except INR, with all currency one below another.
+Also the instead of bank drill down show the bank wise and show all banks one below another.
+rename the tab "Payment calendar" as "Calendar", in calender i want the amount in absolute currency, not in crores or lack etc. show the absolute amount.
+choose text colour other that white as the background is white already so the text should not be white either.
+bank i want as Metric Card Carousel or Horizontal KPI Card Strip on top.
+
+
+
+lc DUE DATE IS "LC Payment Due Date"
+LC Opening Date is "LC Op. Date"
+each LC opens again a "Bank name"
+LC Payment Due Date= Shipment Date for LC due date+USANCE NO OF DAYS
+Limit Available date= LC Payment Due Date+2
+Margin FD Made= LC Amt (in INR)*Margin
+LC Amt (in INR) =(Final LC Amt (in FC)* RATE)
+LC amount : (sum of BOE amount)
+Total pending BOE= sum of BOE-sum of BOE Received.
+Amount to be paid is "BOE Bill Amt (in INR)"
+
+LC status: If All respective LC's BOE Status = Received and or Cancelled then LC is closed and if it shows "not received" then LC is Open.
+
+IF BOE received it must have the Bill "Bill Invoice No", "Bill Lodge date", "Bill Acceptance date"
+Note: Single LC has many BOE each BOE need to be closed for LC to be closed.
+if SBLC status yes then the LC must be closed, IF SBLC status planning: then the LC must be open.
+if LC closed it must have the LC closed date.
+each LC is again must have a "product name", each product name will have a "Type".
+if Documents received, yes or soft copy then the Bill Invoice no. must to have.
+if Documents received yes then the bill lodged date must have, bill acceptance date must have.
+Each LC is against a "PO", One LC can have many "Bill Invoice No", and until the last BOE is not received the LC remain Open and vice versa.
+if LC is closed the LC closed date must to have.
+
+LC status BOE status	Payment Status
+Close	  Received	Paid
+Close	  Cancelled	Cancelled
+Open	  Received	Unpaid
+Open	  Not received	Unpaid
+NA	  Not received	Paid
+
+User want to know the LC status, BOE status, how much pending to be paid date wise, and daily Limit status. 
+
+load claude mem, graphify, and agentation in the code.in calender the colours refrence and the actual colours user are inconsistent. is AI   copilot is the best place where it is place? also take care of neuro science and consumer psycology where each element should be placed for   maximum product utlisation satisfaction? also mention all you rules and improvment in the relavant file so it harder to reverse by the weeker   models. in calender the top has taken too much of wast space reduce the space and git it to the calender, the CFO should not have to scroll as   curently the most imporatant space is wasted. Treasury Control Tower is unprofessional word, use enterprise terminilogy.avoid all kind of  overlap always show values in crores upto two decimal. choose colours wisely.in claender also show a when and how much of FD margin expected to   get released, calender shows not just payment but how much of LC each day, how much of BOE, LC open LC closed any thing daily view of the same. you think yourself what insights you can add into it?
+──────────────────────────────────────────────────────────
+
+
 \## What the Final Product Really Is
 
 Not a dashboard.
-
-
-
 It is a \*\*Treasury Control Tower + Trade Finance Command Center\*\*.
-
-
-
 \# 1. Executive Overview (Page 1)
-
-
-
 This is the most important page.
-
-
-
 \### Primary KPIs (Large Cards)
-
-
-
 Only show:
-
-
-
 1\. Available Cash
-
 2\. Available LC Limit
-
 3\. Available SBLC Limit
-
 4\. Total NFB Limit
-
 5\. Total FB Limit
-
 6\. Total Utilisation %
-
 7\. Total LC Exposure
-
 8\. Total SBLC Exposure
-
 9\. Working Capital Frozen in FD
-
 10\. Hedged %
-
 11\. Unhedged %
-
 12\. Upcoming 30 Day Payments
-
-
-
 Anything else becomes Micro KPI.
 
 

@@ -1,0 +1,11 @@
+{
+  "name": "Treasury",
+  "version": "1.0.0",
+  "description": "Trade Finance Intelligence API",
+  "backend_entry": "apps.Treasury.backend.module.module",
+  "prefix": "/api/treasury",
+  "frontend": {
+    "entry": "@treasury/App"
+  },
+  "permissions": ["treasury:read", "treasury:write"]
+}

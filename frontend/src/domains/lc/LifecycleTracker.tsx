@@ -1,11 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { getLifecycleTracker, getDrillDown } from '../api'
-import { useStore } from '../store'
-import { formatNumber } from '../utils'
+import { getLifecycleTracker, getDrillDown } from '../../api'
+import { useStore } from '../../store'
+import { formatNumber } from '../../utils'
 import { ArrowDown, Info, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react'
-import DrillDownModal from './DrillDownModal'
-
-const API_BASE = 'http://localhost:8000/api/v1'
+import DrillDownModal from '../../components/DrillDownModal'
 
 const LifecycleTracker: React.FC = () => {
   const { fy } = useStore()
@@ -19,12 +17,9 @@ const LifecycleTracker: React.FC = () => {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true)
-      const [lifecycleResult, bottleneckResult] = await Promise.all([
-        getLifecycleTracker(fy),
-        fetch(`${API_BASE}/bottleneck-analysis?fy=${fy}`).then(r => r.json()).catch(() => null)
-      ])
+      const lifecycleResult = await getLifecycleTracker(fy)
       setData(lifecycleResult)
-      setBottleneck(bottleneckResult)
+      setBottleneck(null) // bottleneck endpoint not yet implemented — graceful fallback shown
     } catch (error) {
       console.error('Error fetching lifecycle tracker:', error)
     } finally {

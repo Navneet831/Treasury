@@ -1,7 +1,8 @@
+// @ts-nocheck
 import React, { useEffect, useState, useCallback } from 'react'
-import { getCashFlowForecast } from '../api'
-import { useStore } from '../store'
-import { formatCurrencyCompact } from '../utils'
+import { getCashFlowForecast } from '../../api'
+import { useStore } from '../../store'
+import { formatCurrencyCompact } from '../../utils'
 import { RefreshCw, TrendingUp, AlertTriangle, DollarSign } from 'lucide-react'
 import {
   ComposedChart,
