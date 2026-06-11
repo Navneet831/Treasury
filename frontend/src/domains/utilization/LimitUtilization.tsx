@@ -55,7 +55,7 @@ const LimitUtilization: React.FC = () => {
   const [paymentStatus, setPaymentStatus] = useState<'Paid' | 'Unpaid'>('Unpaid')
   const [isBanksCollapsed, setIsBanksCollapsed] = useState(false)
   const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set())
-  const [isInterchangeableExpanded, setIsInterchangeableExpanded] = useState(false)
+  const [isInterchangeableExpanded, setIsInterchangeableExpanded] = useState(true)
 
   const toggleBank = () => {
     setIsBanksCollapsed(!isBanksCollapsed)
@@ -229,7 +229,7 @@ const LimitUtilization: React.FC = () => {
                           <tr title="Total = LC + Interchangeable (SBLC/Cash)">
                             <td className="py-1 font-black text-[#0f172a]">Total</td>
                             <td className="py-1 text-right font-bold text-[#0f172a] px-1">{formatCurrencyCompact(bank.interchangeability_limit, currency, amountUnit)}</td>
-                            <td className="py-1 text-right font-bold text-[#0f172a] px-1">{formatCurrencyCompact((bank.used_limit || 0) + (bank.sblc_utilization || 0), currency, amountUnit)}</td>
+                            <td className="py-1 text-right font-bold text-[#0f172a] px-1">{formatCurrencyCompact((bank.used_limit || 0) + ((bank.sblc_utilization || 0) + (bank.cash_utilization || 0)) * 0.9, currency, amountUnit)}</td>
                             <td className="py-1 text-right font-black text-[#15803d] text-[12.5px] bg-[#dcfce7] px-1">{formatCurrencyCompact(bank.available_limit, currency, amountUnit)}</td>
                           </tr>
                           <tr title="LC facility utilization">
@@ -238,7 +238,7 @@ const LimitUtilization: React.FC = () => {
                             <td className="py-1 text-right font-semibold text-[#475569] px-1">{formatCurrencyCompact(bank.used_limit || 0, currency, amountUnit)}</td>
                             <td className="py-1 text-right font-bold text-[#16a34a] text-[10.5px] bg-[#dcfce7] px-1">{formatCurrencyCompact(bank.available_limit, currency, amountUnit)}</td>
                           </tr>
-                          <tr title="Interchangeable facility (SBLC, Cash etc) within the same overall limit">
+                          <tr title="Interchangeable facility (SBLC + Cash) net of 10% margin">
                             <td 
                               className="py-1 font-bold text-[#475569] cursor-pointer hover:text-[#1d4ed8] flex items-center gap-0.5"
                               onClick={(e) => {
@@ -250,21 +250,21 @@ const LimitUtilization: React.FC = () => {
                               <span className="text-[9px] font-black">{isInterchangeableExpanded ? '−' : '+'}</span>
                             </td>
                             <td className="py-1 text-right font-semibold text-[#64748b] px-1">{formatCurrencyCompact(bank.interchangeability_limit, currency, amountUnit)}</td>
-                            <td className="py-1 text-right font-semibold text-[#1d4ed8] px-1">{formatCurrencyCompact(bank.sblc_utilization || 0, currency, amountUnit)}</td>
+                            <td className="py-1 text-right font-semibold text-[#1d4ed8] px-1">{formatCurrencyCompact(((bank.sblc_utilization || 0) + (bank.cash_utilization || 0)) * 0.9, currency, amountUnit)}</td>
                             <td className="py-1 text-right font-bold text-[#16a34a] text-[10.5px] bg-[#dcfce7] px-1 rounded-b">{formatCurrencyCompact(bank.available_limit, currency, amountUnit)}</td>
                           </tr>
                           {isInterchangeableExpanded && (
                             <>
-                              <tr className="bg-white/50" title="Standby Letter of Credit usage">
+                              <tr className="bg-white/50" title="Standby Letter of Credit usage (net of 10% margin)">
                                 <td className="py-0.5 pl-3 font-medium text-[#64748b]">SBLC</td>
                                 <td className="py-0.5 text-right text-[#94a3b8] px-1">—</td>
-                                <td className="py-0.5 text-right font-medium text-[#475569] px-1">{formatCurrencyCompact(bank.sblc_utilization || 0, currency, amountUnit)}</td>
+                                <td className="py-0.5 text-right font-medium text-[#475569] px-1">{formatCurrencyCompact((bank.sblc_utilization || 0) * 0.9, currency, amountUnit)}</td>
                                 <td className="py-0.5 text-right px-1">—</td>
                               </tr>
-                              <tr className="bg-white/50" title="Cash credit or other fungible components">
+                              <tr className="bg-white/50" title="Cash credit or other fungible components (net of 10% margin)">
                                 <td className="py-0.5 pl-3 font-medium text-[#64748b]">Cash</td>
                                 <td className="py-0.5 text-right text-[#94a3b8] px-1">—</td>
-                                <td className="py-0.5 text-right font-medium text-[#475569] px-1">{formatCurrencyCompact(0, currency, amountUnit)}</td>
+                                <td className="py-0.5 text-right font-medium text-[#475569] px-1">{formatCurrencyCompact((bank.cash_utilization || 0) * 0.9, currency, amountUnit)}</td>
                                 <td className="py-0.5 text-right px-1">—</td>
                               </tr>
                             </>
@@ -330,10 +330,10 @@ const LimitUtilization: React.FC = () => {
           <Divider />
           <Metric
             label="Interchangeable"
-            value={formatCurrencyCompact(summary.total_sblc || 0, currency, amountUnit)}
+            value={formatCurrencyCompact((summary.total_sblc || 0) * 0.9, currency, amountUnit)}
             sub="Exposure"
             valueColor="#1d4ed8"
-            formula="Total Standby LC / Interchangeable facility usage across all banks"
+            formula="Total (SBLC + Cash) usage net of 10% margin"
           />
           <Divider />
           <Metric
@@ -367,8 +367,8 @@ const LimitUtilization: React.FC = () => {
               <table className="w-full text-[10px]">
                 <thead className="bg-[#f8fafc]">
                   <tr>
-                    <th className="px-3 py-2 text-left font-bold text-[#64748b] bg-[#f8fafc] z-10">BOE Status</th>
-                    <th className="px-3 py-2 text-left font-bold text-[#64748b] border-r border-[#e2e8f0] bg-[#f8fafc] z-10">Payment</th>
+                    <th className="px-3 py-2 text-left font-bold text-[#64748b] bg-[#f8fafc] z-10">Payment</th>
+                    <th className="px-3 py-2 text-left font-bold text-[#64748b] border-r border-[#e2e8f0] bg-[#f8fafc] z-10">BOE Status</th>
                     <th className="px-3 py-2 text-right font-bold text-[#0f172a] bg-slate-100">Total</th>
                     {sortedCmdBanksList.map((bank: string) => (
                       <th key={bank} className="px-3 py-2 text-right font-bold text-[#64748b] min-w-[80px]">{bank}</th>
@@ -383,12 +383,12 @@ const LimitUtilization: React.FC = () => {
                     const statusKey = `${row.boe_status} & ${row.payment_status}`
                     return (
                       <tr key={i} className="hover:bg-[#f8fafc] transition-colors group">
-                        <td className="px-3 py-2 flex items-center gap-1.5 bg-white group-hover:bg-[#f8fafc] z-10 whitespace-nowrap">
+                        <td className="px-3 py-2 font-medium text-[#475569] bg-white group-hover:bg-[#f8fafc] z-10 whitespace-nowrap">
+                          {toProperCase(row.payment_status)}
+                        </td>
+                        <td className="px-3 py-2 flex items-center gap-1.5 border-r border-[#e2e8f0] bg-white group-hover:bg-[#f8fafc] z-10 whitespace-nowrap">
                           <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BOE_COLOR_MAP[statusKey] || '#6b7280' }} />
                           <span className="font-medium text-[#0f172a]">{toProperCase(row.boe_status)}</span>
-                        </td>
-                        <td className="px-3 py-2 font-medium text-[#475569] border-r border-[#e2e8f0] bg-white group-hover:bg-[#f8fafc] z-10 whitespace-nowrap">
-                          {toProperCase(row.payment_status)}
                         </td>
                         <td className="px-3 py-2 text-right font-bold text-[#1d4ed8] bg-slate-50">
                           {formatCurrencyCompact(rowTotal, currency, amountUnit)}

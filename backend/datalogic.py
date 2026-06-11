@@ -510,10 +510,14 @@ def get_bg_module_data() -> Dict[str, Any]:
 def get_limit_utilisation_data(currency: str = "INR", fy: str = "All", payment_status: str = "Unpaid") -> Dict[str, Any]:
     amt_col = COL_MAP["amt_inr"] if currency == "INR" else COL_MAP["amt_fc"]
     fy_filter = get_fy_clause(fy, COL_MAP['op_date'])
-    bank_data = fetch_dict(f"""SELECT LC.{COL_MAP['bank']} as bank, COUNT(*) as lc_count, SUM(LC.{amt_col}) as used_limit,
-                               COALESCE(MAX(CAST(NULLIF(REPLACE(DD."Limit", ',', ''), '') AS DOUBLE)), 0) as max_limit
+    bank_data = fetch_dict(f"""SELECT LC.{COL_MAP['bank']} as bank, COUNT(*) as lc_count, 
+                               SUM(CASE WHEN LC.{COL_MAP['lc_status']} = 'Open' THEN LC.{amt_col} ELSE 0 END) as lc_open,
+                               SUM(CASE WHEN LC.{COL_MAP['lc_status']} = 'In Process' THEN LC.{amt_col} ELSE 0 END) as lc_in_process,
+                               COALESCE(MAX(CAST(NULLIF(REPLACE(DD."Limit", ',', ''), '') AS DOUBLE)), 0) as max_limit,
+                               COALESCE(MAX(CAST(NULLIF(REPLACE(DD."SBLC", ',', ''), '') AS DOUBLE)), 0) as sblc_limit,
+                               COALESCE(MAX(CAST(NULLIF(REPLACE(DD."Cash", ',', ''), '') AS DOUBLE)), 0) as cash_limit
                                FROM LC LEFT JOIN DD ON TRIM(UPPER(LC.{COL_MAP['bank']})) = TRIM(UPPER(DD.Element_8)) AND DD.Table_8 = 'Bank'
-                               WHERE LC.{COL_MAP['lc_status']} = 'Open' {fy_filter} GROUP BY 1 ORDER BY 3 DESC""")
+                               WHERE LC.{COL_MAP['lc_status']} IN ('Open', 'In Process') {fy_filter} GROUP BY 1 ORDER BY max_limit DESC""")
     
     # ── Margin-Bank Pivot (LC Exposure) ──────────────────────────────────────
     margin_bank_raw = fetch_dict(f"SELECT {COL_MAP['bank']} as bank, Margin as margin_pct, SUM({amt_col}) as value FROM LC WHERE {COL_MAP['lc_status']} = 'Open' {fy_filter} GROUP BY 1, 2")
@@ -539,12 +543,28 @@ def get_limit_utilisation_data(currency: str = "INR", fy: str = "All", payment_s
         for b in banks_list: row[b] = sum(r['value'] for r in boe_margin_raw if r['bank'] == b and r['margin_pct'] == m)
         boe_margin_pivot.append(row)
 
-    sblc_data_res = fetch_dict(f"SELECT {COL_MAP['bank']} as bank, SUM(CASE WHEN \"SBLC Status\" LIKE 'Yes%' THEN {amt_col} ELSE 0 END) as sblc_used FROM LC WHERE {COL_MAP['lc_status']} = 'Open' {fy_filter} GROUP BY 1")
+    sblc_data_res = fetch_dict(f"SELECT {COL_MAP['bank']} as bank, SUM(CASE WHEN \"SBLC Status\" LIKE 'Yes%' THEN {amt_col} ELSE 0 END) as sblc_used FROM LC WHERE {COL_MAP['lc_status']} = 'Open' AND TRIM(Margin) = '10%' {fy_filter} GROUP BY 1")
     sblc_map = {r['bank']: r['sblc_used'] for r in sblc_data_res}
     total_max, total_used, total_sblc = 0, 0, 0
     for row in bank_data:
-        used, limit, sblc_used = row['used_limit'] or 0, row['max_limit'] or 0, sblc_map.get(row['bank'], 0)
-        row.update({'utilization_pct': round(used / max(limit, 1) * 100, 1), 'available_limit': max(0, limit - used), 'sblc_utilization': sblc_used, 'interchangeability_limit': limit, 'sblc_balance': max(0, limit - used)})
+        lc_open = row.get('lc_open', 0)
+        lc_in_process = row.get('lc_in_process', 0)
+        used = lc_open + lc_in_process
+        limit = row.get('max_limit', 0)
+        sblc_used = sblc_map.get(row['bank'], 0)
+        row.update({
+            'used_limit': used,
+            'lc_open': lc_open,
+            'lc_in_process': lc_in_process,
+            'utilization_pct': round(used / max(limit, 1) * 100, 1),
+            'available_limit': max(0, limit - used),
+            'sblc_utilization': sblc_used,
+            'sblc_limit': row.get('sblc_limit', 0),
+            'cash_limit': row.get('cash_limit', 0),
+            'cash_utilization': 0,
+            'interchangeability_limit': limit,
+            'sblc_balance': max(0, limit - used)
+        })
         total_max += limit; total_used += used; total_sblc += sblc_used
     total_bg = get_bg_module_data()['outstanding']
     return {"bank_utilization": bank_data, "margin_bank_pivot": margin_bank_pivot, "boe_margin_pivot": boe_margin_pivot, "banks_list": banks_list,
@@ -557,9 +577,9 @@ def get_treasury_actions() -> List[Dict[str, Any]]:
     for b in util['bank_utilization']:
         if b['utilization_pct'] > 90: actions.append({"priority": 1, "type": "Limit Breach Risk", "message": f"Bank {b['bank']} utilization is at {b['utilization_pct']:.1f}%. Action required to shift exposure.", "bank": b['bank']})
     upcoming_payments = fetch_dict(f"SELECT {COL_MAP['lc_no']} as id, {COL_MAP['supplier']} as supplier, {COL_MAP['due_date']} as date, {COL_MAP['amt_inr']} as amount FROM LC WHERE {COL_MAP['due_date']} BETWEEN '{cd.isoformat()}' AND '{cd.isoformat()}'::DATE + INTERVAL 7 DAY AND ({COL_MAP['payment_status']} != 'Paid' OR {COL_MAP['payment_status']} IS NULL)")
-    for p in upcoming_payments: actions.append({"priority": 2, "type": "Payment Due", "message": f"Payment of ₹{p['amount']:,.0f} for {p['supplier']} is due on {p['date']}.", "id": p['id']})
+    for p in upcoming_payments: actions.append({"priority": 2, "type": "Payment Due", "message": f"Payment of {p['amount']:,.0f} for {p['supplier']} is due on {p['date']}.", "id": p['id']})
     for m in get_fd_module_data()['maturity']:
-        if m['bucket'] == "7 Days" and m['value'] > 0: actions.append({"priority": 3, "type": "FD Maturity", "message": f"FDs worth ₹{m['value']:,.0f} are maturing within 7 days. Plan reinvestment or payout."})
+        if m['bucket'] == "7 Days" and m['value'] > 0: actions.append({"priority": 3, "type": "FD Maturity", "message": f"FDs worth {m['value']:,.0f} are maturing within 7 days. Plan reinvestment or payout."})
     fx = get_fx_risk_data()
     if fx['total_unhedged_pct'] > 30: actions.append({"priority": 4, "type": "FX Exposure Risk", "message": fx['alert']})
     return sorted(actions, key=lambda x: x['priority'])
