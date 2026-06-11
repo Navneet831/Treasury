@@ -26,8 +26,13 @@ export const getExecutiveOverview = async (currency: string, fy: string) => {
   return data
 }
 
-export const getCommandData = async (currency: string, fy: string) => {
-  const { data } = await api.get('/command-data', { params: { currency, fy } })
+export const getCommandData = async (currency: string, fy: string, paymentStatus: string = 'Unpaid') => {
+  const { data } = await api.get('/command-data', { params: { currency, fy, payment_status: paymentStatus } })
+  return data
+}
+
+export const getLimitUtilisation = async (currency: string, fy: string, paymentStatus: string = 'Unpaid') => {
+  const { data } = await api.get('/limit-utilisation', { params: { currency, fy, payment_status: paymentStatus } })
   return data
 }
 
@@ -35,6 +40,7 @@ export const getLCExposure = async (currency: string, fy: string) => {
   const { data } = await api.get('/lc-exposure', { params: { currency, fy } })
   return data
 }
+
 
 export const getSBLCModule = async (currency: string, fy: string) => {
   const { data } = await api.get('/sblc-module', { params: { currency, fy } })
@@ -77,10 +83,6 @@ export const getBGModule = async () => {
   return data
 }
 
-export const getLimitUtilisation = async (currency: string, fy: string) => {
-  const { data } = await api.get('/limit-utilisation', { params: { currency, fy } })
-  return data
-}
 
 export const getTreasuryActions = async () => {
   const { data } = await api.get('/treasury-actions')

@@ -80,6 +80,20 @@
   .page-in {
     animation: pageIn 0.25s ease-out forwards;
   }
+
+  .custom-scrollbar-horizontal::-webkit-scrollbar {
+    height: 6px;
+  }
+  .custom-scrollbar-horizontal::-webkit-scrollbar-track {
+    background: #f8fafc;
+  }
+  .custom-scrollbar-horizontal::-webkit-scrollbar-thumb {
+    background: #e2e8f0;
+    border-radius: 10px;
+  }
+  .custom-scrollbar-horizontal::-webkit-scrollbar-thumb:hover {
+    background: #cbd5e1;
+  }
 }
 
 @keyframes pageIn {

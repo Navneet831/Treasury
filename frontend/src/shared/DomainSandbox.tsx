@@ -1,4 +1,4 @@
-import React, { useState, Suspense } from 'react'
+import React, { Component, Suspense } from 'react'
 import { AlertTriangle, RefreshCcw } from 'lucide-react'
 
 interface ErrorBoundaryProps {
@@ -6,29 +6,46 @@ interface ErrorBoundaryProps {
   name: string
 }
 
-const ErrorBoundary: React.FC<{ children: React.ReactNode, name: string }> = ({ children, name }) => {
-  const [hasError, setHasError] = useState(false)
+interface ErrorBoundaryState {
+  hasError: boolean
+}
 
-  if (hasError) {
-    return (
-      <div className="flex flex-col items-center justify-center p-8 bg-rose-50/50 border border-rose-100 rounded-xl gap-4">
-        <AlertTriangle className="text-rose-500 w-10 h-10" />
-        <div className="text-center">
-          <h3 className="text-rose-900 font-bold">{name} Module Error</h3>
-          <p className="text-rose-600 text-sm">Failed to load this section.</p>
-        </div>
-        <button 
-          onClick={() => setHasError(false)}
-          className="flex items-center gap-2 px-4 py-2 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition-colors font-semibold text-sm"
-        >
-          <RefreshCcw size={16} />
-          Retry Module
-        </button>
-      </div>
-    )
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props)
+    this.state = { hasError: false }
   }
 
-  return <>{children}</>
+  static getDerivedStateFromError(_: Error) {
+    return { hasError: true }
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error(`ErrorBoundary caught an error in ${this.props.name}:`, error, errorInfo)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center p-8 bg-rose-50/50 border border-rose-100 rounded-xl gap-4">
+          <AlertTriangle className="text-rose-500 w-10 h-10" />
+          <div className="text-center">
+            <h3 className="text-rose-900 font-bold">{this.props.name} Module Error</h3>
+            <p className="text-rose-600 text-sm">Failed to load this section.</p>
+          </div>
+          <button 
+            onClick={() => this.setState({ hasError: false })}
+            className="flex items-center gap-2 px-4 py-2 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition-colors font-semibold text-sm"
+          >
+            <RefreshCcw size={16} />
+            Retry Module
+          </button>
+        </div>
+      )
+    }
+
+    return <>{this.props.children}</>
+  }
 }
 
 interface DomainSandboxProps {

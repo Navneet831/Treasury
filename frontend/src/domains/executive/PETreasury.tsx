@@ -60,7 +60,7 @@ const PETreasury: React.FC = () => {
                         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">
                             {key.replace(/_/g, ' ')}
                         </p>
-                        <p className="text-xl font-black text-primary">₹{val} Cr</p>
+                        <p className="text-xl font-black text-primary">{val} Cr</p>
                     </div>
                 ))}
             </div>
@@ -79,7 +79,7 @@ const PETreasury: React.FC = () => {
                 <XAxis dataKey="year" axisLine={false} tickLine={false} tick={{ fontWeight: 'bold' }} />
                 <YAxis hide />
                 <Tooltip 
-                  formatter={(value: any, _name: any, props: any) => [`₹${value} Cr`, props.payload.debt_type]}
+                  formatter={(value: any, _name: any, props: any) => [`${value} Cr`, props.payload.debt_type]}
                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                 />
                 <Bar dataKey="amount_cr" radius={[4, 4, 0, 0]} barSize={40}>
@@ -116,7 +116,7 @@ const PETreasury: React.FC = () => {
                   ))}
                 </Pie>
                 <Tooltip 
-                   formatter={(value: any) => [`₹${value} Cr`, 'Amount']}
+                   formatter={(value: any) => [`${value} Cr`, 'Amount']}
                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                 />
               </PieChart>

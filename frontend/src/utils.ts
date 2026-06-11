@@ -1,49 +1,35 @@
 export const formatCurrencyAbsolute = (value: number | null | undefined, currency: string): string => {
   if (value === null || value === undefined || isNaN(value)) return '—'
   
-  const currencyCode = currency === 'INR' ? 'INR' : 'USD'
-  
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: currencyCode,
-    maximumFractionDigits: 0,
+  return Math.round(value).toLocaleString('en-IN', {
     minimumFractionDigits: 0,
-  }).format(value)
+    maximumFractionDigits: 0,
+  })
 }
 
 export const formatCurrency = (value: number | null | undefined, currency: string): string => {
   if (value === null || value === undefined || isNaN(value)) return '—'
   
-  // Map FC to USD for display; actual currency-specific display would need the actual currency code
-  const currencyCode = currency === 'INR' ? 'INR' : 'USD'
-  
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: currencyCode,
-    maximumFractionDigits: 0,
+  return Math.round(value).toLocaleString('en-IN', {
     minimumFractionDigits: 0,
-  }).format(value)
+    maximumFractionDigits: 0,
+  })
 }
 
-export const formatCurrencyCompact = (value: number | null | undefined, currency: string): string => {
+export const formatCurrencyCompact = (value: number | null | undefined, currency: string, unit: 'Cr' | 'Absolute' = 'Cr'): string => {
   if (value === null || value === undefined || isNaN(value)) return '—'
-  const abs = Math.abs(value)
-  const currencyCode = currency === 'INR' ? 'INR' : currency === 'EUR' ? 'EUR' : currency === 'GBP' ? 'GBP' : 'USD'
   
-  const symbolMap: Record<string, string> = {
-    'INR': '₹',
-    'USD': '$',
-    'EUR': '€',
-    'GBP': '£',
-    'AED': 'DH',
-    'CNY': '¥'
+  if (unit === 'Cr') {
+    return (value / 1e7).toLocaleString('en-IN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
   }
-  const symbol = symbolMap[currency] || '$'
-  
-  if (abs >= 1e7) return `${symbol}${(value / 1e7).toFixed(2)} Cr`
-  if (abs >= 1e5) return `${symbol}${(value / 1e5).toFixed(2)} L`
-  if (abs >= 1e3) return `${symbol}${(value / 1e3).toFixed(1)}K`
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: currencyCode, maximumFractionDigits: 0 }).format(value)
+
+  return Math.round(value).toLocaleString('en-IN', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })
 }
 
 export const formatNumber = (value: number | null | undefined): string => {

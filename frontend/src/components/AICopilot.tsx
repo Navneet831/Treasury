@@ -48,9 +48,9 @@ const AICopilot: React.FC = () => {
             <div className="h-full flex flex-col items-center justify-center text-center space-y-4">
               <Bot className="w-12 h-12 text-muted-foreground opacity-20" />
               <div className="max-w-md">
-                <p className="text-sm font-bold text-muted-foreground">Ask me anything about your LCs</p>
+                <p className="text-sm font-bold text-muted-foreground">Ask me anything about your Bills & LCs</p>
                 <div className="grid grid-cols-2 gap-2 mt-4">
-                  {["Show expiring LCs", "Bank with highest exposure", "Top suppliers", "Upcoming payments"].map(q => (
+                  {["Show unpaid bills", "Expiring LCs", "Bank-wise unpaid totals", "Upcoming payment obligations"].map(q => (
                     <button 
                       key={q}
                       onClick={() => { setQuery(q); }}

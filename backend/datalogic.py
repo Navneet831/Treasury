@@ -507,7 +507,7 @@ def get_bg_module_data() -> Dict[str, Any]:
         if clean_val(bg.get('FD Lien Amt')) > 0 and status == 'open': fd_linked += amt
     return {"outstanding": outstanding, "expiring_30d": expiring_soon, "expired": expired, "fd_linked": fd_linked}
 
-def get_limit_utilisation_data(currency: str = "INR", fy: str = "All") -> Dict[str, Any]:
+def get_limit_utilisation_data(currency: str = "INR", fy: str = "All", payment_status: str = "Unpaid") -> Dict[str, Any]:
     amt_col = COL_MAP["amt_inr"] if currency == "INR" else COL_MAP["amt_fc"]
     fy_filter = get_fy_clause(fy, COL_MAP['op_date'])
     bank_data = fetch_dict(f"""SELECT LC.{COL_MAP['bank']} as bank, COUNT(*) as lc_count, SUM(LC.{amt_col}) as used_limit,
@@ -527,9 +527,10 @@ def get_limit_utilisation_data(currency: str = "INR", fy: str = "All") -> Dict[s
 
     # ── Margin-Bank BOE Pivot ────────────────────────────────────────────────
     boe_amt_col = COL_MAP["boe_bill_inr"] if currency == "INR" else COL_MAP["boe_bill_fc"]
+    pay_cond = f"{COL_MAP['payment_status']} = 'Paid'" if payment_status == "Paid" else f"({COL_MAP['payment_status']} != 'Paid' OR {COL_MAP['payment_status']} IS NULL)"
     boe_margin_raw = fetch_dict(f"""
         SELECT {COL_MAP['bank']} as bank, Margin as margin_pct, SUM(COALESCE({boe_amt_col}, {amt_col})) as value 
-        FROM LC WHERE {COL_MAP['boe_status']} = 'Received' AND {COL_MAP['payment_status']} != 'Paid' {fy_filter}
+        FROM LC WHERE {COL_MAP['boe_status']} = 'Received' AND {pay_cond} {fy_filter}
         GROUP BY 1, 2
     """)
     boe_margin_pivot = []
@@ -563,7 +564,7 @@ def get_treasury_actions() -> List[Dict[str, Any]]:
     if fx['total_unhedged_pct'] > 30: actions.append({"priority": 4, "type": "FX Exposure Risk", "message": fx['alert']})
     return sorted(actions, key=lambda x: x['priority'])
 
-def get_command_data(currency: str = "INR", fy: str = "All") -> Dict[str, Any]:
+def get_command_data(currency: str = "INR", fy: str = "All", payment_status: str = "Unpaid") -> Dict[str, Any]:
     cd, amt_col = get_current_date(), COL_MAP["amt_inr"] if currency == "INR" else COL_MAP["amt_fc"]
     fy_filter = get_fy_clause(fy, COL_MAP['op_date'])
     exec_d, exp_d, boe_d, sblc_d = get_executive_overview_data(currency, fy), get_lc_exposure_data(currency, fy), get_boe_analytics_data(currency, fy), get_sblc_module_data(currency, fy)
@@ -571,10 +572,10 @@ def get_command_data(currency: str = "INR", fy: str = "All") -> Dict[str, Any]:
     
     # Define limit_map for pivots
     limits = fetch_dict("""
-        SELECT Element_8 as bank, CAST(NULLIF(REPLACE("Limit", ',', ''), '') AS DOUBLE) as limit_amt
-        FROM DD WHERE Table_8 = 'Bank' AND Element_8 != ''
+        SELECT TRIM(Element_8) as bank, CAST(NULLIF(REPLACE("Limit", ',', ''), '') AS DOUBLE) as limit_amt
+        FROM DD WHERE Table_8 = 'Bank' AND Element_8 != '' AND Element_8 IS NOT NULL
     """)
-    limit_map = {r['bank'].strip(): r['limit_amt'] or 0 for r in limits}
+    limit_map = {r['bank']: r['limit_amt'] or 0 for r in limits}
     bank_limit_summary = [{"bank": b, "limit": l} for b, l in limit_map.items()]
 
     overdue = fetch_one(f"""
@@ -592,27 +593,29 @@ def get_command_data(currency: str = "INR", fy: str = "All") -> Dict[str, Any]:
           AND {COL_MAP['lc_status']} NOT IN ('Closed', 'Cancelled')
     """)
 
-    # ── Product-Bank Unpaid Bills Pivot ──────────────────────────────────────
+    # ── Product-Bank Pivot ──────────────────────────────────────────────────
+    pay_cond = f"{COL_MAP['payment_status']} = 'Paid'" if payment_status == "Paid" else f"({COL_MAP['payment_status']} != 'Paid' OR {COL_MAP['payment_status']} IS NULL)"
     boe_amt_col = COL_MAP["boe_pending_inr"] if currency == "INR" else COL_MAP["boe_pending_fc"]
     product_unpaid_raw = fetch_dict(f"""
         SELECT 
             COALESCE(TRIM("Product Name"), 'Unknown') as product,
-            {COL_MAP['bank']} as bank,
+            COALESCE(TRIM("Type"), 'Unknown') as type,
+            TRIM({COL_MAP['bank']}) as bank,
             SUM(COALESCE({boe_amt_col}, {amt_col}, 0)) as value
         FROM LC
-        WHERE ({COL_MAP['payment_status']} IS NULL OR {COL_MAP['payment_status']} != 'Paid')
+        WHERE {pay_cond}
           AND {COL_MAP['boe_status']} = 'Received'
           AND {COL_MAP['lc_status']} NOT IN ('Closed', 'Cancelled')
           {get_fy_clause(fy, COL_MAP['due_date'])}
-        GROUP BY 1, 2
+        GROUP BY 1, 2, 3
     """)
     
-    product_list = sorted(list(set(r['product'] for r in product_unpaid_raw if r['product'])))
+    product_list = sorted(list(set((r['product'], r['type']) for r in product_unpaid_raw)))
     product_unpaid_pivot = []
-    for p in product_list:
-        row = {"product": p}
+    for p, t in product_list:
+        row = {"product": p, "type": t}
         for b in limit_map.keys():
-            row[b] = sum(r['value'] for r in product_unpaid_raw if r['product'] == p and r['bank'] == b)
+            row[b] = sum(r['value'] for r in product_unpaid_raw if r['product'] == p and r['type'] == t and r['bank'] == b)
         product_unpaid_pivot.append(row)
 
     # ── BOE Status-Bank Pivot (Refactored) ───────────────────────────────────
@@ -621,7 +624,7 @@ def get_command_data(currency: str = "INR", fy: str = "All") -> Dict[str, Any]:
         SELECT 
             COALESCE({COL_MAP['boe_status']}, 'Not Received') as boe_status,
             COALESCE({COL_MAP['payment_status']}, 'Unpaid') as payment_status,
-            {COL_MAP['bank']} as bank,
+            TRIM({COL_MAP['bank']}) as bank,
             SUM(COALESCE({boe_bill_amt_col}, 0)) as value
         FROM LC WHERE 1=1 {fy_filter}
         GROUP BY 1, 2, 3

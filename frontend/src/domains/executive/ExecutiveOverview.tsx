@@ -23,12 +23,14 @@ const MetricCard: React.FC<{
   variant?: 'default' | 'accent' | 'warning';
   breakdown?: { Currency: string; value: number }[];
   currency: string;
-}> = ({ title, value, icon: Icon, subText, variant = 'default', breakdown, currency }) => {
+  formula?: string;
+  unit: 'Cr' | 'Absolute';
+}> = ({ title, value, icon: Icon, subText, variant = 'default', breakdown, currency, formula, unit }) => {
   const isAccent = variant === 'accent'
   const isWarning = variant === 'warning'
   
   return (
-    <div className={`p-8 rounded-[12px] border ${isAccent ? 'bg-[#3ecf8e] text-[#171717] border-[#24b47e]' : isWarning ? 'bg-[#ff2201] text-white border-[#e2005a]' : 'bg-[#f4f4f5] border-[#e5e5e5] text-[#171717]'} transition-all shadow-sm hover:shadow-md h-full flex flex-col`}>
+    <div className={`p-8 rounded-[12px] border ${isAccent ? 'bg-[#3ecf8e] text-[#171717] border-[#24b47e]' : isWarning ? 'bg-[#ff2201] text-white border-[#e2005a]' : 'bg-[#f4f4f5] border-[#e5e5e5] text-[#171717]'} transition-all shadow-sm hover:shadow-md h-full flex flex-col`} title={formula}>
       <div className="flex justify-between items-start mb-6">
         <div className={`p-2 rounded-[6px] ${isAccent ? 'bg-[#171717]/10' : isWarning ? 'bg-white/20' : 'bg-white border border-[#e5e5e5]'}`}>
           <Icon className="w-5 h-5" />
@@ -42,7 +44,7 @@ const MetricCard: React.FC<{
               <div key={i} className="flex flex-col border-b border-black/5 pb-2 last:border-0">
                 <span className="text-[11px] font-bold opacity-60">{b.Currency}</span>
                 <span className="text-[24px] font-medium tracking-tight">
-                  {formatCurrencyCompact(b.value, b.Currency)}
+                  {formatCurrencyCompact(b.value, b.Currency, unit)}
                 </span>
               </div>
             ))}
@@ -57,7 +59,7 @@ const MetricCard: React.FC<{
 }
 
 const ExecutiveOverview: React.FC = () => {
-  const { currency, fy } = useStore()
+  const { currency, fy, amountUnit } = useStore()
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -112,9 +114,14 @@ const ExecutiveOverview: React.FC = () => {
         <div className="max-w-[1400px] mx-auto flex justify-between items-end">
           <div>
             <h1 className="text-[48px] font-medium text-[#171717] tracking-[-1.44px] leading-[1.1]">Executive Overview</h1>
-            <p className="text-[18px] text-[#707070] mt-2 font-normal leading-[1.4]">
-              High-level treasury control tower.
-            </p>
+            <div className="flex items-center gap-3 mt-2">
+              <p className="text-[18px] text-[#707070] font-normal leading-[1.4]">
+                High-level treasury control tower.
+              </p>
+              <span className="text-[12px] font-bold text-[#64748b] bg-[#f4f4f5] px-2.5 py-1 rounded border border-[#e5e5e5]">
+                Amount in Cr
+              </span>
+            </div>
           </div>
           {insights && insights.length > 0 && (
             <div className="hidden lg:flex items-center gap-2 bg-[#f4f4f5] px-4 py-2 rounded-[6px] border border-[#e5e5e5]">
@@ -136,22 +143,27 @@ const ExecutiveOverview: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                  <MetricCard 
                     title="Available Cash" 
-                    value={formatCurrencyCompact(kpis.available_cash, currency)} 
+                    value={formatCurrencyCompact(kpis.available_cash, currency, amountUnit)} 
                     icon={Wallet} 
                     variant="accent"
                     currency={currency}
+                    unit={amountUnit}
                  />
                  <MetricCard 
                     title="Available LC Limit" 
-                    value={formatCurrencyCompact(kpis.available_lc_limit, currency)} 
+                    value={formatCurrencyCompact(kpis.available_lc_limit, currency, amountUnit)} 
                     icon={Shield} 
                     currency={currency}
+                    unit={amountUnit}
+                    formula="Total LC Limit - Utilized LC"
                  />
                  <MetricCard 
                     title="Available SBLC Limit" 
-                    value={formatCurrencyCompact(kpis.available_sblc_limit, currency)} 
+                    value={formatCurrencyCompact(kpis.available_sblc_limit, currency, amountUnit)} 
                     icon={Shield} 
                     currency={currency}
+                    unit={amountUnit}
+                    formula="Total SBLC Limit - Utilized SBLC"
                  />
               </div>
            </div>
@@ -165,15 +177,19 @@ const ExecutiveOverview: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                  <MetricCard 
                     title="Total NFB Limit" 
-                    value={formatCurrencyCompact(kpis.total_nfb_limit, currency)} 
+                    value={formatCurrencyCompact(kpis.total_nfb_limit, currency, amountUnit)} 
                     icon={CreditCard} 
                     currency={currency}
+                    unit={amountUnit}
+                    formula="Sum of all Non-Fund Based limits across all banks"
                  />
                  <MetricCard 
                     title="Total FB Limit" 
-                    value={formatCurrencyCompact(kpis.total_fb_limit, currency)} 
+                    value={formatCurrencyCompact(kpis.total_fb_limit, currency, amountUnit)} 
                     icon={CreditCard} 
                     currency={currency}
+                    unit={amountUnit}
+                    formula="Sum of all Fund Based limits across all banks"
                  />
                  <MetricCard 
                     title="Total Utilisation" 
@@ -181,6 +197,8 @@ const ExecutiveOverview: React.FC = () => {
                     icon={Activity} 
                     subText="Percentage of NFB consumed"
                     currency={currency}
+                    unit={amountUnit}
+                    formula="(Total NFB Used / Total NFB Limit) * 100"
                  />
               </div>
            </div>
@@ -194,24 +212,30 @@ const ExecutiveOverview: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                  <MetricCard 
                     title="Total LC Exposure" 
-                    value={formatCurrencyCompact(kpis.total_lc_exposure, currency)} 
+                    value={formatCurrencyCompact(kpis.total_lc_exposure, currency, amountUnit)} 
                     icon={FileText} 
                     breakdown={kpis.breakdowns?.total_lc_exposure}
                     currency={currency}
+                    unit={amountUnit}
+                    formula="Aggregated value of all active Letters of Credit"
                  />
                  <MetricCard 
                     title="Total SBLC Exposure" 
-                    value={formatCurrencyCompact(kpis.total_sblc_exposure, currency)} 
+                    value={formatCurrencyCompact(kpis.total_sblc_exposure, currency, amountUnit)} 
                     icon={FileText} 
                     currency={currency}
+                    unit={amountUnit}
+                    formula="Aggregated value of all active Standby Letters of Credit"
                  />
                  <MetricCard 
                     title="Working Capital Frozen" 
-                    value={formatCurrencyCompact(kpis.working_capital_frozen, currency)} 
+                    value={formatCurrencyCompact(kpis.working_capital_frozen, currency, amountUnit)} 
                     icon={Wallet} 
                     subText="Locked in Margin FDs"
                     breakdown={kpis.breakdowns?.working_capital_frozen}
                     currency={currency}
+                    unit={amountUnit}
+                    formula="Total Margin FDs lien-marked against active credit facilities"
                  />
               </div>
            </div>
@@ -228,6 +252,8 @@ const ExecutiveOverview: React.FC = () => {
                     value={formatPercent(kpis.hedged_pct)} 
                     icon={Shield} 
                     currency={currency}
+                    unit={amountUnit}
+                    formula="(Value of Forward Contracts / Total FX Exposure) * 100"
                  />
                  <MetricCard 
                     title="Unhedged Exposure" 
@@ -236,13 +262,17 @@ const ExecutiveOverview: React.FC = () => {
                     variant={kpis.unhedged_pct > 30 ? 'warning' : 'default'}
                     subText={kpis.unhedged_pct > 30 ? "Unhedged exposure exceeds 30% threshold" : ""}
                     currency={currency}
+                    unit={amountUnit}
+                    formula="100% - Hedged %"
                  />
                  <MetricCard 
                     title="30-Day Upcoming Payments" 
-                    value={formatCurrencyCompact(kpis.upcoming_30d, currency)} 
+                    value={formatCurrencyCompact(kpis.upcoming_30d, currency, amountUnit)} 
                     icon={Clock} 
-                    breakdown={kpis.breakdowns?.upcoming_30d}
                     currency={currency}
+                    unit={amountUnit}
+                    formula="Sum of all LC/payment obligations due within the next 30 days"
+                 />
                  />
               </div>
            </div>

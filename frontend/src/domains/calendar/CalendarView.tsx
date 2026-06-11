@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { ChevronLeft, ChevronRight, RefreshCw, Landmark } from 'lucide-react'
-import { getCalendarData, getDailyReco, getBanksList, getPaymentStatuses, getDrillDown } from '../../api'
+import { getCalendarData, getDailyReco, getBanksList, getPaymentStatuses } from '../../api'
 import { useStore } from '../../store'
 import { formatCurrencyAbsolute } from '../../utils'
-import DrillDownModal from '../../components/DrillDownModal'
 
 const EVENT_STYLE: Record<string, { bg: string; text: string; label: string }> = {
   'Payment Due':        { bg: '#fee2e2', text: '#991b1b', label: 'Unpaid'        },
@@ -11,6 +10,8 @@ const EVENT_STYLE: Record<string, { bg: string; text: string; label: string }> =
   'LC Opened':          { bg: '#dbeafe', text: '#1e40af', label: 'LC Opened'     },
   'LC Closed':          { bg: '#fef3c7', text: '#92400e', label: 'LC Closed'     },
   'LC Expiry':          { bg: '#fecaca', text: '#991b1b', label: 'LC Expiry'     },
+  'SBLC Opened':        { bg: '#e0f2fe', text: '#0369a1', label: 'SBLC Open'     },
+  'SBLC Expiry':        { bg: '#ffedd5', text: '#9a3412', label: 'SBLC Exp'      },
   'BOE Received':       { bg: '#ede9fe', text: '#5b21b6', label: 'BOE Recv'      },
   'BOE Unpaid':         { bg: '#fee2e2', text: '#991b1b', label: 'BOE Unpaid'    },
   'BOE Paid':           { bg: '#dcfce7', text: '#166534', label: 'BOE Paid'      },
@@ -29,23 +30,12 @@ const COLOR_TO_TYPE: Record<string, string> = {
   Teal:     'FD Margin Released',
 }
 
-const TYPE_TO_DATE_FIELD: Record<string, string> = {
-  'Payment Due':        'due_date',
-  'Paid':               'due_date',
-  'LC Opened':          'op_date',
-  'LC Closed':          'lc_close_date',
-  'LC Expiry':          'expiry_date',
-  'BOE Received':       'boe_date',
-  'BOE Unpaid':         'due_date',
-  'BOE Paid':           'due_date',
-  'FD Margin Released': 'due_date',
-}
 
 type ViewMode = 'payments' | 'lc' | 'boe' | 'fd' | 'bank'
 
 const VIEW_LABELS: Record<ViewMode, string> = {
   payments: 'Payments',
-  lc:       'LC Activity',
+  lc:       'NFB',
   boe:      'BOE',
   fd:       'FD Release',
   bank:     'Bank',
@@ -53,10 +43,10 @@ const VIEW_LABELS: Record<ViewMode, string> = {
 
 const VIEW_TYPES: Record<ViewMode, string[]> = {
   payments: ['Payment Due', 'Paid'],
-  lc:       ['LC Opened', 'LC Closed', 'LC Expiry'],
+  lc:       ['LC Opened', 'LC Closed', 'LC Expiry', 'SBLC Opened', 'SBLC Expiry'],
   boe:      ['BOE Received', 'BOE Unpaid', 'BOE Paid'],
   fd:       ['FD Margin Released'],
-  bank:     ['Payment Due', 'Paid', 'LC Opened', 'LC Closed', 'LC Expiry', 'BOE Received', 'BOE Unpaid', 'BOE Paid', 'FD Margin Released'], // All types visible in Bank view, grouping logic will change UI
+  bank:     ['Payment Due', 'Paid', 'LC Opened', 'LC Closed', 'LC Expiry', 'BOE Received', 'BOE Unpaid', 'BOE Paid', 'FD Margin Released', 'SBLC Opened', 'SBLC Expiry'], // All types visible in Bank view, grouping logic will change UI
 }
 
 const HAS_PAY_TOGGLE: Record<ViewMode, boolean> = {
@@ -90,7 +80,7 @@ const CalendarView: React.FC = () => {
   const [selectedDay,      setSelectedDay]     = useState<number | null>(null)
 
   const [viewMode,  setViewMode]  = useState<ViewMode>('payments')
-  const [payFilter, setPayFilter] = useState<string>('All')
+  const [payFilter, setPayFilter] = useState<string>('Unpaid')
 
   const visibleTypes = useMemo(() => getVisibleTypes(viewMode, payFilter), [viewMode, payFilter])
 
@@ -178,18 +168,6 @@ const CalendarView: React.FC = () => {
           <button onClick={nextMonth} className="p-1.5 rounded-md hover:bg-white transition-colors text-[#64748b]"><ChevronRight className="w-3.5 h-3.5" /></button>
         </div>
 
-        <div className="flex items-center gap-2 bg-white border border-[#e2e8f0] rounded-lg px-2.5 py-1.5 shadow-sm">
-          <Landmark className="w-3.5 h-3.5 text-[#64748b]" />
-          <select
-            value={selectedBank}
-            onChange={e => setSelectedBank(e.target.value)}
-            className="text-[11px] font-bold text-[#0f172a] outline-none cursor-pointer bg-transparent"
-          >
-            <option value="All">Consolidated Bank View</option>
-            {banks.map(b => <option key={b} value={b}>{b}</option>)}
-          </select>
-        </div>
-
         <div className="w-px h-5 bg-[#e2e8f0]" />
 
         <div className="flex items-center gap-0.5 bg-[#f1f5f9] rounded-lg p-0.5">
@@ -217,7 +195,6 @@ const CalendarView: React.FC = () => {
           </>
         )}
 
-        <button onClick={fetchEvents} className="ml-auto p-1.5 border border-[#e2e8f0] rounded-lg hover:bg-[#f8fafc] transition-colors text-[#64748b]"><RefreshCw className="w-3.5 h-3.5" /></button>
       </div>
 
       {Object.keys(viewTotals).length > 0 && (
@@ -305,6 +282,7 @@ const CalendarView: React.FC = () => {
         <span className="text-[9px] font-bold text-[#94a3b8] uppercase tracking-wider">Legend</span>
         {legendTypes.map(type => {
           const style = EVENT_STYLE[type]
+          if (!style) return null
           return (
             <div key={type} className="flex items-center gap-1.5">
               <div className="w-2.5 h-1.5 rounded" style={{ background: style.bg }} />

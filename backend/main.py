@@ -17,8 +17,8 @@ async def get_executive_overview(currency: str = Query("INR"), fy: str = Query("
     return datalogic.get_executive_overview_data(currency, fy)
 
 @router.get("/command-data")
-async def get_command_data(currency: str = Query("INR"), fy: str = Query("All")):
-    return datalogic.get_command_data(currency, fy)
+async def get_command_data(currency: str = Query("INR"), fy: str = Query("All"), payment_status: str = Query("Unpaid")):
+    return datalogic.get_command_data(currency, fy, payment_status)
 
 @router.get("/lc-exposure")
 async def get_lc_exposure(currency: str = Query("INR"), fy: str = Query("All")):
@@ -86,8 +86,8 @@ async def get_bg_module():
     return datalogic.get_bg_module_data()
 
 @router.get("/limit-utilisation")
-async def get_limit_utilisation(currency: str = Query("INR")):
-    return datalogic.get_limit_utilisation_data(currency)
+async def get_limit_utilisation(currency: str = Query("INR"), fy: str = Query("All"), payment_status: str = Query("Unpaid")):
+    return datalogic.get_limit_utilisation_data(currency, fy, payment_status)
 
 @router.get("/treasury-actions")
 async def get_treasury_actions():

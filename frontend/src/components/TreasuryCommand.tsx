@@ -30,9 +30,10 @@ const Metric: React.FC<{
   value: string | number
   sub?: string
   valueColor?: string
-}> = ({ label, value, sub, valueColor = '#0f172a' }) => (
-  <div className="flex flex-col min-w-0">
-    <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#64748b] mb-1.5">{label}</span>
+  formula?: string
+}> = ({ label, value, sub, valueColor = '#0f172a', formula }) => (
+  <div className="flex flex-col min-w-0" title={formula}>
+    <span className="text-[10px] font-bold text-[#64748b] mb-1.5">{label}</span>
     <span className="text-[19px] font-semibold tracking-tight leading-none mb-1 truncate" style={{ color: valueColor }}>
       {value}
     </span>
@@ -41,7 +42,7 @@ const Metric: React.FC<{
 )
 
 const TreasuryCommand: React.FC = () => {
-  const { currency, fy } = useStore()
+  const { currency, fy, amountUnit } = useStore()
   const [data, setData] = useState<any>(null)
   const [actions, setActions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -106,9 +107,14 @@ const TreasuryCommand: React.FC = () => {
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-[24px] font-semibold text-[#0f172a] tracking-tight">Treasury Command</h1>
-            <p className="text-[13px] text-[#64748b] mt-0.5">
-              Consolidated liquidity &amp; limit intelligence · FY {fy === 'All' ? 'All Years' : fy}
-            </p>
+            <div className="flex items-center gap-3 mt-0.5">
+              <p className="text-[13px] text-[#64748b]">
+                Consolidated liquidity &amp; limit intelligence · FY {fy === 'All' ? 'All Years' : fy}
+              </p>
+              <span className="text-[11px] font-bold text-[#64748b] bg-white px-2 py-1 rounded border border-[#e2e8f0] shadow-sm">
+                Amount in Cr
+              </span>
+            </div>
           </div>
           {criticalActions.length > 0 && (
             <div className="flex items-center gap-1.5 bg-[#fef2f2] border border-[#fecaca] rounded-full px-3 py-1.5">
@@ -150,56 +156,62 @@ const TreasuryCommand: React.FC = () => {
           <Metric
             label="Limit Utilized"
             value={formatPercent(utilPct)}
-            sub={`of ${formatCurrencyCompact(summary.total_nfb_limit, currency)} NFB`}
+            sub={`of ${formatCurrencyCompact(summary.total_nfb_limit, currency, amountUnit)} NFB`}
             valueColor={utilColor}
+            formula="Utilization % = (Total NFB Used / Total NFB Limit) * 100"
           />
           <Divider />
           {/* 2. Headroom */}
           <Metric
             label="Available Headroom"
-            value={formatCurrencyCompact(summary.available_balance, currency)}
+            value={formatCurrencyCompact(summary.available_balance, currency, amountUnit)}
             sub="Ready to deploy"
             valueColor={headroomPct < 0.1 ? '#dc2626' : headroomPct < 0.2 ? '#d97706' : '#0f172a'}
+            formula="Headroom = Total NFB Limit - Current NFB Utilization"
           />
           <Divider />
           {/* 3. Overdue — ACTION REQUIRED */}
           <Metric
             label="Overdue Payments"
             value={summary.overdue_count > 0
-              ? formatCurrencyCompact(summary.overdue_amount, currency)
+              ? formatCurrencyCompact(summary.overdue_amount, currency, amountUnit)
               : '—'}
             sub={summary.overdue_count > 0
               ? `${summary.overdue_count} LC${summary.overdue_count > 1 ? 's' : ''} past due date`
               : 'No overdues ✓'}
             valueColor={summary.overdue_count > 0 ? '#dc2626' : '#16a34a'}
+            formula="Sum of all Bills of Entry where Payment Due Date has passed"
           />
           <Divider />
           {/* 4. Due this week */}
           <Metric
             label="Due in 7 Days"
             value={summary.due_7d_count > 0
-              ? formatCurrencyCompact(summary.due_7d_amount, currency)
+              ? formatCurrencyCompact(summary.due_7d_amount, currency, amountUnit)
               : '—'}
             sub={summary.due_7d_count > 0
               ? `${summary.due_7d_count} payment${summary.due_7d_count > 1 ? 's' : ''} pending`
               : 'Clear this week'}
             valueColor={summary.due_7d_count > 0 ? '#d97706' : '#64748b'}
+            formula="Aggregate amount of LC/BOE payments scheduled within next 7 days"
           />
           <Divider />
           {/* 5. Frozen capital */}
           <Metric
             label="Frozen Capital"
-            value={formatCurrencyCompact(summary.working_capital_frozen, currency)}
+            value={formatCurrencyCompact(summary.working_capital_frozen, currency, amountUnit)}
             sub="Locked in Margin FDs"
+            formula="Working capital blocked as Margin in Fixed Deposits against LC facilities"
           />
           <Divider />
           {/* 6. SBLC */}
           <Metric
             label="SBLC Portfolio"
-            value={formatCurrencyCompact(summary.sblc_outstanding, currency)}
+            value={formatCurrencyCompact(summary.sblc_outstanding, currency, amountUnit)}
             sub={summary.lc_in_process > 0
-              ? `${formatCurrencyCompact(summary.lc_in_process, currency)} in process`
+              ? `${formatCurrencyCompact(summary.lc_in_process, currency, amountUnit)} in process`
               : 'Standby exposure'}
+            formula="Total exposure of active Standby Letters of Credit"
           />
         </div>
 
@@ -234,17 +246,17 @@ const TreasuryCommand: React.FC = () => {
                         <span className="text-[13px] font-bold text-[#0f172a] group-hover:text-[#1d4ed8] transition-colors">{b.bank}</span>
                       </td>
                       <td className="py-4 text-right">
-                        <span className="text-[13px] font-medium text-[#475569]">{formatCurrencyCompact(b.total_limit, currency)}</span>
+                        <span className="text-[13px] font-medium text-[#475569]">{formatCurrencyCompact(b.total_limit, currency, amountUnit)}</span>
                       </td>
                       <td className="py-4 text-right">
-                        <span className="text-[13px] font-semibold text-[#1d4ed8]">{formatCurrencyCompact(b.lc_utilized, currency)}</span>
+                        <span className="text-[13px] font-semibold text-[#1d4ed8]">{formatCurrencyCompact(b.lc_utilized, currency, amountUnit)}</span>
                       </td>
                       <td className="py-4 text-right">
-                        <span className="text-[13px] font-medium text-[#64748b]">{formatCurrencyCompact(b.sblc, currency)}</span>
+                        <span className="text-[13px] font-medium text-[#64748b]">{formatCurrencyCompact(b.sblc, currency, amountUnit)}</span>
                       </td>
                       <td className="py-4 text-right">
                         <span className={`text-[13px] font-bold ${b.headroom < 10000000 ? 'text-[#dc2626]' : 'text-[#059669]'}`}>
-                          {formatCurrencyCompact(b.headroom, currency)}
+                          {formatCurrencyCompact(b.headroom, currency, amountUnit)}
                         </span>
                       </td>
                       <td className="py-4 text-right">
@@ -343,7 +355,7 @@ const TreasuryCommand: React.FC = () => {
                 <div>
                   <div className="flex justify-between text-[12px] mb-1">
                     <span className="text-[#64748b]">Hedged</span>
-                    <span className="font-semibold text-[#16a34a]">{formatCurrencyCompact(totalHedged, currency)}</span>
+                    <span className="font-semibold text-[#16a34a]">{formatCurrencyCompact(totalHedged, currency, amountUnit)}</span>
                   </div>
                   <div className="w-full bg-[#f1f5f9] h-2 rounded-full overflow-hidden">
                     <div
@@ -356,7 +368,7 @@ const TreasuryCommand: React.FC = () => {
                   <div className="flex justify-between text-[12px] mb-1">
                     <span className="text-[#64748b]">Unhedged</span>
                     <span className={`font-semibold ${totalUnhedged > 0 ? 'text-[#dc2626]' : 'text-[#16a34a]'}`}>
-                      {formatCurrencyCompact(totalUnhedged, currency)}
+                      {formatCurrencyCompact(totalUnhedged, currency, amountUnit)}
                     </span>
                   </div>
                   <div className="w-full bg-[#f1f5f9] h-2 rounded-full overflow-hidden">
@@ -396,7 +408,7 @@ const TreasuryCommand: React.FC = () => {
                     {item.margin_pct}% Margin
                   </p>
                   <p className="text-[22px] font-semibold text-[#0f172a] tracking-tight">
-                    {formatCurrencyCompact(item.value, currency)}
+                    {formatCurrencyCompact(item.value, currency, amountUnit)}
                   </p>
                 </div>
               ))}
