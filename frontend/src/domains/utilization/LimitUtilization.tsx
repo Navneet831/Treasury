@@ -1,6 +1,7 @@
 // @ts-nocheck
 import React, { useEffect, useState, useCallback } from 'react'
-import { getLimitUtilisation, getCommandData, getTreasuryActions } from '../../api'
+import { getLimitUtilisation, getCommandData, getTreasuryActions, getDrillDown } from '../../api'
+import DrillDownModal from '../../components/DrillDownModal'
 import { useStore } from '../../store'
 import { formatCurrencyCompact, formatPercent } from '../../utils'
 import { 
@@ -53,9 +54,47 @@ const LimitUtilization: React.FC = () => {
   const [actions, setActions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [paymentStatus, setPaymentStatus] = useState<'Paid' | 'Unpaid'>('Unpaid')
+  const [facilityToggle, setFacilityToggle] = useState<'LC' | 'SBLC'>('LC')
   const [isBanksCollapsed, setIsBanksCollapsed] = useState(false)
   const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set())
+  const [isLcOutstandingExpanded, setIsLcOutstandingExpanded] = useState(true)
   const [isInterchangeableExpanded, setIsInterchangeableExpanded] = useState(true)
+  const [drillDownData, setDrillDownData] = useState<any[]>([])
+  const [drillDownTitle, setDrillDownTitle] = useState('')
+  const [isDrillDownOpen, setIsDrillDownOpen] = useState(false)
+
+  // marginFraction is the raw DB value (0.1 = 10%, 1.0 = 100%)
+  const handleMarginClick = async (marginFraction: number, bank: string) => {
+    try {
+      const data = await getDrillDown({
+        fy,
+        status: 'Open',
+        bank: bank !== 'Total' ? bank : undefined,
+        margin: marginFraction
+      })
+      setDrillDownData(data)
+      setDrillDownTitle(`${bank === 'Total' ? 'All Banks' : bank} — ${+(marginFraction * 100).toFixed(2)}% Margin · Open LCs`)
+      setIsDrillDownOpen(true)
+    } catch (err) {
+      console.error('Drill down error:', err)
+    }
+  }
+
+  const handleBoeClick = async (boeStatus: string, paymentStatus: string, bank: string) => {
+    try {
+      const data = await getDrillDown({
+        fy,
+        boe_status: boeStatus,
+        payment_status: paymentStatus,
+        bank: bank !== 'Total' ? bank : undefined
+      })
+      setDrillDownData(data)
+      setDrillDownTitle(`${bank === 'Total' ? 'All Banks' : bank} — ${toProperCase(boeStatus)} · ${toProperCase(paymentStatus)}`)
+      setIsDrillDownOpen(true)
+    } catch (err) {
+      console.error('Drill down error:', err)
+    }
+  }
 
   const toggleBank = () => {
     setIsBanksCollapsed(!isBanksCollapsed)
@@ -68,12 +107,21 @@ const LimitUtilization: React.FC = () => {
     setExpandedTypes(next)
   }
 
+  const [expandedBoeStatus, setExpandedBoeStatus] = useState<Set<string>>(new Set(['UNPAID', 'Unpaid', 'unpaid']))
+
+  const toggleBoeStatus = (key: string) => {
+    const next = new Set(expandedBoeStatus)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    setExpandedBoeStatus(next)
+  }
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true)
       const [util, cmd, acts] = await Promise.all([
-        getLimitUtilisation(currency, fy, paymentStatus),
-        getCommandData(currency, fy, paymentStatus),
+        getLimitUtilisation(currency, fy, paymentStatus, facilityToggle),
+        getCommandData(currency, fy, paymentStatus, facilityToggle),
         getTreasuryActions()
       ])
       setUtilData(util)
@@ -84,7 +132,7 @@ const LimitUtilization: React.FC = () => {
     } finally {
       setLoading(false)
     }
-  }, [currency, fy, paymentStatus])
+  }, [currency, fy, paymentStatus, facilityToggle])
 
   useEffect(() => { fetchData() }, [fetchData])
 
@@ -94,7 +142,7 @@ const LimitUtilization: React.FC = () => {
     return () => window.removeEventListener('app-refresh', fetchData)
   }, [fetchData])
 
-  if (loading) {
+  if (loading && !utilData) {
     return (
       <div className="p-8 space-y-6 animate-pulse bg-[#f8fafc] min-h-screen">
         <div className="h-8 w-64 bg-[#e2e8f0] rounded" />
@@ -142,6 +190,11 @@ const LimitUtilization: React.FC = () => {
 
   const sortedCmdBanksList = reorderBanksList(cmdBanksList)
   const sortedBanksList = reorderBanksList(banks_list)
+
+  const totalSblcLimit = banks.reduce((acc: any, b: any) => acc + (b.sblc_limit || 0), 0)
+  const totalSblcUsed = summary.total_sblc || 0
+  const sblcPct = totalSblcLimit > 0 ? (totalSblcUsed / totalSblcLimit) * 100 : 0
+  const totalCashUsed = banks.reduce((acc: any, b: any) => acc + (b.cash_utilization || 0), 0)
 
   const toProperCase = (str: string) => {
     return str.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
@@ -229,18 +282,43 @@ const LimitUtilization: React.FC = () => {
                           <tr title="Total = LC + Interchangeable (SBLC/Cash)">
                             <td className="py-1 font-black text-[#0f172a]">Total</td>
                             <td className="py-1 text-right font-bold text-[#0f172a] px-1">{formatCurrencyCompact(bank.interchangeability_limit, currency, amountUnit)}</td>
-                            <td className="py-1 text-right font-bold text-[#0f172a] px-1">{formatCurrencyCompact((bank.used_limit || 0) + ((bank.sblc_utilization || 0) + (bank.cash_utilization || 0)) * 0.9, currency, amountUnit)}</td>
+                            <td className="py-1 text-right font-bold text-[#0f172a] px-1">{formatCurrencyCompact((bank.lc_open || 0) + (bank.lc_in_process || 0) + (bank.sblc_utilization || 0), currency, amountUnit)}</td>
                             <td className="py-1 text-right font-black text-[#15803d] text-[12.5px] bg-[#dcfce7] px-1">{formatCurrencyCompact(bank.available_limit, currency, amountUnit)}</td>
                           </tr>
-                          <tr title="LC facility utilization">
-                            <td className="py-1 font-bold text-[#475569]">LC</td>
-                            <td className="py-1 text-right font-semibold text-[#64748b] px-1">{formatCurrencyCompact(bank.interchangeability_limit, currency, amountUnit)}</td>
-                            <td className="py-1 text-right font-semibold text-[#475569] px-1">{formatCurrencyCompact(bank.used_limit || 0, currency, amountUnit)}</td>
+                          <tr title="Total LC = LC Open + LC In Process">
+                            <td 
+                              className="py-0.5 pl-1 font-bold text-[#475569] cursor-pointer hover:text-[#1d4ed8] flex items-center gap-0.5"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setIsLcOutstandingExpanded(!isLcOutstandingExpanded);
+                              }}
+                            >
+                              LC
+                              <span className="text-[9px] font-black">{isLcOutstandingExpanded ? '−' : '+'}</span>
+                            </td>
+                            <td className="py-1 text-right font-semibold text-[#64748b] px-1">{formatCurrencyCompact(bank.interchangeability_limit - (bank.sblc_limit || 0), currency, amountUnit)}</td>
+                            <td className="py-1 text-right font-bold text-[#0f172a] px-1">{formatCurrencyCompact((bank.lc_open || 0) + (bank.lc_in_process || 0), currency, amountUnit)}</td>
                             <td className="py-1 text-right font-bold text-[#16a34a] text-[10.5px] bg-[#dcfce7] px-1">{formatCurrencyCompact(bank.available_limit, currency, amountUnit)}</td>
                           </tr>
-                          <tr title="Interchangeable facility (SBLC + Cash) net of 10% margin">
+                          {isLcOutstandingExpanded && (
+                            <>
+                              <tr title="Open LC facility utilization">
+                                <td className="py-0.5 pl-4 font-medium text-[#64748b]">LC Outstanding</td>
+                                <td className="py-1 text-right font-semibold text-[#64748b] px-1">—</td>
+                                <td className="py-1 text-right font-semibold text-[#475569] px-1">{formatCurrencyCompact(bank.lc_open || 0, currency, amountUnit)}</td>
+                                <td className="py-1 text-right font-bold text-[#16a34a] text-[10.5px] bg-[#dcfce7] px-1">—</td>
+                              </tr>
+                              <tr title="LC In Process — docs submitted to bank, not yet drawn">
+                                <td className="py-0.5 pl-4 font-medium text-[#64748b]">LC in Process</td>
+                                <td className="py-1 text-right font-semibold text-[#64748b] px-1">—</td>
+                                <td className="py-1 text-right font-semibold text-[#475569] px-1">{formatCurrencyCompact(bank.lc_in_process || 0, currency, amountUnit)}</td>
+                                <td className="py-1 text-right font-bold text-[#16a34a] text-[10.5px] bg-[#dcfce7] px-1">—</td>
+                              </tr>
+                            </>
+                          )}
+                          <tr title="Interchangeable facility (SBLC + Cash)">
                             <td 
-                              className="py-1 font-bold text-[#475569] cursor-pointer hover:text-[#1d4ed8] flex items-center gap-0.5"
+                              className="py-1 pl-1 font-bold text-[#475569] cursor-pointer hover:text-[#1d4ed8] flex items-center gap-0.5"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setIsInterchangeableExpanded(!isInterchangeableExpanded);
@@ -249,22 +327,26 @@ const LimitUtilization: React.FC = () => {
                               Interchangeable
                               <span className="text-[9px] font-black">{isInterchangeableExpanded ? '−' : '+'}</span>
                             </td>
-                            <td className="py-1 text-right font-semibold text-[#64748b] px-1">{formatCurrencyCompact(bank.interchangeability_limit, currency, amountUnit)}</td>
-                            <td className="py-1 text-right font-semibold text-[#1d4ed8] px-1">{formatCurrencyCompact(((bank.sblc_utilization || 0) + (bank.cash_utilization || 0)) * 0.9, currency, amountUnit)}</td>
+                            <td className="py-1 text-right font-semibold text-[#64748b] px-1">{formatCurrencyCompact((bank.cash_limit || 0) + (bank.sblc_limit || 0), currency, amountUnit)}</td>
+                            <td className="py-1 text-right font-semibold text-[#1d4ed8] px-1">{formatCurrencyCompact((bank.sblc_utilization || 0) + (bank.cash_utilization || 0), currency, amountUnit)}</td>
                             <td className="py-1 text-right font-bold text-[#16a34a] text-[10.5px] bg-[#dcfce7] px-1 rounded-b">{formatCurrencyCompact(bank.available_limit, currency, amountUnit)}</td>
                           </tr>
                           {isInterchangeableExpanded && (
                             <>
                               <tr className="bg-white/50" title="Standby Letter of Credit usage (net of 10% margin)">
-                                <td className="py-0.5 pl-3 font-medium text-[#64748b]">SBLC</td>
-                                <td className="py-0.5 text-right text-[#94a3b8] px-1">—</td>
-                                <td className="py-0.5 text-right font-medium text-[#475569] px-1">{formatCurrencyCompact((bank.sblc_utilization || 0) * 0.9, currency, amountUnit)}</td>
+                                <td className="py-0.5 pl-4 font-medium text-[#64748b]">SBLC</td>
+                                <td className="py-0.5 text-right font-medium text-[#64748b] px-1">
+                                  {bank.sblc_limit ? formatCurrencyCompact(bank.sblc_limit, currency, amountUnit) : '—'}
+                                </td>
+                                <td className="py-0.5 text-right font-medium text-[#475569] px-1">{formatCurrencyCompact(bank.sblc_utilization || 0, currency, amountUnit)}</td>
                                 <td className="py-0.5 text-right px-1">—</td>
                               </tr>
                               <tr className="bg-white/50" title="Cash credit or other fungible components (net of 10% margin)">
-                                <td className="py-0.5 pl-3 font-medium text-[#64748b]">Cash</td>
-                                <td className="py-0.5 text-right text-[#94a3b8] px-1">—</td>
-                                <td className="py-0.5 text-right font-medium text-[#475569] px-1">{formatCurrencyCompact((bank.cash_utilization || 0) * 0.9, currency, amountUnit)}</td>
+                                <td className="py-0.5 pl-4 font-medium text-[#64748b]">Cash</td>
+                                <td className="py-0.5 text-right font-medium text-[#64748b] px-1">
+                                  {bank.cash_limit ? formatCurrencyCompact(bank.cash_limit, currency, amountUnit) : '—'}
+                                </td>
+                                <td className="py-0.5 text-right font-medium text-[#475569] px-1">{formatCurrencyCompact(bank.cash_utilization || 0, currency, amountUnit)}</td>
                                 <td className="py-0.5 text-right px-1">—</td>
                               </tr>
                             </>
@@ -310,50 +392,106 @@ const LimitUtilization: React.FC = () => {
           </div>
         )}
 
-        {/* ── [ACTION CENTER ELEMENT] KPI Strip ── */}
-        <div className="bg-white border border-[#e2e8f0] rounded-[10px] px-4 py-3 flex flex-wrap gap-4 items-center shadow-sm">
-          <Metric
-            label="Utilized"
-            value={formatPercent(overallPct)}
-            sub={`of ${formatCurrencyCompact(summary.total_limit, currency, amountUnit)}`}
-            valueColor={utilColor}
-            formula="Utilization % = (Total Used / Total Limit) * 100"
-          />
-          <Divider />
-          <Metric
-            label="Headroom"
-            value={formatCurrencyCompact(summary.total_available, currency, amountUnit)}
-            sub="Ready"
-            valueColor={overallPct > 90 ? '#dc2626' : overallPct > 75 ? '#d97706' : '#0f172a'}
-            formula="Headroom = Total Limit - Current Utilization"
-          />
-          <Divider />
-          <Metric
-            label="Interchangeable"
-            value={formatCurrencyCompact((summary.total_sblc || 0) * 0.9, currency, amountUnit)}
-            sub="Exposure"
-            valueColor="#1d4ed8"
-            formula="Total (SBLC + Cash) usage net of 10% margin"
-          />
-          <Divider />
-          <Metric
-            label="Overdue"
-            value={cmdSummary.overdue_count > 0 ? formatCurrencyCompact(cmdSummary.overdue_amount, currency, amountUnit) : '—'}
-            sub={cmdSummary.overdue_count > 0 ? `${cmdSummary.overdue_count} LCs` : 'None ✓'}
-            valueColor={cmdSummary.overdue_count > 0 ? '#dc2626' : '#16a34a'}
-            formula="Sum of all Bills of Entry where Payment Date < Current Date"
-          />
-          <Divider />
-          <Metric
-            label="Frozen"
-            value={formatCurrencyCompact(cmdSummary.working_capital_frozen || 0, currency, amountUnit)}
-            sub="Margin FDs"
-            formula="Working Capital tied up in Margin Fixed Deposits against LCs"
-          />
+        {/* ── [ACTION CENTER ELEMENT] KPI Strips (Split as Buttons) ── */}
+        <div className="flex flex-col md:flex-row gap-3">
+          {/* LC Metrics Strip */}
+          <button 
+            onClick={() => setFacilityToggle('LC')}
+            className={`flex-1 bg-white border rounded-[10px] px-4 py-3 shadow-sm flex flex-col gap-2 text-left transition-all ${
+              facilityToggle === 'LC' 
+                ? 'border-[#1d4ed8] ring-2 ring-[#1d4ed8]/10 shadow-md' 
+                : 'border-[#e2e8f0] hover:border-[#cbd5e1] hover:shadow-md'
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <div className={`w-1 h-3 rounded-full ${facilityToggle === 'LC' ? 'bg-[#1d4ed8]' : 'bg-[#94a3b8]'}`} />
+              <span className={`text-[10px] font-black uppercase tracking-widest ${facilityToggle === 'LC' ? 'text-[#1d4ed8]' : 'text-[#64748b]'}`}>LC</span>
+            </div>
+            <div className="flex flex-wrap gap-4 items-center">
+              <Metric
+                label="Utilized"
+                value={formatPercent(overallPct)}
+                sub={`of ${formatCurrencyCompact(summary.total_limit, currency, amountUnit)}`}
+                valueColor={utilColor}
+                formula="Utilization % = (Total Used / Total Limit) * 100"
+              />
+              <Divider />
+              <Metric
+                label="Headroom"
+                value={formatCurrencyCompact(summary.total_available, currency, amountUnit)}
+                sub="Ready"
+                valueColor={overallPct > 90 ? '#dc2626' : overallPct > 75 ? '#d97706' : '#0f172a'}
+                formula="Headroom = Total Limit - Current Utilization"
+              />
+              <Divider />
+              <Metric
+                label="Overdue"
+                value={cmdSummary.overdue_count > 0 ? formatCurrencyCompact(cmdSummary.overdue_amount, currency, amountUnit) : '—'}
+                sub={cmdSummary.overdue_count > 0 ? `${cmdSummary.overdue_count} LCs` : 'None ✓'}
+                valueColor={cmdSummary.overdue_count > 0 ? '#dc2626' : '#16a34a'}
+                formula="Sum of all Bills of Entry where Payment Date < Current Date"
+              />
+              <Divider />
+              <Metric
+                label="Frozen"
+                value={formatCurrencyCompact(cmdSummary.working_capital_frozen || 0, currency, amountUnit)}
+                sub="Margin FDs"
+                formula="Working Capital tied up in Margin Fixed Deposits against LCs"
+              />
+            </div>
+          </button>
+
+          {/* SBLC Metrics Strip */}
+          <button 
+            onClick={() => setFacilityToggle('SBLC')}
+            className={`flex-1 bg-white border rounded-[10px] px-4 py-3 shadow-sm flex flex-col gap-2 text-left transition-all ${
+              facilityToggle === 'SBLC' 
+                ? 'border-[#16a34a] ring-2 ring-[#16a34a]/10 shadow-md' 
+                : 'border-[#e2e8f0] hover:border-[#cbd5e1] hover:shadow-md'
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <div className={`w-1 h-3 rounded-full ${facilityToggle === 'SBLC' ? 'bg-[#16a34a]' : 'bg-[#94a3b8]'}`} />
+              <span className={`text-[10px] font-black uppercase tracking-widest ${facilityToggle === 'SBLC' ? 'text-[#16a34a]' : 'text-[#64748b]'}`}>SBLC</span>
+            </div>
+            <div className="flex flex-wrap gap-4 items-center">
+              <Metric
+                label="Utilized"
+                value={formatPercent(sblcPct)}
+                sub={`of ${formatCurrencyCompact(totalSblcLimit, currency, amountUnit)}`}
+                valueColor={sblcPct > 90 ? '#dc2626' : sblcPct > 75 ? '#d97706' : '#0f172a'}
+                formula="SBLC Utilization % = (SBLC Used / SBLC Limit) * 100"
+              />
+              <Divider />
+              <Metric
+                label="Headroom"
+                value={formatCurrencyCompact(Math.max(0, totalSblcLimit - totalSblcUsed), currency, amountUnit)}
+                sub="Available"
+                valueColor="#0f172a"
+                formula="Headroom = SBLC Limit - SBLC Used"
+              />
+              <Divider />
+              <Metric
+                label="Overdue"
+                value="—"
+                sub="None ✓"
+                valueColor="#16a34a"
+                formula="SBLC payments overdue"
+              />
+              <Divider />
+              <Metric
+                label="Frozen"
+                value={formatCurrencyCompact(totalCashUsed, currency, amountUnit)}
+                sub="Cash Credit"
+                formula="Cash credit utilized"
+              />
+            </div>
+          </button>
         </div>
 
         {/* ── Main Data Grid ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 !mt-4">
+
           
           {/* BOE Pipeline Table (Bifurcated by Bank) */}
           <div className="bg-white border border-[#e2e8f0] rounded-[10px] shadow-sm overflow-hidden flex flex-col">
@@ -376,29 +514,77 @@ const LimitUtilization: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f1f5f9]">
-                  {[...boe_status_bank_pivot].sort((a: any, b: any) =>
-                    b.boe_status.localeCompare(a.boe_status) || b.payment_status.localeCompare(a.payment_status)
-                  ).map((row: any, i: number) => {
-                    const rowTotal = sortedCmdBanksList.reduce((acc: number, b: string) => acc + (row[b] || 0), 0)
-                    const statusKey = `${row.boe_status} & ${row.payment_status}`
+                  {Object.entries(
+                    boe_status_bank_pivot.reduce((acc: any, row: any) => {
+                      const ps = row.payment_status;
+                      if (!acc[ps]) acc[ps] = [];
+                      acc[ps].push(row);
+                      return acc;
+                    }, {})
+                  ).sort((a, b) => b[0].localeCompare(a[0])).map(([paymentStatusGroup, rows]: [string, any]) => {
+                    // Default-expanded groups (e.g. "Unpaid") are seeded into expandedBoeStatus; toggling adds/removes freely.
+                    const isExpanded = expandedBoeStatus.has(paymentStatusGroup);
+                    const groupTotal = rows.reduce((acc: number, row: any) => acc + sortedCmdBanksList.reduce((acc2: number, b: string) => acc2 + (row[b] || 0), 0), 0);
+                    
                     return (
-                      <tr key={i} className="hover:bg-[#f8fafc] transition-colors group">
-                        <td className="px-3 py-2 font-medium text-[#475569] bg-white group-hover:bg-[#f8fafc] z-10 whitespace-nowrap">
-                          {toProperCase(row.payment_status)}
-                        </td>
-                        <td className="px-3 py-2 flex items-center gap-1.5 border-r border-[#e2e8f0] bg-white group-hover:bg-[#f8fafc] z-10 whitespace-nowrap">
-                          <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BOE_COLOR_MAP[statusKey] || '#6b7280' }} />
-                          <span className="font-medium text-[#0f172a]">{toProperCase(row.boe_status)}</span>
-                        </td>
-                        <td className="px-3 py-2 text-right font-bold text-[#1d4ed8] bg-slate-50">
-                          {formatCurrencyCompact(rowTotal, currency, amountUnit)}
-                        </td>
-                        {sortedCmdBanksList.map((bank: string) => (
-                          <td key={bank} className="px-3 py-2 text-right font-semibold text-[#475569]">
-                            {row[bank] > 0 ? formatCurrencyCompact(row[bank], currency, amountUnit) : '—'}
+                      <React.Fragment key={paymentStatusGroup}>
+                        <tr 
+                          className="bg-slate-50/50 hover:bg-slate-100 transition-colors cursor-pointer group"
+                          onClick={() => toggleBoeStatus(paymentStatusGroup)}
+                        >
+                          <td className="px-3 py-2 font-black text-[#0f172a] bg-slate-50 group-hover:bg-slate-100 z-10 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              <ChevronRight className={`w-3 h-3 text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                              {toProperCase(paymentStatusGroup)}
+                            </div>
                           </td>
-                        ))}
-                      </tr>
+                          <td className="px-3 py-2 border-r border-[#e2e8f0] bg-slate-50 group-hover:bg-slate-100 z-10 text-[9px] text-[#64748b] font-bold uppercase tracking-wider">
+                            
+                          </td>
+                          <td className="px-3 py-2 text-right font-black text-[#1d4ed8] bg-slate-100/50">
+                            {formatCurrencyCompact(groupTotal, currency, amountUnit)}
+                          </td>
+                          {sortedCmdBanksList.map((bank: string) => {
+                            const bankTotal = rows.reduce((acc: number, row: any) => acc + (row[bank] || 0), 0);
+                            return (
+                              <td key={bank} className="px-3 py-2 text-right font-bold text-[#0f172a]">
+                                {bankTotal > 0 ? formatCurrencyCompact(bankTotal, currency, amountUnit) : '—'}
+                              </td>
+                            )
+                          })}
+                        </tr>
+                        
+                        {isExpanded && [...rows].sort((a: any, b: any) => (b.boe_status || '').localeCompare(a.boe_status || '')).map((row: any, i: number) => {
+                          const rowTotal = sortedCmdBanksList.reduce((acc: number, b: string) => acc + (row[b] || 0), 0)
+                          const statusKey = `${row.boe_status} & ${row.payment_status}`
+                          return (
+                            <tr key={i} className="hover:bg-[#f8fafc] transition-colors group">
+                              <td className="px-6 py-2 font-medium text-[#475569] bg-white group-hover:bg-[#f8fafc] z-10 whitespace-nowrap">
+                                {toProperCase(row.payment_status)}
+                              </td>
+                              <td className="px-3 py-2 flex items-center gap-1.5 border-r border-[#e2e8f0] bg-white group-hover:bg-[#f8fafc] z-10 whitespace-nowrap">
+                                <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BOE_COLOR_MAP[statusKey] || '#6b7280' }} />
+                                <span className="font-medium text-[#0f172a]">{toProperCase(row.boe_status)}</span>
+                              </td>
+                              <td
+                                className={`px-3 py-2 text-right font-bold text-[#1d4ed8] bg-slate-50 ${rowTotal > 0 ? 'cursor-pointer hover:underline' : ''}`}
+                                onClick={() => { if (rowTotal > 0) handleBoeClick(row.boe_status, row.payment_status, 'Total') }}
+                              >
+                                {formatCurrencyCompact(rowTotal, currency, amountUnit)}
+                              </td>
+                              {sortedCmdBanksList.map((bank: string) => (
+                                <td
+                                  key={bank}
+                                  className={`px-3 py-2 text-right font-semibold ${row[bank] > 0 ? 'text-[#1d4ed8] cursor-pointer hover:underline' : 'text-[#475569]'}`}
+                                  onClick={() => { if (row[bank] > 0) handleBoeClick(row.boe_status, row.payment_status, bank) }}
+                                >
+                                  {row[bank] > 0 ? formatCurrencyCompact(row[bank], currency, amountUnit) : '—'}
+                                </td>
+                              ))}
+                            </tr>
+                          )
+                        })}
+                      </React.Fragment>
                     )
                   })}
                 </tbody>
@@ -520,7 +706,10 @@ const LimitUtilization: React.FC = () => {
           {/* Margin-wise Pivot Table */}
           <div className="bg-white border border-[#e2e8f0] rounded-[10px] shadow-sm overflow-hidden flex flex-col">
             <div className="px-4 py-1.5 border-b flex items-center justify-between bg-slate-50">
-              <h3 className="text-[12px] font-bold text-[#0f172a]">Margin-wise BOE</h3>
+              <div>
+                <h3 className="text-[12px] font-bold text-[#0f172a]">Margin-wise Exposure</h3>
+                <p className="text-[9px] text-[#64748b]">Open · Sum of Amount · all margin bands</p>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-[10px] border-collapse">
@@ -534,18 +723,29 @@ const LimitUtilization: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f1f5f9]">
-                  {(utilData.boe_margin_pivot || []).map((row: any, i: number) => {
+                  {(utilData.margin_bank_pivot || []).map((row: any, i: number) => {
+                    const marginFraction = Number(row.margin)
+                    const marginPct = +(marginFraction * 100).toFixed(2)
                     const rowTotal = sortedBanksList.reduce((acc: number, b: string) => acc + (row[b] || 0), 0)
                     return (
                       <tr key={i} className="hover:bg-[#f8fafc] transition-colors group">
                         <td className="px-3 py-1.5 font-bold text-[#0f172a] border-r border-[#e2e8f0] sticky left-0 bg-white group-hover:bg-[#f8fafc] z-10">
-                          {row.margin}%
+                          {marginPct}%
                         </td>
-                        <td className="px-3 py-1.5 text-right font-bold text-[#0f172a] bg-slate-50">
+                        <td
+                          className="px-3 py-1.5 text-right font-bold text-[#1d4ed8] cursor-pointer hover:underline bg-slate-50"
+                          onClick={() => handleMarginClick(marginFraction, 'Total')}
+                        >
                           {formatCurrencyCompact(rowTotal, currency, amountUnit)}
                         </td>
                         {sortedBanksList.map((bank: string) => (
-                          <td key={bank} className="px-3 py-1.5 text-right text-[#475569]">
+                          <td
+                            key={bank}
+                            className={`px-3 py-1.5 text-right ${row[bank] > 0 ? 'text-[#1d4ed8] cursor-pointer hover:underline' : 'text-[#475569]'}`}
+                            onClick={() => {
+                              if (row[bank] > 0) handleMarginClick(marginFraction, bank)
+                            }}
+                          >
                             {row[bank] > 0 ? formatCurrencyCompact(row[bank], currency, amountUnit) : '—'}
                           </td>
                         ))}
@@ -561,6 +761,12 @@ const LimitUtilization: React.FC = () => {
 
         </div>{/* end grid */}
 
+        <DrillDownModal 
+          isOpen={isDrillDownOpen}
+          onClose={() => setIsDrillDownOpen(false)}
+          data={drillDownData}
+          title={drillDownTitle}
+        />
       </div>
     </div>
   )

@@ -5,8 +5,18 @@ from datetime import datetime, date
 # Import centralized logic
 import apps.Treasury.backend.datalogic as datalogic
 from apps.Treasury.backend.datalogic import get_current_date
+import apps.Treasury.backend.market_data as market_data
 
 router = APIRouter()
+
+@router.get("/usd-inr")
+async def get_usd_inr_rate():
+    rate = market_data.get_usd_inr_rate()
+    return {"rate": rate}
+
+@router.get("/market-rates")
+async def get_market_rates():
+    return market_data.get_all_rates()
 
 # ══════════════════════════════════════════════════════════
 # Domain Isolation Endpoints
@@ -17,8 +27,8 @@ async def get_executive_overview(currency: str = Query("INR"), fy: str = Query("
     return datalogic.get_executive_overview_data(currency, fy)
 
 @router.get("/command-data")
-async def get_command_data(currency: str = Query("INR"), fy: str = Query("All"), payment_status: str = Query("Unpaid")):
-    return datalogic.get_command_data(currency, fy, payment_status)
+async def get_command_data(currency: str = Query("INR"), fy: str = Query("All"), payment_status: str = Query("Unpaid"), facility_type: str = Query("LC")):
+    return datalogic.get_command_data(currency, fy, payment_status, facility_type)
 
 @router.get("/lc-exposure")
 async def get_lc_exposure(currency: str = Query("INR"), fy: str = Query("All")):
@@ -48,6 +58,21 @@ async def get_calendar(month: int, year: int, bank: Optional[str] = None, instru
 @router.get("/banks")
 async def get_banks():
     return datalogic.get_banks_list()
+
+@router.get("/fy-list")
+async def get_fy_list():
+    return datalogic.get_fy_list()
+
+@router.get("/audit-catalog")
+async def get_audit_catalog():
+    return datalogic.get_audit_catalog()
+
+@router.get("/insights")
+async def get_insights(page: str, currency: str = Query("INR"), fy: str = Query("All")):
+    try:
+        return datalogic.get_page_insights(page, currency, fy)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/payment-statuses")
 async def get_payment_statuses():
@@ -86,8 +111,8 @@ async def get_bg_module():
     return datalogic.get_bg_module_data()
 
 @router.get("/limit-utilisation")
-async def get_limit_utilisation(currency: str = Query("INR"), fy: str = Query("All"), payment_status: str = Query("Unpaid")):
-    return datalogic.get_limit_utilisation_data(currency, fy, payment_status)
+async def get_limit_utilisation(currency: str = Query("INR"), fy: str = Query("All"), payment_status: str = Query("Unpaid"), facility_type: str = Query("LC")):
+    return datalogic.get_limit_utilisation_data(currency, fy, payment_status, facility_type)
 
 @router.get("/treasury-actions")
 async def get_treasury_actions():
@@ -108,10 +133,6 @@ async def get_strategic_intelligence(currency: str = Query("INR"), fy: str = Que
 @router.get("/advanced-quant")
 async def get_advanced_quant(currency: str = Query("INR"), fy: str = Query("All")):
     return datalogic.get_advanced_quant_data(currency, fy)
-
-@router.get("/pe-treasury")
-async def get_pe_treasury():
-    return datalogic.get_pe_treasury_data()
 
 @router.get("/shipment-tracking")
 async def get_shipment_tracking(fy: str = Query("All")):
@@ -135,6 +156,8 @@ async def get_drill_down(
     lifecycle_stage: Optional[str] = None,
     kpi: Optional[str] = None,
     alert_type: Optional[str] = None,
+    margin: Optional[float] = None,
+    payment_status: Optional[str] = None,
     fy: str = Query("All")
 ):
     validated_date: Optional[str] = None
@@ -152,12 +175,10 @@ async def get_drill_down(
         date=validated_date,
         date_field=date_field,
         fy=fy,
+        margin=margin,
+        payment_status=payment_status
     )
 
 @router.post("/ai-copilot")
 async def ai_copilot(query: str = Body(..., embed=True)):
     return datalogic.process_ai_query(query)
-
-@router.get("/transactions")
-async def get_transactions(fy: str = Query("All")):
-    return datalogic.get_drill_down_query(fy=fy)

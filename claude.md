@@ -1,3 +1,52 @@
+Update the "Limit Utilization Monitor" Interchangeable section.
+
+
+
+Source table:
+
+bank\_limit
+
+Columns:
+
+Bank\_Table, SBLC, Cash
+
+
+
+Requirement:
+
+For each bank card (SBI, BOI, IDBI), fetch SBLC and Cash limits from bank\_limit and display them in the expanded Interchangeable rows.
+
+
+
+Mapping:
+
+\- SBLC row → bank\_limit.SBLC
+
+\- Cash row → bank\_limit.Cash
+
+\- If value is NULL/blank, show "—"
+
+
+
+Example:
+
+SBI  → SBLC = 181.00, Cash = —
+
+IDBI → SBLC = —, Cash = 2.70
+
+BOI  → SBLC = —, Cash = —
+
+
+
+Do not hardcode values.
+
+Do not change existing utilization calculations.
+
+Only replace the Limit column values for the SBLC and Cash child rows with values from bank\_limit.
+
+Keep expand/collapse behavior unchanged.
+
+
 Can refer this DB schema for you reference.
 
 Microsoft Windows \[Version 10.0.26200.8524]
@@ -30,7 +79,7 @@ warehouse D show tables;
 
 │ COOIS                    │
 
-│ DD                       │
+│ bank\_limit               │
 
 │ DEBT\_MATURITY            │
 
@@ -299,6 +348,32 @@ warehouse D describe CAPITAL\_STACK;
 │ amount\_cr double  │
 
 └───────────────────┘
+
+warehouse D
+
+warehouse D describe bank\_limit;
+
+┌────────────────────┐
+
+│     bank\_limit     │
+
+│                    │
+
+│ Domain     varchar │
+
+│ Bank\_Table varchar │
+
+│ Element    varchar │
+
+│ LC         varchar │
+
+│ SBLC       varchar │
+
+│ Cash       varchar │
+
+│ BG         varchar │
+
+└────────────────────┘
 
 warehouse D
 

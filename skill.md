@@ -35,12 +35,12 @@
 
 ### Available LC Limit
 - **Formula**: `MAX(0, Total NFB Limit − Total LC Exposure)`
-- **Source**: `DD` table for limit, `LC` table for exposure
+- **Source**: `bank_limit` table for limit, `LC` table for exposure
 - **Filter**: `LC Status IN ('Open', 'In Process')`
 
 ### Total NFB Limit
-- **Formula**: `SUM(Limit)` where `Table_8 = 'Bank'`
-- **Source**: `DD` table
+- **Formula**: `SUM(LC)` where `Bank_Table = 'Bank'`
+- **Source**: `bank_limit` table
 
 ### Total Utilisation %
 - **Formula**: `(Total LC Exposure / Total NFB Limit) × 100`

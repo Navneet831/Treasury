@@ -1,2 +1,1 @@
-export { default as FXExposure }    from './FXExposure';
-export { default as HedgeCoverage } from './HedgeCoverage';
+export { default as FXView } from './FXView';

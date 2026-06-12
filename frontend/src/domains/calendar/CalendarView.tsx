@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
-import { ChevronLeft, ChevronRight, RefreshCw, Landmark } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { getCalendarData, getDailyReco, getBanksList, getPaymentStatuses } from '../../api'
 import { useStore } from '../../store'
 import { formatCurrencyAbsolute } from '../../utils'
@@ -192,6 +192,20 @@ const CalendarView: React.FC = () => {
                 )
               })}
             </div>
+          </>
+        )}
+
+        {banks.length > 0 && (
+          <>
+            <div className="w-px h-5 bg-[#e2e8f0]" />
+            <select
+              value={selectedBank}
+              onChange={(e) => setSelectedBank(e.target.value)}
+              className="bg-[#f1f5f9] rounded-lg px-2 py-1.5 text-[11px] font-bold text-[#0f172a] border-0 focus:outline-none focus:ring-2 focus:ring-[#1d4ed8]/20 cursor-pointer"
+            >
+              <option value="All">All Banks</option>
+              {banks.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
           </>
         )}
 

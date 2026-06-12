@@ -26,13 +26,13 @@ export const getExecutiveOverview = async (currency: string, fy: string) => {
   return data
 }
 
-export const getCommandData = async (currency: string, fy: string, paymentStatus: string = 'Unpaid') => {
-  const { data } = await api.get('/command-data', { params: { currency, fy, payment_status: paymentStatus } })
+export const getCommandData = async (currency: string, fy: string, paymentStatus: string = 'Unpaid', facilityType: string = 'LC') => {
+  const { data } = await api.get('/command-data', { params: { currency, fy, payment_status: paymentStatus, facility_type: facilityType } })
   return data
 }
 
-export const getLimitUtilisation = async (currency: string, fy: string, paymentStatus: string = 'Unpaid') => {
-  const { data } = await api.get('/limit-utilisation', { params: { currency, fy, payment_status: paymentStatus } })
+export const getLimitUtilisation = async (currency: string, fy: string, paymentStatus: string = 'Unpaid', facilityType: string = 'LC') => {
+  const { data } = await api.get('/limit-utilisation', { params: { currency, fy, payment_status: paymentStatus, facility_type: facilityType } })
   return data
 }
 
@@ -150,14 +150,34 @@ export const getAdvancedQuant = async (currency: string, fy: string) => {
   const { data } = await api.get('/advanced-quant', { params: { currency, fy } })
   return data
 }
-export const getTransactions = async (fy: string) => {
-  const { data } = await api.get('/transactions', { params: { fy } })
+/** Computed McKinsey-style insights for a page: command | overview | cashflow | fx | operations */
+export const getInsights = async (page: string, currency: string, fy: string) => {
+  const { data } = await api.get('/insights', { params: { page, currency, fy } })
   return data
 }
-export const getPETreasury = async () => {
-  const { data } = await api.get('/pe-treasury')
+
+/** Fiscal years present in the warehouse — drives the FY selector, never hardcoded */
+export const getFYList = async (): Promise<string[]> => {
+  const { data } = await api.get('/fy-list')
   return data
 }
+
+/** Methodology register: formulas, sources, live config and row counts for the Audit tab */
+export const getAuditCatalog = async () => {
+  const { data } = await api.get('/audit-catalog')
+  return data
+}
+
+export const getUSDINRRate = async () => {
+  const { data } = await api.get('/usd-inr')
+  return data
+}
+
+export const getMarketRates = async () => {
+  const { data } = await api.get('/market-rates')
+  return data
+}
+
 export const getShipmentTracking = async (fy: string) => {
   const { data } = await api.get('/shipment-tracking', { params: { fy } })
   return data
@@ -170,9 +190,5 @@ export const askAICopilot = async (query: string) => {
   const { data } = await api.post('/ai-copilot', { query })
   return data
 }
-
-// ─── Aliases (backward compat for legacy domain imports) ─────────────────────
-export const getBOEMonitoring = getBOEAnalytics
-export const getRiskAlerts = getTreasuryActions
 
 export default api

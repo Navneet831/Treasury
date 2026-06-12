@@ -1,9 +1,15 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useStore } from '../store'
-import { RefreshCw, Calendar } from 'lucide-react'
+import { getFYList } from '../api'
+import { RefreshCw } from 'lucide-react'
 
 const Header: React.FC = () => {
-  const { currency, setCurrency, fy, setFy, asOnDate, setAsOnDate } = useStore()
+  const { currency, setCurrency, fy, setFy, asOnDate, setAsOnDate, setAmountUnit } = useStore()
+  const [fyOptions, setFyOptions] = useState<string[]>([])
+
+  useEffect(() => {
+    getFYList().then(setFyOptions).catch(() => setFyOptions([]))
+  }, [])
 
   return (
     <header className="h-[52px] border-b border-[#e2e8f0] bg-white flex items-center justify-between px-6 sticky top-0 z-50">
@@ -24,6 +30,7 @@ const Header: React.FC = () => {
       <div className="flex items-center gap-5">
         {/* As On Date Selector */}
         <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-bold text-[#94a3b8] uppercase tracking-wider">LC Payment Due Date</span>
           <input
             type="date"
             value={asOnDate}
@@ -51,9 +58,9 @@ const Header: React.FC = () => {
             className="bg-[#f8fafc] border border-[#e2e8f0] rounded-md text-[12px] font-semibold text-[#0f172a] px-2 py-1 focus:ring-2 focus:ring-[#1d4ed8]/20 focus:border-[#1d4ed8] outline-none cursor-pointer transition-colors"
           >
             <option value="All">All Years</option>
-            <option value="FY24-25">FY 24–25</option>
-            <option value="FY25-26">FY 25–26</option>
-            <option value="FY26-27">FY 26–27</option>
+            {fyOptions.map((f) => (
+              <option key={f} value={f}>{f.replace('FY', 'FY ').replace('-', '–')}</option>
+            ))}
           </select>
         </div>
 

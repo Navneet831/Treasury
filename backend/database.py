@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 import duckdb
@@ -6,8 +7,12 @@ import polars as pl
 from typing import Any, Dict, List, Optional
 from packages.contracts import IRepository
 
+logger = logging.getLogger(__name__)
+
 # Global platform repository instance
 _PLATFORM_REPO: Optional[IRepository] = None
+# Lazily-created fallback for standalone mode — one connection, reused
+_STANDALONE_REPO: Optional[IRepository] = None
 
 def set_platform_repo(repo: IRepository):
     global _PLATFORM_REPO
@@ -42,14 +47,17 @@ class DuckDBRepository(IRepository):
         return self.con.execute(query).pl()
 
 def get_repo() -> IRepository:
+    global _STANDALONE_REPO
     if _PLATFORM_REPO:
         return _PLATFORM_REPO
-    
-    # Standalone fallback
-    print("⚠️ Treasury: Using fallback standalone connection")
-    from apps.Treasury.backend.database import get_duckdb_path
-    con = duckdb.connect(get_duckdb_path(), read_only=True)
-    return DuckDBRepository(con)
+
+    # Standalone fallback: connect once and reuse. No emoji in this message —
+    # cp1252 Windows consoles crash on it (see root CLAUDE.md gotchas).
+    if _STANDALONE_REPO is None:
+        logger.warning("Treasury: using standalone DuckDB connection (no platform repo injected)")
+        con = duckdb.connect(get_duckdb_path(), read_only=True)
+        _STANDALONE_REPO = DuckDBRepository(con)
+    return _STANDALONE_REPO
 
 # REFACTORED UTILITIES
 def fetch_dict(query: str, params=None):

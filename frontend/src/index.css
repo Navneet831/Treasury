@@ -1,26 +1,41 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens — synthesis of DESIGN-supabase.md and DESIGN-apple.md.
+ * Supabase: white canvas, near-black ink (#171717), grey hairline ladder,
+ *           ONE emerald chromatic event, 6/8/12px radii, Inter 500 with
+ *           negative tracking on display tiers, no decorative gradients.
+ * Apple:    parchment alternation (#fafafa) as the section divider, no
+ *           shadows on chrome (hairlines only), scale(0.97) press states,
+ *           tabular numerals for data.
+ * Semantic red/amber/green appear ONLY as data signals, never as chrome.
+ */
 @theme {
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-sans: "Inter", system-ui, -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-mono: "ui-monospace", "Menlo", "Monaco", "Consolas", "Liberation Mono", monospace;
 
-  /* Core palette */
-  --color-border: #e2e8f0;
-  --color-input: #ffffff;
-  --color-ring: #1d4ed8;
-  --color-background: #f8fafc;
-  --color-foreground: #0f172a;
+  /* Ink ladder (Supabase) */
+  --color-ink: #171717;
+  --color-ink-2: #212121;
+  --color-ink-mute: #707070;
+  --color-ink-mute-2: #9a9a9a;
+  --color-ink-faint: #b2b2b2;
 
-  /* Primary — institutional blue */
-  --color-primary: #1d4ed8;
-  --color-primary-deep: #1e3a8a;
-  --color-primary-foreground: #ffffff;
+  /* Canvas */
+  --color-canvas: #ffffff;
+  --color-parchment: #fafafa;
+  --color-night: #1c1c1c;
 
-  /* Data accent — emerald (charts, positive indicators) */
+  /* Hairline ladder */
+  --color-hairline: #dfdfdf;
+  --color-hairline-cool: #ededed;
+  --color-hairline-strong: #c7c7c7;
+
+  /* The single chromatic event */
   --color-accent: #3ecf8e;
   --color-accent-deep: #24b47e;
 
-  /* Semantic */
+  /* Semantic data signals (charts and status only — never chrome) */
   --color-danger: #dc2626;
   --color-danger-bg: #fef2f2;
   --color-warning: #d97706;
@@ -28,14 +43,17 @@
   --color-success: #16a34a;
   --color-success-bg: #f0fdf4;
 
-  /* Surface scale */
+  /* Back-compat aliases used by existing components */
+  --color-border: #dfdfdf;
+  --color-background: #fafafa;
+  --color-foreground: #171717;
+  --color-primary: #171717;
+  --color-primary-foreground: #ffffff;
+  --color-muted: #fafafa;
+  --color-muted-foreground: #707070;
   --color-surface-0: #ffffff;
-  --color-surface-1: #f8fafc;
-  --color-surface-2: #f1f5f9;
-  --color-surface-dark: #0f172a;
-
-  --color-muted: #f8fafc;
-  --color-muted-foreground: #64748b;
+  --color-surface-1: #fafafa;
+  --color-surface-2: #f4f4f5;
 
   --radius-lg: 12px;
   --radius-md: 8px;
@@ -43,60 +61,50 @@
 }
 
 @layer base {
-  :root {
-    --background: 210 40% 98%;
-    --foreground: 222 47% 11%;
-    --primary: 221 83% 53%;
-    --muted-foreground: 215 16% 47%;
-  }
-}
-
-@layer base {
   body {
     @apply antialiased font-sans;
-    background-color: #f8fafc;
-    color: #0f172a;
+    background-color: #fafafa;
+    color: #171717;
+    font-size: 13px;
   }
 
   h1, h2, h3, h4 {
     font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  /* Data is read in columns — keep digits aligned everywhere */
+  table, .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  button:active {
+    transform: scale(0.97);
+  }
+
+  select, input {
+    font-size: 12px;
   }
 }
 
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+  .text-balance { text-wrap: balance; }
 
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-  .no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
+  /* Display tracking (Supabase: tight 500-weight display) */
+  .tracking-display { letter-spacing: -0.03em; }
 
-  /* Animate in for domain pages */
-  .page-in {
-    animation: pageIn 0.25s ease-out forwards;
-  }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-  .custom-scrollbar-horizontal::-webkit-scrollbar {
-    height: 6px;
-  }
-  .custom-scrollbar-horizontal::-webkit-scrollbar-track {
-    background: #f8fafc;
-  }
-  .custom-scrollbar-horizontal::-webkit-scrollbar-thumb {
-    background: #e2e8f0;
-    border-radius: 10px;
-  }
-  .custom-scrollbar-horizontal::-webkit-scrollbar-thumb:hover {
-    background: #cbd5e1;
-  }
+  .page-in { animation: pageIn 0.2s ease-out forwards; }
+
+  .custom-scrollbar-horizontal::-webkit-scrollbar { height: 6px; }
+  .custom-scrollbar-horizontal::-webkit-scrollbar-track { background: #fafafa; }
+  .custom-scrollbar-horizontal::-webkit-scrollbar-thumb { background: #dfdfdf; border-radius: 10px; }
+  .custom-scrollbar-horizontal::-webkit-scrollbar-thumb:hover { background: #c7c7c7; }
 }
 
 @keyframes pageIn {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
 }

@@ -1,9 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import {
-  Calendar, RefreshCcw, Building, FileCheck,
-  Zap, Search, Sparkles, Activity, Globe, ShieldAlert,
-  TrendingUp, Gauge, Package, FileSpreadsheet,
-  BookOpen, ShieldCheck
+  Calendar, Zap, Search, Sparkles, Activity, Globe,
+  Gauge, Package, BookOpen, FileSearch,
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -15,41 +13,25 @@ const navGroups = [
   {
     label: 'Command',
     items: [
-      { id: 'limit',    label: 'Limit Utilization', icon: Gauge },
-      { id: 'overview', label: 'Executive Intel',   icon: Activity },
-      { id: 'risk',     label: 'Risk Alerts',        icon: ShieldAlert },
+      { id: 'limit',    label: 'Command Center',     icon: Gauge },
+      { id: 'overview', label: 'Overview',           icon: Activity },
+      { id: 'calendar', label: 'Calendar',           icon: Calendar },
     ],
   },
   {
     label: 'Analytics',
     items: [
-      { id: 'calendar', label: 'Calendar',       icon: Calendar },
-      { id: 'forecast', label: 'Cash Forecast',  icon: Zap },
-      { id: 'fx',       label: 'FX Exposure',    icon: Globe },
-      { id: 'hedge',    label: 'Hedge Coverage', icon: ShieldCheck },
-      { id: 'trend',    label: 'Trend Analysis', icon: TrendingUp },
-    ],
-  },
-  {
-    label: 'Operations',
-    items: [
-      { id: 'lifecycle', label: 'LC Lifecycle',      icon: RefreshCcw },
-      { id: 'bank',      label: 'Bank Exposure',     icon: Building },
-      { id: 'boe',       label: 'BOE Monitoring',    icon: FileCheck },
-      { id: 'track',     label: 'Track & Suppliers', icon: Package },
-    ],
-  },
-  {
-    label: 'Reports',
-    items: [
-      { id: 'research', label: 'Intelligence & Models', icon: BookOpen },
+      { id: 'cashflow', label: 'Cash Flow',     icon: Zap },
+      { id: 'fx',       label: 'FX & Hedging',  icon: Globe },
+      { id: 'ops',      label: 'Operations',    icon: Package },
+      { id: 'research', label: 'Intelligence',  icon: BookOpen },
     ],
   },
 ]
 
 const bottomItems = [
-  { id: 'ai',           label: 'AI Copilot',         icon: Sparkles },
-  { id: 'transactions', label: 'Transaction Ledger', icon: FileSpreadsheet },
+  { id: 'ai',    label: 'AI Copilot', icon: Sparkles },
+  { id: 'audit', label: 'Audit',      icon: FileSearch },
 ]
 
 const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage }) => {
@@ -80,9 +62,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage }) => {
       >
         <item.icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-[#1d4ed8]' : 'text-[#94a3b8]'}`} />
         <span className="truncate">{item.label}</span>
-        {item.id === 'risk' && (
-          <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#dc2626]" />
-        )}
       </button>
     )
   }

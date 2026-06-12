@@ -1,4 +1,4 @@
-export const formatCurrencyAbsolute = (value: number | null | undefined, currency: string): string => {
+export const formatCurrencyAbsolute = (value: number | null | undefined, _currency: string): string => {
   if (value === null || value === undefined || isNaN(value)) return '—'
   
   return Math.round(value).toLocaleString('en-IN', {
@@ -7,7 +7,7 @@ export const formatCurrencyAbsolute = (value: number | null | undefined, currenc
   })
 }
 
-export const formatCurrency = (value: number | null | undefined, currency: string): string => {
+export const formatCurrency = (value: number | null | undefined, _currency: string): string => {
   if (value === null || value === undefined || isNaN(value)) return '—'
   
   return Math.round(value).toLocaleString('en-IN', {
@@ -16,7 +16,7 @@ export const formatCurrency = (value: number | null | undefined, currency: strin
   })
 }
 
-export const formatCurrencyCompact = (value: number | null | undefined, currency: string, unit: 'Cr' | 'Absolute' = 'Cr'): string => {
+export const formatCurrencyCompact = (value: number | null | undefined, _currency: string, unit: 'Cr' | 'Absolute' = 'Cr'): string => {
   if (value === null || value === undefined || isNaN(value)) return '—'
   
   if (unit === 'Cr') {
@@ -47,11 +47,4 @@ export const formatDate = (value: string | null | undefined): string => {
   const d = new Date(value)
   if (isNaN(d.getTime())) return String(value)
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-}
-
-export const daysFromNow = (dateStr: string | null | undefined): number | null => {
-  if (!dateStr) return null
-  const target = new Date(dateStr)
-  const now = new Date()
-  return Math.round((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
 }

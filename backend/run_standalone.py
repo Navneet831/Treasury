@@ -4,6 +4,13 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# Windows consoles default to cp1252 — reconfigure so log output with unicode
+# never crashes request handling (same guard as the platform shell's main.py).
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 # Add the GrewAnalytics root to sys.path to support 'apps.Treasury...' imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
 grew_analytics_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
