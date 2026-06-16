@@ -10,14 +10,15 @@ import { Agentation } from 'agentation'
 const AICopilot = lazy(() => import('./components/AICopilot'))
 const AuditView = lazy(() => import('./components/AuditView'))
 
-const OverviewView     = lazy(() => import('./domains/executive').then(m => ({ default: m.OverviewView })))
-const IntelligenceView = lazy(() => import('./domains/executive').then(m => ({ default: m.IntelligenceView })))
+const IntelligenceView = lazy(() => import('./domains/executive/IntelligenceView'))
 
 const CalendarView     = lazy(() => import('./domains/calendar').then(m => ({ default: m.CalendarView })))
 const CashFlowView     = lazy(() => import('./domains/cashflow').then(m => ({ default: m.CashFlowView })))
 const FXView           = lazy(() => import('./domains/fx').then(m => ({ default: m.FXView })))
 const OperationsView   = lazy(() => import('./domains/ops').then(m => ({ default: m.OperationsView })))
+const LifecycleTracker = lazy(() => import('./domains/lc').then(m => ({ default: m.LifecycleTracker })))
 const LimitUtilization = lazy(() => import('./domains/utilization').then(m => ({ default: m.LimitUtilization })))
+const TransactionLedger = lazy(() => import('./domains/ledger').then(m => ({ default: m.TransactionLedger })))
 
 // Legacy view ids (old shell links, bookmarks) → consolidated tabs
 const LEGACY_ALIASES: Record<string, string> = {
@@ -25,9 +26,8 @@ const LEGACY_ALIASES: Record<string, string> = {
   trend: 'cashflow',
   hedge: 'fx',
   boe: 'ops',
-  lifecycle: 'ops',
   track: 'ops',
-  risk: 'overview',
+  risk: 'limit',
   bank: 'limit',
   pe: 'research',
   limits: 'limit',
@@ -48,14 +48,15 @@ const App: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const renderPage = () => {
     switch (activePage) {
       case 'limit':        return <DomainSandbox name="Command Center"><LimitUtilization /></DomainSandbox>
-      case 'overview':     return <DomainSandbox name="Executive Overview"><OverviewView /></DomainSandbox>
       case 'calendar':     return <DomainSandbox name="Calendar"><CalendarView /></DomainSandbox>
       case 'cashflow':     return <DomainSandbox name="Cash Flow"><CashFlowView /></DomainSandbox>
       case 'fx':           return <DomainSandbox name="FX & Hedging"><FXView /></DomainSandbox>
       case 'ops':          return <DomainSandbox name="Operations"><OperationsView /></DomainSandbox>
+      case 'lifecycle':    return <DomainSandbox name="LC Lifecycle"><LifecycleTracker /></DomainSandbox>
       case 'research':     return <DomainSandbox name="Intelligence"><IntelligenceView /></DomainSandbox>
       case 'audit':        return <DomainSandbox name="Audit"><AuditView /></DomainSandbox>
-      case 'ai':           return <DomainSandbox name="AI Copilot"><AICopilot /></DomainSandbox>
+      case 'ai':           return <DomainSandbox name="GrewGpt"><AICopilot /></DomainSandbox>
+      case 'ledger':       return <DomainSandbox name="Transaction Ledger"><TransactionLedger /></DomainSandbox>
       default:
         return (
           <div className="p-8">
