@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react'
-import { Search } from 'lucide-react'
+import { Search, LogOut } from 'lucide-react'
 import { navGroups, bottomItems } from './navConfig'
 import { useSidebar } from './useSidebar'
+import { supabase, useAuthStore } from '@grew/auth'
 import NavItem from './NavItem'
 import SidebarToggle from './SidebarToggle'
 
@@ -12,6 +13,13 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage }) => {
   const { collapsed, toggle, expand, query, setQuery } = useSidebar()
+  const { setUser, setAuthenticated } = useAuthStore()
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    setUser(null)
+    setAuthenticated(false)
+  }
 
   const filtered = useMemo(() => {
     if (!query.trim()) return navGroups
@@ -100,6 +108,21 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage }) => {
             onSelect={setActivePage}
           />
         ))}
+      </div>
+
+      {/* Logout */}
+      <div className="border-t border-hairline px-2 pb-3 pt-2">
+        <button
+          onClick={handleLogout}
+          title={collapsed ? 'Sign out' : undefined}
+          aria-label="Sign out"
+          className={`group flex w-full items-center rounded-md text-[13px] font-medium text-ink-mute transition-colors duration-150 hover:bg-danger-bg hover:text-danger ${
+            collapsed ? 'justify-center px-0 py-2' : 'gap-2.5 px-3 py-1.5'
+          }`}
+        >
+          <LogOut className="h-4 w-4 flex-shrink-0 transition-colors group-hover:text-danger" />
+          {!collapsed && <span>Sign out</span>}
+        </button>
       </div>
     </aside>
   )
