@@ -19,7 +19,16 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+
+    "paths": {
+      "@grew/auth": ["../../../packages/auth/src/index.ts"],
+      "@grew/auth/*": ["../../../packages/auth/src/*"]
+    }
   },
-  "include": ["src"]
+  "include": [
+    "src",
+    "../../../packages/auth/src/**/*.ts",
+    "../../../packages/auth/src/**/*.tsx"
+  ]
 }

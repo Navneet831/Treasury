@@ -1,10 +1,11 @@
 import * as React from 'react';
-import { useState, lazy } from 'react'
+import { useState, lazy, useEffect } from 'react'
 import Header from './components/Header'
 import Sidebar from './components/Sidebar'
 import Footer from './components/Footer'
 import { DomainSandbox } from './shared/DomainSandbox'
 import { Agentation } from 'agentation'
+import { supabase, verifyWhitelistAndSetUser, useAuthStore, Login } from '@grew/auth'
 
 // Lazy load domain modules for true sandboxing
 const AICopilot = lazy(() => import('./components/AICopilot'))
@@ -19,6 +20,7 @@ const OperationsView   = lazy(() => import('./domains/ops').then(m => ({ default
 const LifecycleTracker = lazy(() => import('./domains/lc').then(m => ({ default: m.LifecycleTracker })))
 const LimitUtilization = lazy(() => import('./domains/utilization').then(m => ({ default: m.LimitUtilization })))
 const TransactionLedger = lazy(() => import('./domains/ledger').then(m => ({ default: m.TransactionLedger })))
+const DevView = lazy(() => import('./domains/dev/DevView').then(m => ({ default: m.DevView })))
 
 // Legacy view ids (old shell links, bookmarks) → consolidated tabs
 const LEGACY_ALIASES: Record<string, string> = {
@@ -34,6 +36,17 @@ const LEGACY_ALIASES: Record<string, string> = {
   transactions: 'audit',
 }
 
+const BootSpinner: React.FC = () => (
+  <div className="h-screen w-full bg-[#05070A] flex items-center justify-center">
+    <div className="flex flex-col items-center gap-4">
+      <div className="w-10 h-10 border-[3px] border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
+      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest animate-pulse">
+        Verifying Access…
+      </p>
+    </div>
+  </div>
+)
+
 // ── App ────────────────────────────────────────────────────────────────────────
 // `embedded` is passed by the platform shell (which provides its own chrome);
 // standalone dev renders Header/Sidebar/Footer. Never detect embedding via
@@ -44,6 +57,46 @@ const App: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
     const view = params.get('view') || 'limit'
     return LEGACY_ALIASES[view] || view
   })
+
+  // ── Auth ────────────────────────────────────────────────────────────────────
+  const {
+    isAuthenticated,
+    isBootstrapping,
+    setBootstrapping,
+    setUser,
+    setAuthenticated,
+  } = useAuthStore()
+
+  useEffect(() => {
+    if (embedded) {
+      // Shell has already verified the session — skip Treasury's own gate
+      setBootstrapping(false)
+      return
+    }
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_IN' && session) {
+          await verifyWhitelistAndSetUser(session)
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null)
+          setAuthenticated(false)
+        }
+      }
+    )
+
+    const boot = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        await verifyWhitelistAndSetUser(session, { skipDelay: true })
+      }
+      setBootstrapping(false)
+    }
+
+    boot()
+    return () => authListener.subscription.unsubscribe()
+  }, [embedded, setBootstrapping, setUser, setAuthenticated])
+  // ────────────────────────────────────────────────────────────────────────────
 
   const renderPage = () => {
     switch (activePage) {
@@ -57,6 +110,7 @@ const App: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
       case 'audit':        return <DomainSandbox name="Audit"><AuditView /></DomainSandbox>
       case 'ai':           return <DomainSandbox name="GrewGpt"><AICopilot /></DomainSandbox>
       case 'ledger':       return <DomainSandbox name="Transaction Ledger"><TransactionLedger /></DomainSandbox>
+      case 'dev':          return <DomainSandbox name="Developer Options"><DevView /></DomainSandbox>
       default:
         return (
           <div className="p-8">
@@ -65,6 +119,12 @@ const App: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
           </div>
         )
     }
+  }
+
+  // Auth gate (standalone mode only)
+  if (!embedded) {
+    if (isBootstrapping) return <BootSpinner />
+    if (!isAuthenticated) return <Login />
   }
 
   const isEmbedded = embedded
