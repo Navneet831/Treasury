@@ -1,6 +1,13 @@
 @import "tailwindcss";
 @plugin "tailwindcss-animate";
 
+/* The shared @grew/auth package (Login.tsx) lives out-of-tree in
+   packages/auth/src, so Tailwind v4's automatic source detection never
+   scans it. Without this, none of Login's utility classes (the dark
+   bg-[#05070A] / slate / emerald palette) get generated and the auth
+   page renders unstyled. Path is relative to this CSS file. */
+@source "../../../../packages/auth/src";
+
 /*
  * Design tokens — synthesis of DESIGN-supabase.md and DESIGN-apple.md.
  * Supabase: white canvas, near-black ink (#171717), grey hairline ladder,
