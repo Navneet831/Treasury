@@ -124,7 +124,7 @@ const App: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   // Auth gate (standalone mode only)
   if (!embedded) {
     if (isBootstrapping) return <BootSpinner />
-    if (!isAuthenticated) return <Login />
+    if (!isAuthenticated) return <Login skipIntro />
   }
 
   const isEmbedded = embedded

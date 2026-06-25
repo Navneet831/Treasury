@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "tailwindcss-animate";
 
 /*
  * Design tokens — synthesis of DESIGN-supabase.md and DESIGN-apple.md.
@@ -35,6 +36,14 @@
   --color-accent: #3ecf8e;
   --color-accent-deep: #24b47e;
 
+  /* Inline-link blue (Mastercard refinement) — links only, never chrome */
+  --color-link: #3860be;
+
+  /* Atmospheric elevation (Mastercard refinement): large soft spread, low
+     opacity — "breathing above the canvas", never a hard directional drop. */
+  --shadow-float: 0 4px 24px rgba(0, 0, 0, 0.04);
+  --shadow-lift: 0 24px 48px rgba(0, 0, 0, 0.08);
+
   /* Semantic data signals (charts and status only — never chrome) */
   --color-danger: #dc2626;
   --color-danger-bg: #fef2f2;
@@ -66,11 +75,20 @@
     background-color: #fafafa;
     color: #171717;
     font-size: 13px;
+    /* Mastercard's load-bearing half-step body weight — softer than 500,
+       firmer than 400. Inter ships a 450 axis (loaded in index.html). */
+    font-weight: 450;
   }
 
   h1, h2, h3, h4 {
     font-weight: 600;
     letter-spacing: -0.01em;
+  }
+
+  /* Inline links read as the dusty Mastercard blue, with a persistent underline
+     (Supabase link convention). Buttons styled as <a> opt out via their own classes. */
+  a {
+    color: var(--color-link);
   }
 
   /* Data is read in columns — keep digits aligned everywhere */
@@ -107,4 +125,10 @@
 @keyframes pageIn {
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Transaction Ledger (AG Grid): Excel-style header — keep the per-column filter
+   "dropdown" button permanently visible instead of only on hover. */
+.ag-theme-alpine .ag-header-cell-filter-button {
+  opacity: 1 !important;
 }
