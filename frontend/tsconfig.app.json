@@ -23,7 +23,15 @@
 
     "paths": {
       "@grew/auth": ["../../../packages/auth/src/index.ts"],
-      "@grew/auth/*": ["../../../packages/auth/src/*"]
+      "@grew/auth/*": ["../../../packages/auth/src/*"],
+      "react": ["./node_modules/@types/react"],
+      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
+      "lucide-react": ["./node_modules/lucide-react"],
+      "lucide-react/*": ["./node_modules/lucide-react/*"],
+      "@supabase/supabase-js": ["./node_modules/@supabase/supabase-js"],
+      "@supabase/supabase-js/*": ["./node_modules/@supabase/supabase-js/*"],
+      "zustand": ["./node_modules/zustand"],
+      "zustand/*": ["./node_modules/zustand/*"]
     }
   },
   "include": [
