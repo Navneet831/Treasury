@@ -1,6 +1,19 @@
 from fastapi import APIRouter, Query, Body, HTTPException
 from typing import Optional, List
 from datetime import datetime, date
+from dotenv import load_dotenv
+import os
+
+# Load environment variables. Load from parent directories first so closer files can override.
+backend_dir = os.path.dirname(os.path.abspath(__file__))
+treasury_dir = os.path.dirname(backend_dir)
+grew_analytics_root = os.path.dirname(os.path.dirname(treasury_dir))
+
+for path in [grew_analytics_root, treasury_dir, backend_dir]:
+    env_file = os.path.join(path, '.env')
+    if os.path.exists(env_file):
+        load_dotenv(dotenv_path=env_file, override=True)
+
 
 # Import centralized logic
 import apps.Treasury.backend.datalogic as datalogic
@@ -18,6 +31,130 @@ async def get_usd_inr_rate():
 async def get_market_rates():
     return market_data.get_all_rates()
 
+@router.get("/health")
+async def health_check():
+    from apps.Treasury.backend.database import get_repo
+    repo = get_repo()
+    return {
+        "status": "operational",
+        "module": "Treasury",
+        "repository": type(repo).__name__,
+        "timestamp": datetime.now().isoformat()
+    }
+
+@router.get("/db-config")
+async def get_db_config():
+    import os
+    import subprocess
+    from apps.Treasury.backend.database import fetch_dict, get_repo
+    
+    connection = None
+    source = None
+    connection_error = None
+    
+    db_host = os.getenv("DB_HOST") or os.getenv("PG_HOST") or "127.0.0.1"
+    db_port = os.getenv("DB_PORT") or os.getenv("PG_PORT") or "5433"
+    db_user = os.getenv("DB_USER") or os.getenv("PG_USER") or "navneet"
+    db_name = os.getenv("DB_NAME") or os.getenv("PG_DATABASE") or "Grewdb"
+    
+    connection = {
+        "host": db_host,
+        "port": int(db_port) if db_port.isdigit() else 5433,
+        "user": db_user,
+        "database": db_name,
+        "ssl": False
+    }
+    source = "local_env"
+
+    git_info = {"branch": None, "commits": [], "error": None}
+    try:
+        branch = subprocess.check_output(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"], 
+            stderr=subprocess.DEVNULL
+        ).decode().strip()
+        
+        raw_log = subprocess.check_output(
+            ["git", "log", "-5", "--format=%H|%s|%ai|%an"], 
+            stderr=subprocess.DEVNULL
+        ).decode().strip()
+        
+        commits = []
+        for line in raw_log.split("\n"):
+            if not line:
+                continue
+            parts = line.split("|")
+            if len(parts) >= 4:
+                commits.append({
+                    "hash": parts[0][:7],
+                    "message": parts[1],
+                    "date": parts[2],
+                    "author": parts[3]
+                })
+        git_info = {"branch": branch, "commits": commits, "error": None}
+    except Exception as e:
+        git_info = {
+            "branch": None,
+            "commits": [],
+            "error": f"Git metadata unavailable: {str(e)}"
+        }
+
+    data_stats = {
+        "totalRecords": 0,
+        "minDate": None,
+        "maxDate": None,
+        "cacheStatus": "cold",
+        "fetchMode": "direct_pg"
+    }
+    
+    try:
+        repo = get_repo()
+        data_stats["fetchMode"] = "direct_pg" if "Postgres" in type(repo).__name__ else "duckdb"
+        
+        count_res = fetch_dict('SELECT COUNT(*) as cnt FROM "LC"')
+        if count_res:
+            data_stats["totalRecords"] = count_res[0]["cnt"]
+            data_stats["cacheStatus"] = "warm"
+            
+        date_res = fetch_dict('SELECT MIN("LC Op. Date") as min_d, MAX("LC Op. Date") as max_d FROM "LC"')
+        if date_res:
+            data_stats["minDate"] = str(date_res[0]["min_d"])
+            data_stats["maxDate"] = str(date_res[0]["max_d"])
+    except Exception as ex:
+        data_stats["cacheStatus"] = "error"
+        connection_error = f"Stats query failed: {str(ex)}"
+
+    return {
+        "connection": connection,
+        "source": source,
+        "connectionError": connection_error,
+        "dataStats": data_stats,
+        "gitInfo": git_info,
+        "dataLogic": {
+            "table": "public.LC",
+            "dateColumn": '"LC Op. Date"',
+            "minDateFilter": "None",
+            "sqlQuery": 'SELECT * FROM "LC"',
+            "currencyDivider": "10,000,000 (Divide to get Crores) or Absolute",
+            "fiscalYearStart": "April (month index 3)",
+            "weekDefinition": "Not applicable",
+            "columnMapping": {
+                '"PO NO"': "poNo (string)",
+                '" LC no."': "lcNo (string)",
+                '"LC Op. Date"': "lcIssueDate (date)",
+                '"Bank Name"': "bank (string)",
+                '"Margin"': "margin (number)",
+                '"Supplier Name"': "supplier (string)",
+                '"Currency"': "currency (string)",
+                '"LC Amt \\n(in INR)"': "lcAmt (number)",
+                '"Pending BOE Amt\\n(in INR)"': "pendingBoeAmt (number)",
+                '"BOE Bill Amt\\n(in INR)"': "boeBillAmt (number)",
+                '"Payment Status"': "paymentStatus (string)",
+                '"BOE Status"': "boeStatus (string)",
+                '"LC Status"': "lcStatus (string)"
+            }
+        }
+    }
+
 # ══════════════════════════════════════════════════════════
 # Domain Isolation Endpoints
 # ══════════════════════════════════════════════════════════
@@ -27,8 +164,8 @@ async def get_executive_overview(currency: str = Query("INR"), fy: str = Query("
     return datalogic.get_executive_overview_data(currency, fy)
 
 @router.get("/command-data")
-async def get_command_data(currency: str = Query("INR"), fy: str = Query("All"), payment_status: str = Query("Unpaid"), facility_type: str = Query("LC")):
-    return datalogic.get_command_data(currency, fy, payment_status, facility_type)
+async def get_command_data(currency: str = Query("INR"), fy: str = Query("All"), payment_status: str = Query("Unpaid"), facility_type: str = Query("LC"), lc_status: str = Query("Open")):
+    return datalogic.get_command_data(currency, fy, payment_status, facility_type, lc_status)
 
 @router.get("/lc-exposure")
 async def get_lc_exposure(currency: str = Query("INR"), fy: str = Query("All")):
@@ -111,8 +248,8 @@ async def get_bg_module():
     return datalogic.get_bg_module_data()
 
 @router.get("/limit-utilisation")
-async def get_limit_utilisation(currency: str = Query("INR"), fy: str = Query("All"), payment_status: str = Query("Unpaid"), facility_type: str = Query("LC")):
-    return datalogic.get_limit_utilisation_data(currency, fy, payment_status, facility_type)
+async def get_limit_utilisation(currency: str = Query("INR"), fy: str = Query("All"), payment_status: str = Query("Unpaid"), facility_type: str = Query("LC"), lc_status: str = Query("Open")):
+    return datalogic.get_limit_utilisation_data(currency, fy, payment_status, facility_type, lc_status)
 
 @router.get("/treasury-actions")
 async def get_treasury_actions():
@@ -179,6 +316,31 @@ async def get_drill_down(
         payment_status=payment_status
     )
 
+from apps.Treasury.backend.database import fetch_dict
+
 @router.post("/ai-copilot")
 async def ai_copilot(query: str = Body(..., embed=True)):
     return datalogic.process_ai_query(query)
+
+@router.get("/tables")
+async def get_tables():
+    try:
+        res = fetch_dict("SHOW TABLES")
+        return [r["name"] for r in res]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/tables/{table_name}")
+async def get_table_data(table_name: str):
+    try:
+        # Validate table name against SHOW TABLES to prevent SQL injection
+        res_tables = fetch_dict("SHOW TABLES")
+        valid_tables = [r["name"] for r in res_tables]
+        if table_name not in valid_tables:
+            raise HTTPException(status_code=400, detail="Invalid table name")
+        
+        # Double quote table name to handle spaces like "LC BG in Process"
+        data = fetch_dict(f'SELECT * FROM "{table_name}"')
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

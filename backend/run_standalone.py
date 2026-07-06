@@ -38,4 +38,20 @@ app.add_middleware(
 app.include_router(router)
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8001)
+    from dotenv import load_dotenv
+    # Load environment variables. Load from parent directories first so closer files can override.
+    backend_dir = os.path.dirname(os.path.abspath(__file__))
+    treasury_dir = os.path.dirname(backend_dir)
+    grew_analytics_root = os.path.dirname(os.path.dirname(treasury_dir))
+
+    for path in [grew_analytics_root, treasury_dir, backend_dir]:
+        env_file = os.path.join(path, '.env')
+        if os.path.exists(env_file):
+            load_dotenv(dotenv_path=env_file, override=True)
+
+    host = os.getenv("BACKEND_HOST", "127.0.0.1")
+    port = int(os.getenv("BACKEND_PORT", "8002"))
+    
+    print(f"[INFO] Starting Treasury Backend on http://{host}:{port}")
+    uvicorn.run(app, host=host, port=port)
+

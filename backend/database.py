@@ -1,7 +1,5 @@
 import logging
 import os
-import sys
-import duckdb
 import pandas as pd
 import polars as pl
 from typing import Any, Dict, List, Optional
@@ -9,57 +7,120 @@ from packages.contracts import IRepository
 
 logger = logging.getLogger(__name__)
 
-# Global platform repository instance
-_PLATFORM_REPO: Optional[IRepository] = None
-# Lazily-created fallback for standalone mode — one connection, reused
-_STANDALONE_REPO: Optional[IRepository] = None
+# ── Global repository instances ───────────────────────────────────────────────
+_PLATFORM_REPO: Optional[IRepository] = None   # injected by module.py (platform mode)
+_STANDALONE_REPO: Optional[IRepository] = None # lazily created (standalone mode)
+
 
 def set_platform_repo(repo: IRepository):
     global _PLATFORM_REPO
     _PLATFORM_REPO = repo
 
-class DuckDBRepository(IRepository):
+
+# ── PostgreSQL repository ─────────────────────────────────────────────────────
+
+class PostgreSQLRepository(IRepository):
+    """IRepository implementation backed by PostgreSQL (psycopg2).
+
+    All Treasury services were written against DuckDB dialect. This class
+    runs every query through ``postgres_compat.translate_sql`` before
+    execution so that DuckDB-specific constructs (date_diff, INTERVAL N DAY,
+    TRY_CAST, SHOW TABLES, DESCRIBE …) work transparently on PostgreSQL.
     """
-    Local implementation of IRepository for Treasury using DuckDB.
-    """
-    def __init__(self, connection):
-        self.con = connection
 
-    def execute(self, query: str, params: Optional[Dict[str, Any]] = None) -> Any:
+    def __init__(self, dsn: str):
+        import psycopg2
+        import psycopg2.extras
+        self._psycopg2 = psycopg2
+        self._extras = psycopg2.extras
+        self._dsn = dsn
+        self._con = psycopg2.connect(dsn)
+        self._con.autocommit = True   # read-only workload; no transactions needed
+        logger.info("Treasury: PostgreSQL repository connected (%s)", dsn.split("@")[-1])
+
+    # -- internal helpers
+    def _cursor(self):
+        """Return a dict cursor, reconnecting once if the connection dropped."""
+        try:
+            if self._con.closed:
+                raise Exception("connection closed")
+            return self._con.cursor(cursor_factory=self._extras.RealDictCursor)
+        except Exception:
+            self._con = self._psycopg2.connect(self._dsn)
+            self._con.autocommit = True
+            return self._con.cursor(cursor_factory=self._extras.RealDictCursor)
+
+    def _translate(self, query: str) -> str:
+        from apps.Treasury.other.Migration.postgres_compat import translate_sql
+        return translate_sql(query)
+
+    # -- IRepository interface
+    def execute(self, query: str, params: Optional[Any] = None) -> Any:
+        q = self._translate(query)
+        cur = self._cursor()
         if params:
-            return self.con.execute(query, params)
-        return self.con.execute(query)
+            cur.execute(q, list(params) if not isinstance(params, (list, tuple)) else params)
+        else:
+            # psycopg2 interprets % as a param marker even with no params.
+            # Escape any literal % so the query executes cleanly.
+            cur.execute(q.replace("%", "%%"))
+        return cur
 
-    def fetch_all(self, query: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        res = self.execute(query, params)
-        cols = [desc[0] for desc in res.description]
-        return [dict(zip(cols, row)) for row in res.fetchall()]
+    def fetch_all(self, query: str, params: Optional[Any] = None) -> List[Dict[str, Any]]:
+        cur = self.execute(query, params)
+        return [dict(row) for row in cur.fetchall()]
 
-    def fetch_one(self, query: str, params: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
-        res = self.execute(query, params)
-        cols = [desc[0] for desc in res.description]
-        row = res.fetchone()
-        return dict(zip(cols, row)) if row else None
+    def fetch_one(self, query: str, params: Optional[Any] = None) -> Optional[Dict[str, Any]]:
+        cur = self.execute(query, params)
+        row = cur.fetchone()
+        return dict(row) if row else None
 
-    def get_dataframe(self, query: str, params: Optional[Dict[str, Any]] = None) -> pl.DataFrame:
-        if params:
-            return self.con.execute(query, params).pl()
-        return self.con.execute(query).pl()
+    def get_dataframe(self, query: str, params: Optional[Any] = None) -> pd.DataFrame:
+        q = self._translate(query)
+        import psycopg2
+        con = psycopg2.connect(self._dsn)
+        df = pd.read_sql_query(q, con, params=params)
+        con.close()
+        return df
+
+
+# ── Repository factory ────────────────────────────────────────────────────────
 
 def get_repo() -> IRepository:
     global _STANDALONE_REPO
     if _PLATFORM_REPO:
         return _PLATFORM_REPO
 
-    # Standalone fallback: connect once and reuse. No emoji in this message —
-    # cp1252 Windows consoles crash on it (see root CLAUDE.md gotchas).
-    if _STANDALONE_REPO is None:
-        logger.warning("Treasury: using standalone DuckDB connection (no platform repo injected)")
-        con = duckdb.connect(get_duckdb_path(), read_only=True)
-        _STANDALONE_REPO = DuckDBRepository(con)
+    if _STANDALONE_REPO:
+        return _STANDALONE_REPO
+
+    # Priority 2 — PostgreSQL
+    pg_url = os.getenv("POSTGRES_URL") or os.getenv("DATABASE_URL")
+    if not pg_url:
+        db_user = os.getenv("DB_USER") or os.getenv("PG_USER")
+        db_password = os.getenv("DB_PASSWORD") or os.getenv("PG_PASSWORD")
+        db_host = os.getenv("DB_HOST") or os.getenv("PG_HOST")
+        db_port = os.getenv("DB_PORT") or os.getenv("PG_PORT")
+        db_name = os.getenv("DB_NAME") or os.getenv("PG_DATABASE")
+        if db_user and db_password and db_host and db_port and db_name:
+            import urllib.parse
+            encoded_password = urllib.parse.quote_plus(db_password)
+            pg_url = f"postgresql://{db_user}:{encoded_password}@{db_host}:{db_port}/{db_name}"
+
+    if not pg_url:
+        raise RuntimeError(
+            "Treasury: no PostgreSQL connection configured. Set POSTGRES_URL "
+            "(or PG_USER/PG_PASSWORD/PG_HOST/PG_PORT/PG_DATABASE) in the .env."
+        )
+
+    repo = PostgreSQLRepository(pg_url)
+    _STANDALONE_REPO = repo
+    logger.info("Treasury: using PostgreSQL repository.")
     return _STANDALONE_REPO
 
-# REFACTORED UTILITIES
+
+# ── Public helper functions (used by all services) ────────────────────────────
+
 def fetch_dict(query: str, params=None):
     return get_repo().fetch_all(query, params)
 
@@ -71,19 +132,3 @@ def fetch_one(query: str, params=None):
 
 def get_polars_df(query: str):
     return get_repo().get_dataframe(query)
-
-# HELPER FOR STANDALONE PATHS
-def get_duckdb_path():
-    # Priority 1: Environment variable
-    env_path = os.getenv("DUCKDB_PATH")
-    if env_path and os.path.exists(env_path):
-        return env_path
-        
-    # Priority 2: Absolute path from check.py
-    absolute_fallback = r"D:\GrewAnalytics\warehouse.duckdb"
-    if os.path.exists(absolute_fallback):
-        return absolute_fallback
-
-    # Priority 3: Relative path from backend folder
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(os.path.dirname(os.path.dirname(base_dir)), "warehouse.duckdb")

@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 title Treasury Control Tower Startup
 color 0B
 
@@ -25,11 +26,28 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
-:: Set Environment
+:: Set Default Environment Variables
 set PY_CMD=python
-set PORT=8001
-set HOST=127.0.0.1
+set FRONTEND_HOST=127.0.0.1
+set FRONTEND_PORT=8001
+set BACKEND_HOST=127.0.0.1
+set BACKEND_PORT=8002
 set NO_WINDOW=true
+
+:: Load from .env if exists
+if exist ".env" (
+    for /f "usebackq tokens=1,2 delims==" %%A in (".env") do (
+        set "KEY=%%A"
+        set "VAL=%%B"
+        if not "!KEY!"=="" (
+            set "first=!KEY:~0,1!"
+            if not "!first!"=="#" (
+                set "!KEY!=!VAL!"
+            )
+        )
+    )
+)
+
 
 echo [1/3] Checking Backend Dependencies...
 cd backend
@@ -40,8 +58,10 @@ if %errorlevel% neq 0 (
 cd ..
 
 echo [2/3] Starting Backend Services (Headless)...
-echo [LINK] API Documentation: http://%HOST%:%PORT%/docs
-start "Treasury Backend" /min cmd /c "cd backend && set NO_WINDOW=true && %PY_CMD% run_standalone.py"
+set PRINT_BACK_HOST=!BACKEND_HOST!
+if "!PRINT_BACK_HOST!"=="0.0.0.0" set PRINT_BACK_HOST=127.0.0.1
+echo [LINK] API Documentation: http://!PRINT_BACK_HOST!:!BACKEND_PORT!/docs
+start "Treasury Backend" /min cmd /c "cd backend && set NO_WINDOW=true && !PY_CMD! run_standalone.py"
 
 :: Wait for backend to initialize
 timeout /t 3 /nobreak >nul
@@ -52,16 +72,20 @@ if not exist "node_modules\" (
     echo [INFO] node_modules not found. Installing dependencies...
     call npm install --silent
 )
-echo [LINK] Web Dashboard: http://localhost:5175
+set PRINT_FRONT_HOST=!FRONTEND_HOST!
+if "!PRINT_FRONT_HOST!"=="0.0.0.0" set PRINT_FRONT_HOST=127.0.0.1
+echo [LINK] Web Dashboard: http://!PRINT_FRONT_HOST!:!FRONTEND_PORT!
 echo.
 echo ======================================================================
-echo SYSTEM IS ACTIVE
+echo SYSTEM IS ACTIVE (Listening on all network interfaces)
 echo ======================================================================
 echo.
-echo [URL] http://localhost:5175
+echo Local URL:   http://!PRINT_FRONT_HOST!:!FRONTEND_PORT!
+echo Network URL: http://[Your-System-IP]:!FRONTEND_PORT!
 echo.
 
 :: Start Vite Dev Server
 npm run dev
+
 
 pause
