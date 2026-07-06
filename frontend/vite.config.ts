@@ -22,7 +22,7 @@ export default defineConfig(({ mode }) => {
     },
     resolve: {
       alias: {
-        '@grew/auth': path.resolve(__dirname, '../../../packages/auth/src'),
+        '@grew/auth': path.resolve(__dirname, '../../packages/auth/src'),
         '@supabase/supabase-js': path.resolve(__dirname, './node_modules/@supabase/supabase-js'),
         'zustand': path.resolve(__dirname, './node_modules/zustand'),
         'react': path.resolve(__dirname, './node_modules/react'),

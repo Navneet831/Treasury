@@ -7,6 +7,7 @@ import { DomainSandbox } from './shared/DomainSandbox'
 import { Agentation } from 'agentation'
 import { supabase, verifyWhitelistAndSetUser, useAuthStore, Login } from '@grew/auth'
 import { AuditProvider } from './shared/AuditContext'
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 
 // Lazy load domain modules for true sandboxing
 const AICopilot = lazy(() => import('./components/AICopilot'))
@@ -77,7 +78,7 @@ const App: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
     }
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (event: AuthChangeEvent, session: Session | null) => {
         if (event === 'SIGNED_IN' && session) {
           await verifyWhitelistAndSetUser(session)
         } else if (event === 'SIGNED_OUT') {
