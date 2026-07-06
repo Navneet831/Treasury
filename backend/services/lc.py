@@ -22,17 +22,26 @@ def get_payment_statuses() -> List[str]:
     return [r["Payment Status"] for r in rows if r["Payment Status"]]
 
 
-def get_lc_exposure_data(currency: str = "INR", fy: str = "All") -> Dict[str, Any]:
+def get_lc_exposure_data(currency: str = "INR", fy: str = "All", lc_status: str = "Open") -> Dict[str, Any]:
     amt_col = COL_MAP["amt_inr"] if currency == "INR" else COL_MAP["amt_fc"]
+    boe_bill_col = COL_MAP["boe_bill_inr"] if currency == "INR" else COL_MAP["boe_bill_fc"]
     fy_filter = get_fy_clause(fy, COL_MAP['op_date'])
+    if lc_status == "Open":
+        status_filter = "('Open', 'In Process')"
+    elif lc_status == "Closed":
+        status_filter = "('Closed')"
+    else:
+        status_filter = "('Open', 'In Process', 'Closed')"
 
     exposure_res = fetch_dict(f"""
         SELECT
             {COL_MAP['lc_status']} as status,
-            SUM({amt_col}) as value,
+            SUM(CASE WHEN UPPER({COL_MAP['bank']}) IN ('BOI', 'IDBI') 
+                     THEN (CASE WHEN {COL_MAP['lc_status']} = 'Open' AND Margin = 0.1 THEN COALESCE({boe_bill_col}, 0) ELSE 0 END)
+                     ELSE {amt_col} END) as value,
             COUNT(*) as count
         FROM LC
-        WHERE 1=1 {fy_filter}
+        WHERE 1=1 AND {COL_MAP['lc_status']} IN {status_filter} {fy_filter}
         GROUP BY 1
     """)
 
@@ -40,13 +49,17 @@ def get_lc_exposure_data(currency: str = "INR", fy: str = "All") -> Dict[str, An
         SELECT
             LC.{COL_MAP['bank']} as bank,
             COALESCE(MAX(CAST(NULLIF(REPLACE(bank_limit."LC", ',', ''), '') AS DOUBLE)), 0) as limit_amt,
-            SUM(CASE WHEN LC.{COL_MAP['lc_status']} IN ('Open', 'In Process') THEN LC.{amt_col} ELSE 0 END) as utilized,
+            SUM(CASE WHEN LC.{COL_MAP['lc_status']} IN {status_filter} THEN 
+                (CASE WHEN UPPER(LC.{COL_MAP['bank']}) IN ('BOI', 'IDBI') 
+                      THEN (CASE WHEN LC.{COL_MAP['lc_status']} = 'Open' AND Margin = 0.1 THEN COALESCE(LC.{boe_bill_col}, 0) ELSE 0 END)
+                      ELSE LC.{amt_col} END)
+            ELSE 0 END) as utilized,
             COALESCE(SUM(LC.{COL_MAP['margin_fd']}), 0) as margin_fd,
             COUNT(*) as lc_count
         FROM LC
         LEFT JOIN bank_limit ON TRIM(UPPER(LC.{COL_MAP['bank']})) = TRIM(UPPER(bank_limit.Element))
             AND bank_limit.Bank_Table = 'Bank'
-        WHERE 1=1 {fy_filter}
+        WHERE 1=1 AND LC.{COL_MAP['lc_status']} IN {status_filter} {fy_filter}
         GROUP BY 1
     """)
     for b in bank_wise:
@@ -56,7 +69,9 @@ def get_lc_exposure_data(currency: str = "INR", fy: str = "All") -> Dict[str, An
     margin_wise = fetch_dict(f"""
         SELECT
             Margin as margin_pct,
-            SUM({amt_col}) as exposure,
+            SUM(CASE WHEN UPPER({COL_MAP['bank']}) IN ('BOI', 'IDBI') 
+                     THEN (CASE WHEN {COL_MAP['lc_status']} = 'Open' AND Margin = 0.1 THEN COALESCE({boe_bill_col}, 0) ELSE 0 END)
+                     ELSE {amt_col} END) as exposure,
             COUNT(*) as count,
             SUM({COL_MAP['margin_fd']}) as limit_consumed
         FROM LC
@@ -120,7 +135,7 @@ def get_cohort_analysis_data(currency: str = "INR", fy: str = "All") -> List[Dic
             COUNT(CASE WHEN {st} = 'Closed' THEN 1 END) as closed_count,
             COUNT(CASE WHEN {ps} = 'Paid' THEN 1 END) as paid_count,
             COALESCE(SUM({pending_col}), 0) as pending_boe_value,
-            AVG(date_diff('day', {op}, COALESCE({close}, CURRENT_DATE))) as avg_age_days
+            AVG(CASE WHEN {close} IS NOT NULL THEN date_diff('day', CAST({op} AS DATE), CAST({close} AS DATE)) ELSE date_diff('day', CAST({op} AS DATE), CURRENT_DATE) END) as avg_age_days
         FROM LC WHERE {op} IS NOT NULL {get_fy_clause(fy, op)}
         GROUP BY 1 ORDER BY 1 DESC
     """)
@@ -155,9 +170,9 @@ def get_shipment_tracking_data(fy: str = "All") -> Dict[str, Any]:
 
 def get_trend_cohort_data(currency: str = "INR") -> Dict[str, Any]:
     amt_col = COL_MAP["amt_inr"] if currency == "INR" else COL_MAP["amt_fc"]
-    return {"exposure_trend": fetch_dict(f"SELECT date_trunc('month', {COL_MAP['op_date']}) as month, SUM({amt_col}) as value FROM LC WHERE {COL_MAP['op_date']} >= date_trunc('month', CURRENT_DATE - INTERVAL 6 MONTH) GROUP BY 1 ORDER BY 1"),
-            "util_trend": fetch_dict(f"SELECT date_trunc('month', {COL_MAP['op_date']}) as month, {COL_MAP['bank']} as bank, SUM({amt_col}) as value FROM LC WHERE {COL_MAP['op_date']} >= date_trunc('month', CURRENT_DATE - INTERVAL 6 MONTH) GROUP BY 1, 2 ORDER BY 1"),
-            "supplier_cohort": fetch_dict(f"SELECT {COL_MAP['supplier']} as supplier, SUM({amt_col}) as exposure, SUM(CASE WHEN {COL_MAP['payment_status']} = 'Paid' THEN {amt_col} ELSE 0 END) as payments, SUM(CASE WHEN {COL_MAP['due_date']} < CURRENT_DATE AND ({COL_MAP['payment_status']} != 'Paid' OR {COL_MAP['payment_status']} IS NULL) THEN {amt_col} ELSE 0 END) as overdues FROM LC GROUP BY 1 ORDER BY 2 DESC LIMIT 10")}
+    return {"exposure_trend": fetch_dict(f"SELECT date_trunc('month', {COL_MAP['op_date']}) as month, SUM({amt_col}) as value FROM LC WHERE CAST({COL_MAP['op_date']} AS DATE) >= date_trunc('month', CURRENT_DATE - INTERVAL 6 MONTH) GROUP BY 1 ORDER BY 1"),
+            "util_trend": fetch_dict(f"SELECT date_trunc('month', {COL_MAP['op_date']}) as month, {COL_MAP['bank']} as bank, SUM({amt_col}) as value FROM LC WHERE CAST({COL_MAP['op_date']} AS DATE) >= date_trunc('month', CURRENT_DATE - INTERVAL 6 MONTH) GROUP BY 1, 2 ORDER BY 1"),
+            "supplier_cohort": fetch_dict(f"SELECT {COL_MAP['supplier']} as supplier, SUM({amt_col}) as exposure, SUM(CASE WHEN {COL_MAP['payment_status']} = 'Paid' THEN {amt_col} ELSE 0 END) as payments, SUM(CASE WHEN CAST({COL_MAP['due_date']} AS DATE) < CURRENT_DATE AND ({COL_MAP['payment_status']} != 'Paid' OR {COL_MAP['payment_status']} IS NULL) THEN {amt_col} ELSE 0 END) as overdues FROM LC GROUP BY 1 ORDER BY 2 DESC LIMIT 10")}
 
 
 _ALLOWED_LC_STATUSES = {'Open', 'Closed', 'In Process', 'Cancelled', 'Expired'}
@@ -184,4 +199,38 @@ def get_drill_down_query(status: Optional[str] = None, bank: Optional[str] = Non
     if date: df = date_field if date_field in _ALLOWED_DATE_FIELDS else 'due_date'; conditions.append(f"{COL_MAP[df]} = ?"); params.append(date)
     if margin is not None: conditions.append("Margin = ?"); params.append(margin)
     where_stmt = (" WHERE " + " AND ".join(conditions)) if conditions else ""
-    return fetch_dict(f'SELECT * FROM LC{where_stmt} ORDER BY {COL_MAP["op_date"]} DESC LIMIT 1000', params if params else None)
+    lc_rows = fetch_dict(f'SELECT * FROM LC{where_stmt} ORDER BY {COL_MAP["op_date"]} DESC LIMIT 1000', params if params else None)
+
+    # Include LC in Process from the separate "LC BG in Process" table
+    inprocess_data = []
+    if status == 'Open' and (margin is None or abs(margin - 0.1) < 1e-4):
+        ip_conditions, ip_params = [], []
+        ip_conditions.append("STATUS = 'DOC SUBMITTED TO BANK'")
+        ip_conditions.append("UPPER(Type) = 'LC'")
+        if bank:
+            ip_conditions.append('"Bank Name" = ?')
+            ip_params.append(bank)
+            
+        ip_where = " AND ".join(ip_conditions)
+        inprocess_rows = fetch_dict(f"""
+            SELECT 
+                NULL as "LC Payment Due Date",
+                NULL as "Date of Bill of Entry Submitted to Bank",
+                ('PO ' || CAST(PO AS VARCHAR)) as "LC no.",
+                "Party Name" as "Supplier Name",
+                "Bank Name" as "Bank Name",
+                0.0 as "BOE Bill Amt (in INR)",
+                0.0 as "BOE Bill Amt (in FC)",
+                "AMT IN INR" as "LC Amt (in INR)",
+                "Amt in FC" as "LC Amt (in FC)",
+                'In Process' as "Payment Status",
+                'In Process' as "LC Status",
+                COALESCE(MRGIN, 0.1) as Margin
+            FROM "LC BG in Process"
+            WHERE {ip_where}
+        """, ip_params)
+        
+        # Filter out BOI/IDBI which are excluded from in-process values
+        inprocess_data = [r for r in inprocess_rows if r['Bank Name'].upper() not in ('BOI', 'IDBI')]
+
+    return lc_rows + inprocess_data

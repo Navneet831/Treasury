@@ -12,16 +12,16 @@ const Header: React.FC = () => {
   }, [])
 
   return (
-    <header className="h-[52px] border-b border-[#e2e8f0] bg-white flex items-center justify-between px-6 sticky top-0 z-50">
+    <header className="sticky top-0 z-50 flex h-[52px] items-center justify-between border-b border-hairline bg-canvas px-6">
       {/* Brand */}
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 flex items-center justify-center">
-            <img src="/bank_favicon.svg" alt="Logo" className="w-7 h-7" />
+          <div className="flex h-8 w-8 items-center justify-center">
+            <img src="/bank_favicon.svg" alt="Logo" className="h-7 w-7" />
           </div>
           <div className="flex flex-col">
-            <span className="text-[14px] font-bold text-[#0f172a] tracking-tight leading-tight">Treasury</span>
-            <span className="text-[10px] font-medium text-[#64748b] leading-tight">Grew Analytics</span>
+            <span className="text-[14px] font-bold leading-tight tracking-tight text-ink">Treasury</span>
+            <span className="text-[10px] font-medium leading-tight text-ink-mute">Grew Analytics</span>
           </div>
         </div>
       </div>
@@ -30,32 +30,32 @@ const Header: React.FC = () => {
       <div className="flex items-center gap-5">
         {/* As On Date Selector */}
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-bold text-[#94a3b8] uppercase tracking-wider">LC Payment Due Date</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-ink-faint">LC Payment Due Date</span>
           <input
             type="date"
             value={asOnDate}
             onChange={(e) => setAsOnDate(e.target.value)}
-            className="bg-[#f8fafc] border border-[#e2e8f0] rounded-md text-[12px] font-semibold text-[#0f172a] px-2 py-1 focus:ring-2 focus:ring-[#1d4ed8]/20 focus:border-[#1d4ed8] outline-none cursor-pointer transition-colors"
+            className="cursor-pointer rounded-md border border-hairline bg-parchment px-2 py-1 text-[12px] font-semibold text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
           />
         </div>
 
         {/* Global Refresh — dispatches to active module via custom event */}
         <button
           onClick={() => window.dispatchEvent(new CustomEvent('app-refresh'))}
-          className="flex items-center gap-1.5 px-3 py-1.5 border border-[#e2e8f0] bg-[#f8fafc] rounded-md text-[12px] font-semibold text-[#475569] hover:bg-white hover:text-[#0f172a] transition-colors shadow-sm"
+          className="flex items-center gap-1.5 rounded-md border border-hairline bg-parchment px-3 py-1.5 text-[12px] font-semibold text-ink-mute transition-colors hover:bg-canvas hover:text-ink"
           title="Refresh data"
         >
-          <RefreshCw className="w-3.5 h-3.5" />
+          <RefreshCw className="h-3.5 w-3.5" />
           Refresh
         </button>
 
         {/* FY Selector */}
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-bold text-[#94a3b8] uppercase tracking-wider">FY</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-ink-faint">FY</span>
           <select
             value={fy}
             onChange={(e) => setFy(e.target.value)}
-            className="bg-[#f8fafc] border border-[#e2e8f0] rounded-md text-[12px] font-semibold text-[#0f172a] px-2 py-1 focus:ring-2 focus:ring-[#1d4ed8]/20 focus:border-[#1d4ed8] outline-none cursor-pointer transition-colors"
+            className="cursor-pointer rounded-md border border-hairline bg-parchment px-2 py-1 text-[12px] font-semibold text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
           >
             <option value="All">All Years</option>
             {fyOptions.map((f) => (
@@ -65,7 +65,7 @@ const Header: React.FC = () => {
         </div>
 
         {/* Currency Toggle */}
-        <div className="flex items-center gap-0.5 bg-[#f8fafc] border border-[#e2e8f0] rounded-lg p-0.5">
+        <div className="flex items-center gap-0.5 rounded-lg border border-hairline bg-parchment p-0.5">
           {(['INR', 'FC'] as const).map((c) => (
             <button
               key={c}
@@ -73,10 +73,10 @@ const Header: React.FC = () => {
                 setCurrency(c);
                 if (c === 'INR') setAmountUnit('Cr');
               }}
-              className={`px-3 py-1 text-[11px] font-bold uppercase rounded-md transition-all ${
+              className={`rounded-md px-3 py-1 text-[11px] font-bold uppercase transition-all ${
                 currency === c
-                  ? 'bg-white text-[#0f172a] shadow-sm border border-[#e2e8f0]'
-                  : 'text-[#94a3b8] hover:text-[#475569]'
+                  ? 'border border-hairline bg-canvas text-ink shadow-sm'
+                  : 'text-ink-faint hover:text-ink-mute'
               }`}
               >
                 {c === 'INR' ? 'In Cr' : c}

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Cash Flow — forecast with CI bands, opening/closure trend, due trend and
  * cohort performance in one insight-dense tab. Replaces the separate
  * Cash Forecast and Trend Analysis tabs.
@@ -57,12 +57,39 @@ const CashFlowView: React.FC = () => {
         <InsightStrip insights={insights} />
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          <StatTile size="hero" label="Total Forecast" value={fmt(total)} sub={`${forecast.length} months ahead`} />
-          <StatTile size="hero" tone="warning" label="Peak Month" value={peak?.month || '—'}
-            sub={peak ? `${fmt(peak.monthly_value)} due` : 'No future dues'} />
-          <StatTile size="md" label="Monthly Average" value={fmt(avg)} sub="Planning baseline" />
-          <StatTile size="md" label="Obligations" value={String(forecast.reduce((s, d) => s + (d.lc_count || 0), 0))}
-            sub="Unpaid bills in horizon" />
+          <StatTile 
+            size="hero" 
+            label="Total Forecast" 
+            value={fmt(total)} 
+            sub={`${forecast.length} months ahead`} 
+            metricId="cf-monthly"
+            drillDownParams={{ payment_status: 'Unpaid', status: 'Open' }}
+          />
+          <StatTile 
+            size="hero" 
+            tone="warning" 
+            label="Peak Month" 
+            value={peak?.month || '—'}
+            sub={peak ? `${fmt(peak.monthly_value)} due` : 'No future dues'} 
+            metricId="cf-monthly"
+            drillDownParams={{ payment_status: 'Unpaid', status: 'Open' }}
+          />
+          <StatTile 
+            size="md" 
+            label="Monthly Average" 
+            value={fmt(avg)} 
+            sub="Planning baseline" 
+            metricId="cf-monthly"
+            drillDownParams={{ payment_status: 'Unpaid', status: 'Open' }}
+          />
+          <StatTile 
+            size="md" 
+            label="Obligations" 
+            value={String(forecast.reduce((s, d) => s + (d.lc_count || 0), 0))}
+            sub="Unpaid bills in horizon" 
+            metricId="cf-monthly"
+            drillDownParams={{ payment_status: 'Unpaid', status: 'Open' }}
+          />
         </div>
 
         <Section title="Payment Projection with Confidence Band">

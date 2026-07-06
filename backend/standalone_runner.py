@@ -1,7 +1,7 @@
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from packages.core import DuckDBManager, AuthService, settings
+from packages.core import AuthService, settings
 from apps.Treasury.backend.module import module
 
 app = FastAPI(title="Treasury Module - Standalone")
@@ -14,9 +14,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize module with local development services
+# Initialize module with local development services. No DB is injected — the
+# module's database layer connects to PostgreSQL from the .env (POSTGRES_URL).
 services = {
-    "db": DuckDBManager(db_path=settings.DUCKDB_PATH, read_only=True),
     "auth": AuthService(secret=settings.JWT_SECRET),
     "config": settings
 }

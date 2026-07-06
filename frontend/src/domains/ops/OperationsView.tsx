@@ -43,12 +43,40 @@ const OperationsView: React.FC = () => {
         <InsightStrip insights={insights} />
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          <StatTile size="md" label="Shipments Pending" value={formatNumber(shipment.pending_count)} sub="Awaiting dispatch" />
-          <StatTile size="md" label="Shipments Done" value={formatNumber(shipment.completed_count)} sub="Dispatched to date" />
-          <StatTile size="md" tone={shipment.delayed_count > 0 ? 'warning' : 'positive'}
-            label="Delayed Receipts" value={formatNumber(shipment.delayed_count)} sub="Material after LC ship date" />
-          <StatTile size="md" tone={shipment.expired_count > 0 ? 'critical' : 'positive'}
-            label="Expired, Not Shipped" value={formatNumber(shipment.expired_count)} sub="LC lapsed without shipment" />
+          <StatTile 
+            size="md" 
+            label="Shipments Pending" 
+            value={formatNumber(shipment.pending_count)} 
+            sub="Awaiting dispatch" 
+            metricId="ops-funnel"
+            drillDownParams={{ status: 'Open' }}
+          />
+          <StatTile 
+            size="md" 
+            label="Shipments Done" 
+            value={formatNumber(shipment.completed_count)} 
+            sub="Dispatched to date" 
+            metricId="ops-funnel"
+            drillDownParams={{ status: 'Open' }}
+          />
+          <StatTile 
+            size="md" 
+            tone={shipment.delayed_count > 0 ? 'warning' : 'positive'}
+            label="Delayed Receipts" 
+            value={formatNumber(shipment.delayed_count)} 
+            sub="Material after LC ship date" 
+            metricId="ops-delayed"
+            drillDownParams={{ status: 'Open' }}
+          />
+          <StatTile 
+            size="md" 
+            tone={shipment.expired_count > 0 ? 'critical' : 'positive'}
+            label="Expired, Not Shipped" 
+            value={formatNumber(shipment.expired_count)} 
+            sub="LC lapsed without shipment" 
+            metricId="ops-funnel"
+            drillDownParams={{ status: 'Open' }}
+          />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">

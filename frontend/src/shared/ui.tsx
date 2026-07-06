@@ -3,7 +3,9 @@
  * Tokens per DESIGN-supabase.md / DESIGN-apple.md: ink #171717, hairline
  * #dfdfdf, white cards on parchment, one emerald accent, no chrome shadows.
  */
-import React from 'react'
+import React, { useState, useRef, useEffect } from 'react'
+import { useAudit } from './AuditContext'
+import { ShieldCheck, Database, FlaskConical, Shield, AlertTriangle, CheckCircle2 } from 'lucide-react'
 
 // ── Page chrome ────────────────────────────────────────────────────────────
 
@@ -63,14 +65,173 @@ export const StatTile: React.FC<{
   tone?: Tone
   size?: 'hero' | 'md' | 'sm'
   title?: string
-}> = ({ label, value, sub, tone = 'default', size = 'md', title }) => {
+  metricId?: string
+  drillDownParams?: any
+}> = ({ label, value, sub, tone = 'default', size = 'md', title, metricId, drillDownParams }) => {
+  const { isAuditMode, getMetricMeta, triggerDrillDown } = useAudit()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const close = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+
+  const meta = metricId ? getMetricMeta(metricId) : undefined
+
   const valueCls = size === 'hero' ? 'text-[24px]' : size === 'md' ? 'text-[18px]' : 'text-[14px]'
   const pad = size === 'hero' ? 'px-4 py-3' : size === 'md' ? 'px-3.5 py-2.5' : 'px-3 py-2'
+
+  const CONF = {
+    high:   { label: 'High',   dotCls: 'bg-emerald-500',  textCls: 'text-emerald-700',  bgCls: 'bg-emerald-50 border-emerald-100'  },
+    medium: { label: 'Medium', dotCls: 'bg-amber-500',  textCls: 'text-amber-700',  bgCls: 'bg-amber-50 border-amber-100'  },
+    low:    { label: 'Low',    dotCls: 'bg-rose-500',    textCls: 'text-rose-700',    bgCls: 'bg-rose-50 border-rose-100'      },
+  }
+
+  const confInfo = meta?.confidence ? CONF[meta.confidence] : null
+
   return (
-    <div className={`bg-white border border-[#dfdfdf] rounded-[8px] ${pad} min-w-0`} title={title}>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#9a9a9a] truncate">{label}</p>
-      <p className={`${valueCls} font-semibold tracking-display tabular ${TONE_VALUE[tone]} leading-tight mt-0.5 truncate`}>{value}</p>
+    <div
+      ref={ref}
+      className={`relative bg-white border rounded-[8px] ${pad} min-w-0 transition-all duration-200 ${
+        isAuditMode && meta
+          ? 'border-emerald-500/40 bg-emerald-500/[0.01] shadow-sm hover:border-emerald-500 hover:shadow-md'
+          : 'border-[#dfdfdf]'
+      }`}
+      title={title}
+    >
+      <div className="flex justify-between items-start gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#9a9a9a] truncate flex-1">{label}</p>
+        {meta && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setOpen(!open) }}
+            className={`p-0.5 rounded-full hover:bg-slate-100 transition-colors ${open ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
+            title="Inspect Provenance & Auditability"
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      <p className={`${valueCls} font-semibold tracking-display tabular ${TONE_VALUE[tone]} leading-tight mt-0.5 truncate`}>
+        {value}
+      </p>
+
       {sub && <p className="text-[11px] text-[#707070] mt-0.5 truncate">{sub}</p>}
+
+      {isAuditMode && meta && (
+        <div className="mt-1.5 flex items-center justify-between text-[8.5px] font-bold text-emerald-600 uppercase tracking-wider border-t border-emerald-500/10 pt-1">
+          <span className="flex items-center gap-0.5">
+            <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500" />
+            Verified
+          </span>
+          {drillDownParams && (
+            <button
+              onClick={() => triggerDrillDown(`${meta.name} (Drill Down)`, drillDownParams)}
+              className="hover:underline hover:text-emerald-700"
+            >
+              Drill Down &rarr;
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Audit Provenance Popover */}
+      {open && meta && (
+        <div
+          className="absolute z-50 top-8 right-2 w-[320px] bg-white border border-[#dfdfdf] rounded-xl shadow-lift overflow-hidden text-left"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-3 py-2 border-b border-[#dfdfdf] bg-[#fafafa]">
+            <span className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-800 flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              Audit Provenance
+            </span>
+            <button
+              onClick={() => setOpen(false)}
+              className="text-[#9a9a9a] hover:text-[#171717] text-[10px]"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="p-3 space-y-2.5">
+            {/* Metric ID & Title */}
+            <div>
+              <h4 className="text-[11px] font-bold text-slate-800">{meta.name}</h4>
+              <span className="text-[9px] font-mono bg-slate-100 px-1 py-0.5 rounded text-slate-500">ID: {meta.id}</span>
+            </div>
+
+            {/* Data Source */}
+            <div className="flex gap-2">
+              <Database className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-[8.5px] font-black uppercase tracking-[0.12em] text-[#9a9a9a]">Source Tables</p>
+                <p className="text-[10px] text-slate-700 font-mono mt-0.5 leading-tight">{meta.source}</p>
+              </div>
+            </div>
+
+            {/* Formula / Reasoning */}
+            <div className="flex gap-2">
+              <FlaskConical className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-[8.5px] font-black uppercase tracking-[0.12em] text-[#9a9a9a]">Derivation Logic</p>
+                <p className="text-[10px] text-slate-600 mt-0.5 leading-snug">{meta.formula}</p>
+              </div>
+            </div>
+
+            {/* Caveats / Assumptions */}
+            {meta.caveats && (
+              <div className="flex gap-2">
+                <Shield className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[8.5px] font-black uppercase tracking-[0.12em] text-[#9a9a9a]">Methodology Assumptions</p>
+                  <p className="text-[10px] text-slate-600 mt-0.5 leading-snug">{meta.caveats}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Confidence */}
+            {confInfo && (
+              <div className={`flex items-center gap-1.5 px-2 py-1 rounded border ${confInfo.bgCls}`}>
+                <div className={`w-1.5 h-1.5 rounded-full ${confInfo.dotCls}`} />
+                <span className={`text-[10px] font-bold ${confInfo.textCls}`}>Confidence Rating: {confInfo.label}</span>
+              </div>
+            )}
+
+            {/* Loss Aversion Frame */}
+            {meta.atRisk && (
+              <div className="flex gap-2 px-2.5 py-2 bg-rose-50 border border-rose-100 rounded-lg">
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-500 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-[8.5px] font-black uppercase tracking-[0.12em] text-rose-800">Downside Risk Exposure</p>
+                  <p className="text-[10px] text-rose-700 font-medium leading-normal mt-0.5">{meta.atRisk}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-2 pt-1 border-t border-slate-100">
+              {drillDownParams && (
+                <button
+                  onClick={() => {
+                    setOpen(false)
+                    triggerDrillDown(`${meta.name} (Drill Down)`, { ...drillDownParams, fy: 'All' })
+                  }}
+                  className="flex-1 bg-slate-900 text-white rounded py-1 text-[10px] font-bold hover:bg-black text-center transition-all"
+                >
+                  Verify Underlying Transactions
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

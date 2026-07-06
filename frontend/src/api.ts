@@ -1,10 +1,12 @@
 import axios from 'axios'
 
-// Embedded in the platform shell (any origin) → same-origin gateway /api/treasury.
-// Standalone dev is the explicit exception: the Treasury UI dev server runs on
-// :5175 (strictPort) against its own backend on :8001 (routes mounted at root).
-const isStandaloneDev = window.location.port === '5175';
-const API_BASE_URL = isStandaloneDev ? 'http://127.0.0.1:8001' : '/api/treasury';
+// Single URL in every mode: same-origin /api. Standalone dev (:8000) tunnels
+// /api to the backend via the Vite proxy (see vite.config.ts); in the platform
+// shell it's the /api/treasury module gateway.
+const isStandaloneDev = window.location.port === (import.meta.env.VITE_FRONTEND_PORT || '8000');
+const API_BASE_URL = isStandaloneDev ? '/api' : '/api/treasury';
+
+
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -188,6 +190,16 @@ export const getDrillDown = async (params: any) => {
 }
 export const askAICopilot = async (query: string) => {
   const { data } = await api.post('/ai-copilot', { query })
+  return data
+}
+
+export const getTablesList = async (): Promise<string[]> => {
+  const { data } = await api.get('/tables')
+  return data
+}
+
+export const getTableData = async (tableName: string): Promise<any[]> => {
+  const { data } = await api.get(`/tables/${encodeURIComponent(tableName)}`)
   return data
 }
 

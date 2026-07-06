@@ -1,22 +1,33 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { getCalendarData, getDailyReco, getBanksList, getPaymentStatuses } from '../../api'
+import { getCalendarData, getDailyReco, getLimitUtilisation } from '../../api'
 import { useStore } from '../../store'
-import { formatCurrencyAbsolute } from '../../utils'
+import { useAudit } from '../../shared/AuditContext'
+import { formatCurrencyAbsolute, formatCurrencyCompact } from '../../utils'
 
 const EVENT_STYLE: Record<string, { bg: string; text: string; label: string }> = {
   'Payment Due':        { bg: '#fee2e2', text: '#991b1b', label: 'Unpaid'        },
-  'Paid':               { bg: '#d1fae5', text: '#065f46', label: 'Paid'          },
-  'LC Opened':          { bg: '#dbeafe', text: '#1e40af', label: 'LC Opened'     },
-  'LC Closed':          { bg: '#fef3c7', text: '#92400e', label: 'LC Closed'     },
-  'LC Expiry':          { bg: '#fecaca', text: '#991b1b', label: 'LC Expiry'     },
-  'SBLC Opened':        { bg: '#e0f2fe', text: '#0369a1', label: 'SBLC Open'     },
-  'SBLC Expiry':        { bg: '#ffedd5', text: '#9a3412', label: 'SBLC Exp'      },
-  'BOE Received':       { bg: '#ede9fe', text: '#5b21b6', label: 'BOE Recv'      },
+  'Paid':               { bg: '#dcfce7', text: '#166534', label: 'Paid'          },
+  'Cancelled':          { bg: '#f1f5f9', text: '#64748b', label: 'Cancelled'     },
+  'LC Opened':          { bg: '#fee2e2', text: '#1e40af', label: 'LC Opened'     },
+  'LC Closed':          { bg: '#dcfce7', text: '#92400e', label: 'LC Closed'     },
+  'LC Expiry':          { bg: '#dcfce7', text: '#991b1b', label: 'LC Expiry'     },
+  'SBLC Opened':        { bg: '#fee2e2', text: '#0369a1', label: 'SBLC Open'     },
+  'SBLC Expiry':        { bg: '#dcfce7', text: '#9a3412', label: 'SBLC Exp'      },
+  'BOE Received':       { bg: '#000000', text: '#ffffff', label: 'BOE Recv'      },
   'BOE Unpaid':         { bg: '#fee2e2', text: '#991b1b', label: 'BOE Unpaid'    },
   'BOE Paid':           { bg: '#dcfce7', text: '#166534', label: 'BOE Paid'      },
-  'FD Margin Released': { bg: '#cffafe', text: '#155e75', label: 'FD Released'   },
+  'FD Margin Released': { bg: '#000000', text: '#ffffff', label: 'FD Released'   },
 }
+
+const BANK_CONFIG: Record<string, { color: string; bg: string }> = {
+  'SBI':  { color: '#1d4ed8', bg: '#dbeafe' }, // Blue
+  'BOI':  { color: '#ea580c', bg: '#fff7ed' }, // Orange
+  'IDBI': { color: '#15803d', bg: '#f0fdf4' }, // Green
+  'OTHER': { color: '#000000', bg: '#f1f5f9' },
+}
+
+const BANK_ORDER = ['SBI', 'BOI', 'IDBI']
 
 const COLOR_TO_TYPE: Record<string, string> = {
   Red:      'Payment Due',
@@ -28,13 +39,13 @@ const COLOR_TO_TYPE: Record<string, string> = {
   BoeRed:   'BOE Unpaid',
   BoeGreen: 'BOE Paid',
   Teal:     'FD Margin Released',
+  Grey:     'Cancelled',
 }
 
 
-type ViewMode = 'payments' | 'lc' | 'boe' | 'fd' | 'bank'
+type ViewMode = 'lc' | 'boe' | 'fd' | 'bank'
 
 const VIEW_LABELS: Record<ViewMode, string> = {
-  payments: 'Payments',
   lc:       'NFB',
   boe:      'BOE',
   fd:       'FD Release',
@@ -42,70 +53,76 @@ const VIEW_LABELS: Record<ViewMode, string> = {
 }
 
 const VIEW_TYPES: Record<ViewMode, string[]> = {
-  payments: ['Payment Due', 'Paid'],
   lc:       ['LC Opened', 'LC Closed', 'LC Expiry', 'SBLC Opened', 'SBLC Expiry'],
   boe:      ['BOE Received', 'BOE Unpaid', 'BOE Paid'],
   fd:       ['FD Margin Released'],
-  bank:     ['Payment Due', 'Paid', 'LC Opened', 'LC Closed', 'LC Expiry', 'BOE Received', 'BOE Unpaid', 'BOE Paid', 'FD Margin Released', 'SBLC Opened', 'SBLC Expiry'], // All types visible in Bank view, grouping logic will change UI
+  bank:     ['LC Opened', 'LC Closed', 'LC Expiry'], // LC details only in Bank view
 }
 
-const HAS_PAY_TOGGLE: Record<ViewMode, boolean> = {
-  payments: true,
-  lc:       false,
-  boe:      false,
-  fd:       false,
-  bank:     false,
-}
 
-const getVisibleTypes = (view: ViewMode, pay: string): Set<string> => {
-  const base = VIEW_TYPES[view]
-  if (!HAS_PAY_TOGGLE[view] || pay === 'All') return new Set(base)
-  if (pay === 'Paid') return new Set(base.filter(t => t !== 'Payment Due'))
-  return new Set(base.filter(t => t !== 'Paid'))
+const getVisibleTypes = (view: ViewMode): Set<string> => {
+  return new Set(VIEW_TYPES[view])
 }
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 const CalendarView: React.FC = () => {
   const { currency, fy } = useStore()
+  const { triggerDrillDown } = useAudit()
   const now = new Date()
   const [month, setMonth] = useState(now.getMonth())
   const [year,  setYear]  = useState(now.getFullYear())
   const [events,           setEvents]          = useState<any[]>([])
-  const [banks,            setBanks]           = useState<string[]>([])
-  const [paymentStatuses,  setPaymentStatuses] = useState<string[]>([])
-  const [selectedBank,     setSelectedBank]    = useState('All')
   const [loading,          setLoading]         = useState(true)
   const [reco,             setReco]            = useState<any>(null)
   const [selectedDay,      setSelectedDay]     = useState<number | null>(null)
+  const [limitData,        setLimitData]       = useState<any>(null)
 
-  const [viewMode,  setViewMode]  = useState<ViewMode>('payments')
-  const [payFilter, setPayFilter] = useState<string>('Unpaid')
+  const [viewMode,  setViewMode]  = useState<ViewMode>('boe')
 
-  const visibleTypes = useMemo(() => getVisibleTypes(viewMode, payFilter), [viewMode, payFilter])
+  // Sub-filters
+  const [nfbStatus,    setNfbStatus]    = useState<'Open' | 'Closed' | 'All'>('Open')
+  const [nfbType,      setNfbType]      = useState<'All' | 'LC' | 'SBLC'>('All')
+  const [boePayStatus, setBoePayStatus] = useState<string>('Unpaid')
+  const [bankFilter,   setBankFilter]   = useState<string>('All')
+
+  const visibleTypes = useMemo(() => {
+    if (viewMode === 'boe' && boePayStatus !== 'All') {
+      if (boePayStatus === 'Paid') return new Set(['BOE Paid'])
+      if (boePayStatus === 'Unpaid') return new Set(['BOE Unpaid'])
+    }
+    return getVisibleTypes(viewMode)
+  }, [viewMode, boePayStatus])
 
   useEffect(() => {
-    getBanksList().then(setBanks).catch(() => setBanks([]))
-    getPaymentStatuses().then(setPaymentStatuses).catch(() => setPaymentStatuses([]))
   }, [])
 
   const fetchEvents = useCallback(async () => {
     setLoading(true)
     try {
-      const psFilter = viewMode === 'payments' && payFilter !== 'All' ? payFilter : undefined
-      const result = await getCalendarData(
-        month + 1, year, currency, fy,
-        selectedBank === 'All' ? undefined : selectedBank,
-        undefined,
-        psFilter
-      )
+      const psParam = viewMode === 'boe' ? (boePayStatus !== 'All' ? boePayStatus : undefined) : undefined;
+      
+      const bankParam = (viewMode === 'bank' && bankFilter !== 'All') ? bankFilter : undefined;
+      const statusParam = (viewMode === 'lc' && nfbStatus !== 'All') ? nfbStatus : undefined;
+
+      const [result, limits] = await Promise.all([
+        getCalendarData(
+          month + 1, year, currency, fy,
+          bankParam,
+          statusParam,
+          psParam
+        ),
+        getLimitUtilisation(currency, fy)
+      ])
       setEvents(Array.isArray(result) ? result : [])
+      setLimitData(limits)
     } catch {
       setEvents([])
+      setLimitData(null)
     } finally {
       setLoading(false)
     }
-  }, [month, year, currency, fy, selectedBank, viewMode, payFilter])
+  }, [month, year, currency, fy, viewMode, nfbStatus, boePayStatus, bankFilter])
 
   useEffect(() => { fetchEvents() }, [fetchEvents])
 
@@ -133,12 +150,90 @@ const CalendarView: React.FC = () => {
       const d = e.date ? String(e.date).split('T')[0] : null
       if (d !== dateStr) return false
       const type = COLOR_TO_TYPE[e.color] || e.type
+      
+      // Frontend filtering for NFB type
+      if (viewMode === 'lc' && nfbType !== 'All') {
+        const isSBLC = type.includes('SBLC')
+        if (nfbType === 'LC' && isSBLC) return false
+        if (nfbType === 'SBLC' && !isSBLC) return false
+      }
+
       return visibleTypes.has(type)
+    }).sort((a, b) => {
+       const bankA = a.bank || 'OTHER'
+       const bankB = b.bank || 'OTHER'
+       let idxA = BANK_ORDER.indexOf(bankA)
+       let idxB = BANK_ORDER.indexOf(bankB)
+       if (idxA === -1) idxA = BANK_ORDER.length
+       if (idxB === -1) idxB = BANK_ORDER.length
+       return idxA - idxB
     })
   }
 
   const handleCellClick = (day: number) => {
     setSelectedDay(prev => prev === day ? null : day)
+  }
+
+  const handleEventClick = (e: React.MouseEvent, ev: { color: string; type: string; date?: string; bank?: string; amount: number }, day: number) => {
+    e.stopPropagation()
+    const type = COLOR_TO_TYPE[ev.color] || ev.type
+    const evDateStr = ev.date ? String(ev.date).split('T')[0] : null
+
+    let title = `${type} Details`
+    if (ev.bank && ev.bank !== 'OTHER') {
+      title += ` - ${ev.bank}`
+    }
+    if (evDateStr) {
+      title += ` (${evDateStr})`
+    }
+
+    const params: Record<string, string | number | undefined> = { fy }
+    if (ev.bank && ev.bank !== 'OTHER') {
+      params.bank = ev.bank
+    }
+    if (evDateStr) {
+      params.date = evDateStr
+    }
+
+    if (type === 'BOE Received') {
+      params.boe_status = 'Received'
+      params.date_field = 'boe_date'
+    } else if (type === 'BOE Unpaid') {
+      params.boe_status = 'Received'
+      params.payment_status = 'Unpaid'
+      params.date_field = 'due_date'
+    } else if (type === 'BOE Paid') {
+      params.boe_status = 'Received'
+      params.payment_status = 'Paid'
+      params.date_field = 'due_date'
+    } else if (type === 'Payment Due') {
+      params.payment_status = 'Unpaid'
+      params.date_field = 'due_date'
+    } else if (type === 'Paid') {
+      params.payment_status = 'Paid'
+      params.date_field = 'due_date'
+    } else if (type === 'Cancelled') {
+      params.payment_status = 'Cancelled'
+      params.date_field = 'due_date'
+    } else if (type === 'LC Opened') {
+      params.status = 'Open'
+      params.date_field = 'op_date'
+    } else if (type === 'LC Closed') {
+      params.status = 'Closed'
+      params.date_field = 'lc_close_date'
+    } else if (type === 'LC Expiry') {
+      params.date_field = 'expiry_date'
+    } else if (type === 'SBLC Opened') {
+      params.status = 'Open'
+      params.date_field = 'op_date'
+    } else if (type === 'SBLC Expiry') {
+      params.date_field = 'expiry_date'
+    } else {
+      handleCellClick(day)
+      return
+    }
+
+    triggerDrillDown(title, params)
   }
 
   const todayDay   = now.getMonth() === month && now.getFullYear() === year ? now.getDate() : null
@@ -172,46 +267,82 @@ const CalendarView: React.FC = () => {
 
         <div className="flex items-center gap-0.5 bg-[#f1f5f9] rounded-lg p-0.5">
           {(Object.keys(VIEW_LABELS) as ViewMode[]).map(v => (
-            <button key={v} onClick={() => { setViewMode(v); setPayFilter('All') }} className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${viewMode === v ? 'bg-white text-[#0f172a] shadow-sm' : 'text-[#64748b] hover:text-[#0f172a]'}`}>
+            <button key={v} onClick={() => setViewMode(v)} className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${viewMode === v ? 'bg-white text-[#0f172a] shadow-sm' : 'text-[#64748b] hover:text-[#0f172a]'}`}>
               {VIEW_LABELS[v]}
             </button>
           ))}
         </div>
 
-        {HAS_PAY_TOGGLE[viewMode] && paymentStatuses.length > 0 && (
+        {/* Dynamic Sub-filters ────────────────────────────────────────────────── */}
+        
+
+        {viewMode === 'lc' && (
           <>
             <div className="w-px h-5 bg-[#e2e8f0]" />
             <div className="flex items-center gap-0.5 bg-[#f1f5f9] rounded-lg p-0.5">
-              {['All', ...paymentStatuses].map(ps => {
-                const isActive = payFilter === ps
-                const activeColor = ps === 'Paid' ? '#047857' : ps === 'Unpaid' ? '#b91c1c' : ps === 'Cancelled' ? '#64748b' : '#2563eb'
-                return (
-                  <button key={ps} onClick={() => setPayFilter(ps)} className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${isActive ? 'text-white shadow-sm' : 'text-[#64748b] hover:text-[#0f172a]'}`} style={isActive ? { background: ps === 'All' ? '#0f172a' : activeColor } : {}}>
-                    {ps}
-                  </button>
-                )
-              })}
+              {['All', 'Open', 'Closed'].map(s => (
+                <button key={s} onClick={() => setNfbStatus(s as any)} className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${nfbStatus === s ? 'bg-white text-[#0f172a] shadow-sm' : 'text-[#64748b]'}`}>
+                  {s}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-0.5 bg-[#f1f5f9] rounded-lg p-0.5">
+              {['All', 'LC', 'SBLC'].map(t => (
+                <button key={t} onClick={() => setNfbType(t as any)} className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${nfbType === t ? 'bg-white text-[#0f172a] shadow-sm' : 'text-[#64748b]'}`}>
+                  {t}
+                </button>
+              ))}
             </div>
           </>
         )}
 
-        {banks.length > 0 && (
+        {viewMode === 'boe' && (
           <>
             <div className="w-px h-5 bg-[#e2e8f0]" />
-            <select
-              value={selectedBank}
-              onChange={(e) => setSelectedBank(e.target.value)}
-              className="bg-[#f1f5f9] rounded-lg px-2 py-1.5 text-[11px] font-bold text-[#0f172a] border-0 focus:outline-none focus:ring-2 focus:ring-[#1d4ed8]/20 cursor-pointer"
-            >
-              <option value="All">All Banks</option>
-              {banks.map(b => <option key={b} value={b}>{b}</option>)}
-            </select>
+            <div className="flex items-center gap-0.5 bg-[#f1f5f9] rounded-lg p-0.5">
+              {['All', 'Unpaid', 'Paid'].map(ps => (
+                <button key={ps} onClick={() => setBoePayStatus(ps)} className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${boePayStatus === ps ? 'bg-white text-[#0f172a] shadow-sm' : 'text-[#64748b]'}`}>
+                  {ps}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {viewMode === 'bank' && (
+          <>
+            <div className="w-px h-5 bg-[#e2e8f0]" />
+            <div className="flex items-center gap-0.5 bg-[#f1f5f9] rounded-lg p-0.5">
+              {['All', 'SBI', 'BOI', 'IDBI'].map(b => (
+                <button key={b} onClick={() => setBankFilter(b)} className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${bankFilter === b ? 'bg-white text-[#0f172a] shadow-sm' : 'text-[#64748b]'}`}>
+                  {b}
+                </button>
+              ))}
+            </div>
           </>
         )}
 
       </div>
 
-      {Object.keys(viewTotals).length > 0 && (
+      {viewMode === 'bank' ? (
+        limitData && limitData.bank_utilization && (
+          <div className="bg-[#f8fafc] border-b border-[#e2e8f0] px-4 py-1.5 flex items-center gap-5 flex-wrap">
+            {BANK_ORDER.map(bankName => {
+              const bData = limitData.bank_utilization.find((b: any) => b.bank === bankName)
+              if (!bData) return null
+              const config = BANK_CONFIG[bankName] || BANK_CONFIG['OTHER']
+              const balance = (bData.interchangeability_limit + (bData.cash_limit || 0)) - ((bData.lc_open || 0) + (bData.lc_in_process || 0) + (bData.sblc_utilization || 0) + (bData.cash_utilization || 0))
+              return (
+                <div key={bankName} className="flex items-center gap-1.5 bg-white border border-[#e2e8f0] px-2 py-1 rounded shadow-sm">
+                  <div className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: config.color }} />
+                  <span className="text-[10px] font-black text-[#64748b] uppercase">{bankName} Balance</span>
+                  <span className="text-[11px] font-black" style={{ color: config.color }}>{formatCurrencyCompact(balance, currency, 'Cr')}</span>
+                </div>
+              )
+            })}
+          </div>
+        )
+      ) : Object.keys(viewTotals).length > 0 && (
         <div className="bg-[#f8fafc] border-b border-[#e2e8f0] px-4 py-1.5 flex items-center gap-5 flex-wrap">
           {legendTypes.map(type => {
             const val = viewTotals[type]; if (!val?.amount) return null; const style = EVENT_STYLE[type]
@@ -247,10 +378,23 @@ const CalendarView: React.FC = () => {
                     </div>
                     <div className="space-y-0.5 overflow-y-auto max-h-[calc(100%-20px)] custom-scrollbar">
                       {dayEvents.map((ev, idx) => {
-                        const type = COLOR_TO_TYPE[ev.color] || ev.type, style = EVENT_STYLE[type]
-                        if (!style) return null
+                        const type = COLOR_TO_TYPE[ev.color] || ev.type
+                        const typeStyle = EVENT_STYLE[type]
+                        if (!typeStyle) return null
+                        
+                        const bankName = ev.bank || 'OTHER'
+                        const bConf = BANK_CONFIG[bankName] || BANK_CONFIG['OTHER']
+                        
+                        // New hybrid style: status background + bank text color
+                        const isUndefinedScenario = type === 'BOE Received' || type === 'FD Margin Released'
+                        const style = { 
+                          bg: typeStyle.bg, 
+                          text: isUndefinedScenario ? '#ffffff' : bConf.color, 
+                          label: typeStyle.label 
+                        }
+
                         return (
-                          <button key={idx} onClick={e => { e.stopPropagation(); handleCellClick(day) }} title={`${ev.bank || 'Unknown Bank'}: ${formatCurrencyAbsolute(ev.amount, currency)}`} className="w-full text-left rounded-[3px] px-1 py-[1.5px] flex flex-col gap-0 shadow-sm hover:brightness-95 transition-all" style={{ background: style.bg, color: style.text, borderLeft: `2px solid ${style.text}44` }}>
+                          <button key={idx} onClick={e => handleEventClick(e, ev, day)} title={`${ev.bank || 'Unknown Bank'}: ${formatCurrencyAbsolute(ev.amount, currency)}`} className="w-full text-left rounded-[3px] px-1 py-[1.5px] flex flex-col gap-0 shadow-sm hover:brightness-95 transition-all" style={{ background: style.bg, color: style.text, borderLeft: `2px solid ${style.text}44` }}>
                             <div className="flex justify-between items-center w-full">
                                 <span className="text-[8px] font-black uppercase tracking-tighter opacity-80 truncate max-w-[50px]">{ev.bank || 'MISC'}</span>
                                 <span className="text-[8px] font-bold opacity-60">{style.label}</span>
@@ -294,16 +438,29 @@ const CalendarView: React.FC = () => {
       {/* ── Legend — shows only what's visible in current view ────────────────── */}
       <div className="bg-white border-t border-[#e2e8f0] px-4 py-1.5 flex items-center gap-4 flex-wrap mt-auto">
         <span className="text-[9px] font-bold text-[#94a3b8] uppercase tracking-wider">Legend</span>
-        {legendTypes.map(type => {
-          const style = EVENT_STYLE[type]
-          if (!style) return null
-          return (
-            <div key={type} className="flex items-center gap-1.5">
-              <div className="w-2.5 h-1.5 rounded" style={{ background: style.bg }} />
-              <span className="text-[10px] text-[#64748b]">{style.label}</span>
-            </div>
-          )
-        })}
+        {viewMode === 'bank' ? (
+          BANK_ORDER.map(bankName => {
+             const config = BANK_CONFIG[bankName]
+             if (!config) return null
+             return (
+                <div key={bankName} className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-1.5 rounded" style={{ background: config.color }} />
+                  <span className="text-[10px] text-[#64748b] font-bold">{bankName}</span>
+                </div>
+             )
+          })
+        ) : (
+          legendTypes.map(type => {
+            const style = EVENT_STYLE[type]
+            if (!style) return null
+            return (
+              <div key={type} className="flex items-center gap-1.5">
+                <div className="w-2.5 h-1.5 rounded" style={{ background: style.bg }} />
+                <span className="text-[10px] text-[#64748b]">{style.label}</span>
+              </div>
+            )
+          })
+        )}
       </div>
     </div>
   )

@@ -127,6 +127,11 @@
   .custom-scrollbar-horizontal::-webkit-scrollbar-track { background: #fafafa; }
   .custom-scrollbar-horizontal::-webkit-scrollbar-thumb { background: #dfdfdf; border-radius: 10px; }
   .custom-scrollbar-horizontal::-webkit-scrollbar-thumb:hover { background: #c7c7c7; }
+
+  .custom-scrollbar-vertical::-webkit-scrollbar { width: 5px; }
+  .custom-scrollbar-vertical::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar-vertical::-webkit-scrollbar-thumb { background: var(--color-hairline-strong, #dfdfdf); border-radius: 10px; }
+  .custom-scrollbar-vertical::-webkit-scrollbar-thumb:hover { background: var(--color-ink-faint, #b2b2b2); }
 }
 
 @keyframes pageIn {

@@ -13,7 +13,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage }) => {
   const { collapsed, toggle, expand, query, setQuery } = useSidebar()
-  const { setUser, setAuthenticated } = useAuthStore()
+  const { user, setUser, setAuthenticated } = useAuthStore()
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -21,13 +21,37 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage }) => {
     setAuthenticated(false)
   }
 
+  const isFeatureEnabled = (id: string) => {
+    if (!user || !user.features) return true
+    const mapping: Record<string, string> = {
+      ai: 'GrewGpt',
+      audit: 'audit',
+      ledger: 'Ledger',
+      dev: 'Dev',
+      research: 'agentation'
+    }
+    const featureKey = mapping[id]
+    if (!featureKey) return true
+    return user.features[featureKey] !== false
+  }
+
   const filtered = useMemo(() => {
-    if (!query.trim()) return navGroups
-    const q = query.toLowerCase()
+    const q = query.trim().toLowerCase()
     return navGroups
-      .map((g) => ({ ...g, items: g.items.filter((i) => i.label.toLowerCase().includes(q)) }))
+      .map((g) => ({
+        ...g,
+        items: g.items.filter((i) => {
+          const matchesQuery = !q || i.label.toLowerCase().includes(q)
+          const matchesFeature = isFeatureEnabled(i.id)
+          return matchesQuery && matchesFeature
+        })
+      }))
       .filter((g) => g.items.length > 0)
-  }, [query])
+  }, [query, user])
+
+  const visibleBottomItems = useMemo(() => {
+    return bottomItems.filter((i) => isFeatureEnabled(i.id))
+  }, [user])
 
   return (
     <aside
@@ -66,7 +90,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage }) => {
       </div>
 
       {/* Scrollable nav */}
-      <nav className="no-scrollbar flex-1 space-y-4 overflow-y-auto px-2 pb-2">
+      <nav className="custom-scrollbar-vertical flex-1 space-y-4 overflow-y-auto px-2 pb-2">
         {filtered.map((group, gi) => (
           <div key={group.label}>
             {collapsed ? (
@@ -99,7 +123,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage }) => {
 
       {/* Pinned bottom: secondary items */}
       <div className="space-y-0.5 border-t border-hairline px-2 py-3">
-        {bottomItems.map((def) => (
+        {visibleBottomItems.map((def) => (
           <NavItem
             key={def.id}
             def={def}

@@ -15,14 +15,17 @@ class TreasuryModule(PlatformModule):
     def initialize(self, services: Dict[str, Any]):
         self.services = services
         
-        # Setup repository pattern
-        from apps.Treasury.backend.database import DuckDBRepository
-        db_connection = services["db"].get_connection()
-        repo = DuckDBRepository(db_connection)
-        
-        # Inject platform services into Treasury's internal database layer
+        # Inject platform services into Treasury's internal database layer.
+        # It configures the PostgreSQL repository.
         from apps.Treasury.backend.database import set_platform_repo
-        set_platform_repo(repo)
+        
+        pg_manager = services.get("pg_db")
+        
+        if pg_manager is not None:
+            from apps.Treasury.backend.database import PostgreSQLRepository
+            # pg_manager.database_url holds the connection string
+            repo = PostgreSQLRepository(pg_manager.database_url)
+            set_platform_repo(repo)
         
         self.audit = services.get("audit")
         self.agent = services.get("agent")

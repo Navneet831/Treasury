@@ -54,7 +54,7 @@ def get_cash_flow_forecast_data(currency: str = "INR", fy: str = "All") -> List[
     rows = fetch_dict(f"""
         SELECT date_trunc('month', {due}) as m, SUM({due_amt}) as v, COUNT(*) as n
         FROM LC
-        WHERE {due} >= date_trunc('month', CURRENT_DATE)
+        WHERE CAST({due} AS DATE) >= date_trunc('month', CURRENT_DATE)
           AND {_UNPAID}
           AND {COL_MAP['lc_status']} NOT IN ('Closed', 'Cancelled') {fy_filter}
         GROUP BY 1 ORDER BY 1

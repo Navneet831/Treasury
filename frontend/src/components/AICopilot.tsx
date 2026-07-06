@@ -37,7 +37,7 @@ const AICopilot: React.FC = () => {
           <Sparkles className="w-6 h-6" />
         </div>
         <div>
-          <h2 className="text-2xl font-bold">AI Treasury Copilot</h2>
+          <h2 className="text-2xl font-bold">GrewGpt</h2>
           <p className="text-sm text-muted-foreground">Natural language insights and predictive analytics</p>
         </div>
       </div>
@@ -50,7 +50,7 @@ const AICopilot: React.FC = () => {
               <div className="max-w-md">
                 <p className="text-sm font-bold text-muted-foreground">Ask me anything about your Bills & LCs</p>
                 <div className="grid grid-cols-2 gap-2 mt-4">
-                  {["Show unpaid bills", "Expiring LCs", "Bank-wise unpaid totals", "Upcoming payment obligations"].map(q => (
+                  {["Generate daily insights", "Show unpaid bills", "Expiring LCs", "Upcoming payment obligations"].map(q => (
                     <button 
                       key={q}
                       onClick={() => { setQuery(q); }}
@@ -74,11 +74,37 @@ const AICopilot: React.FC = () => {
                 <div className="flex items-center gap-2 mb-2">
                   {msg.role === 'user' ? <User className="w-3 h-3" /> : <Bot className="w-3 h-3" />}
                   <span className="text-[10px] font-black uppercase tracking-widest opacity-60">
-                    {msg.role === 'user' ? 'You' : 'Copilot'}
+                    {msg.role === 'user' ? 'You' : 'GrewGpt'}
                   </span>
                 </div>
                 <p className="text-sm leading-relaxed font-medium">{msg.content}</p>
-                {msg.data && (
+                {msg.data && Array.isArray(msg.data) && msg.data.length > 0 && (
+                  <div className="mt-4 overflow-x-auto rounded-lg border border-black/10 bg-white">
+                    <table className="w-full text-[11px] text-left border-collapse">
+                      <thead className="bg-muted/50 border-b border-black/5">
+                        <tr>
+                          {Object.keys(msg.data[0]).map(key => (
+                            <th key={key} className="px-3 py-2 font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
+                              {key.replace(/_/g, ' ')}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-black/5">
+                        {msg.data.map((row: any, i: number) => (
+                          <tr key={i} className="hover:bg-muted/30 transition-colors">
+                            {Object.values(row).map((val: any, j: number) => (
+                              <td key={j} className="px-3 py-2 font-medium">
+                                {typeof val === 'number' ? val.toLocaleString() : String(val)}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {msg.data && (!Array.isArray(msg.data) || msg.data.length === 0) && (
                   <div className="mt-4 p-3 bg-white/50 rounded-lg border border-black/5">
                      <pre className="text-[10px] font-mono overflow-x-auto">
                         {JSON.stringify(msg.data, null, 2)}

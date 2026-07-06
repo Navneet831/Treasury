@@ -45,7 +45,7 @@ def get_calendar_events(month: int, year: int, bank: Optional[str] = None, instr
     fd_events = []
     try:
         fd_events = fetch_dict("SELECT CAST(CAST(\"Maturity Date\" AS TIMESTAMP) AS DATE) as date, SUM(COALESCE(TRY_CAST(REPLACE(REPLACE(\"FD LIEN AMT for LC/BG\", ',', ''), ' ', '') AS DOUBLE), 0)) as amount, 'FD Margin Released' as type, 'Teal' as color "
-                               "FROM FDR_List WHERE \"Maturity Date\" IS NOT NULL AND UPPER(TRIM(STATUS)) = 'ACTIVE' AND EXTRACT(MONTH FROM CAST(\"Maturity Date\" AS TIMESTAMP)) = ? AND EXTRACT(YEAR FROM CAST(\"Maturity Date\" AS TIMESTAMP)) = ? GROUP BY 1 HAVING amount > 0", [month, year])
+                               "FROM FDR_List WHERE \"Maturity Date\" IS NOT NULL AND UPPER(TRIM(\"STATUS\")) = 'ACTIVE' AND EXTRACT(MONTH FROM CAST(\"Maturity Date\" AS TIMESTAMP)) = ? AND EXTRACT(YEAR FROM CAST(\"Maturity Date\" AS TIMESTAMP)) = ? GROUP BY 1 HAVING amount > 0", [month, year])
     except Exception as e:
         logger.warning("FD maturity events unavailable for %s-%s: %s", year, month, e)
     return due + paid + opened + closed + expiry + boe_recv + boe_to_pay + boe_paid_ev + fd_events
@@ -58,7 +58,7 @@ def get_daily_reco(date_str: str) -> Dict[str, Any]:
     payments_due = fetch_one(f"SELECT COUNT(*), SUM({a}) FROM LC WHERE {COL_MAP['due_date']} = ? AND ({COL_MAP['payment_status']} != 'Paid' OR {COL_MAP['payment_status']} IS NULL)", [date_str])
     payments_done = fetch_one(f"SELECT COUNT(*), SUM({a}) FROM LC WHERE {COL_MAP['due_date']} = ? AND {COL_MAP['payment_status']} = 'Paid'", [date_str])
     boe_received = fetch_one(f"SELECT COUNT(*), SUM({a}) FROM LC WHERE {COL_MAP['boe_date']} = ?", [date_str])
-    fd_releasing = fetch_one("SELECT COUNT(*), SUM(COALESCE(TRY_CAST(REPLACE(REPLACE(\"FD LIEN AMT for LC/BG\", ',', ''), ' ', '') AS DOUBLE), 0)) FROM FDR_List WHERE CAST(CAST(\"Maturity Date\" AS TIMESTAMP) AS DATE) = ? AND UPPER(TRIM(STATUS)) = 'ACTIVE'", [date_str])
+    fd_releasing = fetch_one("SELECT COUNT(*), SUM(COALESCE(TRY_CAST(REPLACE(REPLACE(\"FD LIEN AMT for LC/BG\", ',', ''), ' ', '') AS DOUBLE), 0)) FROM FDR_List WHERE CAST(CAST(\"Maturity Date\" AS TIMESTAMP) AS DATE) = ? AND UPPER(TRIM(\"STATUS\")) = 'ACTIVE'", [date_str])
     return {"lc_opened": {"count": lc_opened[0] or 0, "value": lc_opened[1] or 0}, "lc_closed": {"count": lc_closed[0] or 0, "value": lc_closed[1] or 0},
             "payments_due": {"count": payments_due[0] or 0, "value": payments_due[1] or 0}, "payments_completed": {"count": payments_done[0] or 0, "value": payments_done[1] or 0},
             "boe_received": {"count": boe_received[0] or 0, "value": boe_received[1] or 0}, "fd_releasing": {"count": fd_releasing[0] or 0, "value": fd_releasing[1] or 0}}

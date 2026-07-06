@@ -56,14 +56,42 @@ const IntelligenceView: React.FC = () => {
 
         {/* The four scores that decide whether anything below needs attention */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          <StatTile size="hero" tone={healthTone} label="Treasury Health" value={`${Math.round(intel.health_score)}/100`}
-            sub="Utilization + overdue + unhedged composite" />
-          <StatTile size="hero" tone={runwayTone} label="Cash Runway" value={`${Math.round(intel.cash_runway_days)} days`}
-            sub="Headroom ÷ avg daily obligations" />
-          <StatTile size="hero" tone={ewiTone} label="Early Warning Index" value={`${Math.round(ewi)}/100`}
-            sub="Utilization · stress · FX · overdue" />
-          <StatTile size="hero" tone="warning" label="Liquidity-at-Risk (95%)" value={fmt(quant.liquidity_at_risk)}
-            sub={`μ ${fmt(quant.lar_mean)} + 1.645σ (${fmt(quant.lar_stddev)})`} />
+          <StatTile 
+            size="hero" 
+            tone={healthTone} 
+            label="Treasury Health" 
+            value={`${Math.round(intel.health_score)}/100`}
+            sub="Utilization + overdue + unhedged composite" 
+            metricId="int-health"
+            drillDownParams={{ status: 'Open' }}
+          />
+          <StatTile 
+            size="hero" 
+            tone={runwayTone} 
+            label="Cash Runway" 
+            value={`${Math.round(intel.cash_runway_days)} days`}
+            sub="Headroom ÷ avg daily obligations" 
+            metricId="int-runway"
+            drillDownParams={{ payment_status: 'Unpaid' }}
+          />
+          <StatTile 
+            size="hero" 
+            tone={ewiTone} 
+            label="Early Warning Index" 
+            value={`${Math.round(ewi)}/100`}
+            sub="Utilization · stress · FX · overdue" 
+            metricId="int-ewi"
+            drillDownParams={{ status: 'Open' }}
+          />
+          <StatTile 
+            size="hero" 
+            tone="warning" 
+            label="Liquidity-at-Risk (95%)" 
+            value={fmt(quant.liquidity_at_risk)}
+            sub={`μ ${fmt(quant.lar_mean)} + 1.645σ (${fmt(quant.lar_stddev)})`} 
+            metricId="int-lar"
+            drillDownParams={{ payment_status: 'Unpaid' }}
+          />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
@@ -84,17 +112,59 @@ const IntelligenceView: React.FC = () => {
 
           <Section title={`Cost of Capital & Yield (${yo.yield_rate_pct.toFixed(1)}% market yield)`} className="lg:col-span-3">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              <StatTile size="md" label="Margin FD Locked" value={fmt(yo.locked_fd)} sub="Working capital frozen" />
-              <StatTile size="md" tone="critical" label="Yield Lost / Year" value={fmt(yo.est_yield_lost_annual)}
-                sub={`At ${yo.yield_rate_pct.toFixed(1)}% opportunity rate`} />
-              <StatTile size="md" tone="positive" label="WC Unlock Potential" value={fmt(yo.working_capital_unlock)}
-                sub="Capital + annual carry" />
-              <StatTile size="sm" tone="warning" label="Inefficiency Cost" value={fmt(yo.cost_of_inefficiency)}
-                sub="Delayed BOE + overdue penalties" />
-              <StatTile size="sm" tone="warning" label={`Expected FX Loss (VaR ${yo.fx_var_rate_pct.toFixed(0)}%)`}
-                value={fmt(yo.expected_fx_loss)} sub="On unhedged open exposure" />
-              <StatTile size="sm" tone={yo.prob_liquidity_stress > 50 ? 'critical' : yo.prob_liquidity_stress > 25 ? 'warning' : 'default'}
-                label="Liquidity Stress Prob." value={formatPercent(yo.prob_liquidity_stress)} sub="30-day dues vs headroom" />
+              <StatTile 
+                size="md" 
+                label="Margin FD Locked" 
+                value={fmt(yo.locked_fd)} 
+                sub="Working capital frozen" 
+                metricId="int-yield-lost"
+                drillDownParams={{ status: 'Open' }}
+              />
+              <StatTile 
+                size="md" 
+                tone="critical" 
+                label="Yield Lost / Year" 
+                value={fmt(yo.est_yield_lost_annual)}
+                sub={`At ${yo.yield_rate_pct.toFixed(1)}% opportunity rate`} 
+                metricId="int-yield-lost"
+                drillDownParams={{ status: 'Open' }}
+              />
+              <StatTile 
+                size="md" 
+                tone="positive" 
+                label="WC Unlock Potential" 
+                value={fmt(yo.working_capital_unlock)}
+                sub="Capital + annual carry" 
+                metricId="int-yield-lost"
+                drillDownParams={{ status: 'Open' }}
+              />
+              <StatTile 
+                size="sm" 
+                tone="warning" 
+                label="Inefficiency Cost" 
+                value={fmt(yo.cost_of_inefficiency)}
+                sub="Delayed BOE + overdue penalties" 
+                metricId="int-inefficiency"
+                drillDownParams={{ payment_status: 'Unpaid' }}
+              />
+              <StatTile 
+                size="sm" 
+                tone="warning" 
+                label={`Expected FX Loss (VaR ${yo.fx_var_rate_pct.toFixed(0)}%)`}
+                value={fmt(yo.expected_fx_loss)} 
+                sub="On unhedged open exposure" 
+                metricId="fx-loss"
+                drillDownParams={{ payment_status: 'Unpaid' }}
+              />
+              <StatTile 
+                size="sm" 
+                tone={yo.prob_liquidity_stress > 50 ? 'critical' : yo.prob_liquidity_stress > 25 ? 'warning' : 'default'}
+                label="Liquidity Stress Prob." 
+                value={formatPercent(yo.prob_liquidity_stress)} 
+                sub="30-day dues vs headroom" 
+                metricId="int-stress-prob"
+                drillDownParams={{ payment_status: 'Unpaid' }}
+              />
             </div>
             <p className="text-[11px] text-[#707070] mt-2">
               → Renegotiating margin requirements with the two largest banks is the single biggest working-capital lever.
@@ -104,16 +174,40 @@ const IntelligenceView: React.FC = () => {
 
         <Section title="Predictive Models">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <StatTile size="md" label="Avg LC Cycle" value={`${Math.round(qm.lc_closure_avg_days)} days`}
-              sub="Opening to closure, observed" />
-            <StatTile size="md" label="30-Day Demand Forecast" value={fmt(qm.lc_demand_forecast_30d)}
-              sub="3-month moving average of openings" />
-            <StatTile size="md" tone={qm.bank_dependency_risk_pct > 60 ? 'warning' : 'default'}
-              label="Bank Dependency" value={formatPercent(qm.bank_dependency_risk_pct)}
-              sub="Exposure share of top facility" />
-            <StatTile size="md" tone="critical" label="Stress Window"
+            <StatTile 
+              size="md" 
+              label="Avg LC Cycle" 
+              value={`${Math.round(qm.lc_closure_avg_days)} days`}
+              sub="Opening to closure, observed" 
+              metricId="int-closure"
+              drillDownParams={{ status: 'Closed' }}
+            />
+            <StatTile 
+              size="md" 
+              label="30-Day Demand Forecast" 
+              value={fmt(qm.lc_demand_forecast_30d)}
+              sub="3-month moving average of openings" 
+              metricId="int-demand"
+              drillDownParams={{ status: 'Open' }}
+            />
+            <StatTile 
+              size="md" 
+              tone={qm.bank_dependency_risk_pct > 60 ? 'warning' : 'default'}
+              label="Bank Dependency" 
+              value={formatPercent(qm.bank_dependency_risk_pct)}
+              sub="Exposure share of top facility" 
+              metricId="int-dependency"
+              drillDownParams={{ status: 'Open' }}
+            />
+            <StatTile 
+              size="md" 
+              tone="critical" 
+              label="Stress Window"
               value={qm.stress_window_start || '—'}
-              sub={qm.stress_window_val > 0 ? `${fmt(qm.stress_window_val)} in 7 days` : 'No future dues'} />
+              sub={qm.stress_window_val > 0 ? `${fmt(qm.stress_window_val)} in 7 days` : 'No future dues'} 
+              metricId="int-stress-window"
+              drillDownParams={{ payment_status: 'Unpaid' }}
+            />
           </div>
         </Section>
 

@@ -5,10 +5,11 @@ from apps.Treasury.backend.database import fetch_dict
 from apps.Treasury.backend.services.core import COL_MAP, get_fy_clause
 
 
-def get_boe_analytics_data(currency: str = "INR", fy: str = "All") -> Dict[str, Any]:
+def get_boe_analytics_data(currency: str = "INR", fy: str = "All", lc_status: str = "Open") -> Dict[str, Any]:
     amt_col = COL_MAP["amt_inr"] if currency == "INR" else COL_MAP["amt_fc"]
     pending_col = COL_MAP["boe_pending_inr"] if currency == "INR" else COL_MAP["boe_pending_fc"]
     fy_filter = get_fy_clause(fy, COL_MAP['op_date'])
+    status_filter = "('Open', 'In Process')" if lc_status == "Open" else "('Closed')"
 
     bifurcation = fetch_dict(f"""
         SELECT
@@ -22,7 +23,7 @@ def get_boe_analytics_data(currency: str = "INR", fy: str = "All") -> Dict[str, 
             COUNT(*) as count,
             COALESCE(SUM({amt_col}), 0) as amount
         FROM LC
-        WHERE 1=1 {fy_filter}
+        WHERE 1=1 AND {COL_MAP['lc_status']} IN {status_filter} {fy_filter}
         GROUP BY 1
     """)
     total_amt = sum(r['amount'] or 0 for r in bifurcation)
@@ -43,9 +44,7 @@ def get_boe_analytics_data(currency: str = "INR", fy: str = "All") -> Dict[str, 
         WHERE {COL_MAP['boe_date']} IS NOT NULL
           AND ({COL_MAP['payment_status']} IS NULL OR {COL_MAP['payment_status']} != 'Paid') {fy_filter}
         GROUP BY 1
-        ORDER BY CASE bucket
-            WHEN '0-30 Days' THEN 1 WHEN '31-60 Days' THEN 2
-            WHEN '61-90 Days' THEN 3 WHEN '90+ Days' THEN 4 ELSE 5 END
+        ORDER BY bucket
     """)
     aging_buckets = [a for a in aging if a.get('bucket') is not None]
 

@@ -11,8 +11,8 @@ const RateChip: React.FC<{ label: string; value: number | null; decimals?: numbe
   label, value, decimals = 2, suffix = ''
 }) => (
   <div className="flex items-center gap-1.5">
-    <span className="text-[10px] font-bold text-[#64748b] uppercase tracking-wider">{label}</span>
-    <span className={`text-[11px] font-mono font-bold ${value != null ? 'text-[#0f172a]' : 'text-[#94a3b8]'}`}>
+    <span className="text-[10px] font-bold uppercase tracking-wider text-ink-mute">{label}</span>
+    <span className={`font-mono text-[11px] font-bold ${value != null ? 'text-ink' : 'text-ink-faint'}`}>
       {value != null ? `${value.toFixed(decimals)}${suffix}` : '—'}
     </span>
   </div>
@@ -38,7 +38,7 @@ const Footer: React.FC = () => {
     fetchRates()
     const rateTimer = setInterval(fetchRates, 5 * 60 * 1000)
 
-    return () => { 
+    return () => {
       clearInterval(clockTimer)
       clearInterval(rateTimer)
     }
@@ -48,14 +48,14 @@ const Footer: React.FC = () => {
   const dateStr = currentTime.toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: '2-digit' })
 
   return (
-    <footer className="fixed bottom-0 left-0 right-0 h-8 border-t border-[#e2e8f0] bg-white flex items-center justify-between px-6 z-50">
-      <div className="text-[11px] text-[#0f172a] font-medium opacity-60">
+    <footer className="fixed bottom-0 left-0 right-0 z-50 flex h-8 items-center justify-between border-t border-hairline bg-canvas px-6">
+      <div className="text-[11px] font-medium text-ink opacity-60">
         © Grew Energy Private Limited
       </div>
 
       <div className="flex items-center gap-4 py-0.5">
         {/* FX Rates */}
-        <div className="flex items-center gap-4 border-r border-[#e2e8f0] pr-4">
+        <div className="flex items-center gap-4 border-r border-hairline pr-4">
           <RateChip label="USD/INR" value={rates.usd_inr} />
           <RateChip label="EUR/INR" value={rates.eur_inr} />
           <RateChip label="CNY/INR" value={rates.cny_inr} />
@@ -64,10 +64,10 @@ const Footer: React.FC = () => {
         {/* Live clock */}
         <div className="flex flex-col items-end leading-[1.1]">
           <div className="flex items-center gap-1.5">
-            <span className="w-1 h-1 rounded-full bg-[#16a34a] animate-pulse" title="Live" />
-            <span className="text-[10px] font-mono font-bold text-[#475569]">{timeStr}</span>
+            <span className="h-1 w-1 animate-pulse rounded-full bg-accent" title="Live" />
+            <span className="font-mono text-[10px] font-bold text-ink-mute">{timeStr}</span>
           </div>
-          <span className="text-[9px] font-medium text-[#94a3b8]">{dateStr}</span>
+          <span className="text-[9px] font-medium text-ink-faint">{dateStr}</span>
         </div>
       </div>
     </footer>

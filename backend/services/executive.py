@@ -145,7 +145,7 @@ def get_command_data(currency: str = "INR", fy: str = "All", payment_status: str
 
     fy_filter += fac_filter
     
-    exec_d, exp_d, boe_d, sblc_d = get_executive_overview_data(currency, fy, lc_status), get_lc_exposure_data(currency, fy), get_boe_analytics_data(currency, fy), get_sblc_module_data(currency, fy)
+    exec_d, exp_d, boe_d, sblc_d = get_executive_overview_data(currency, fy, lc_status), get_lc_exposure_data(currency, fy, lc_status), get_boe_analytics_data(currency, fy, lc_status), get_sblc_module_data(currency, fy)
     kpis = exec_d['kpis']
 
     # Define limit_map for pivots

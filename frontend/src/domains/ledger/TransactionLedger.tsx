@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { AgGridReact } from 'ag-grid-react'
-import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community'
+import { AllEnterpriseModule } from 'ag-grid-enterprise'
+import { ModuleRegistry } from 'ag-grid-community'
 import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import { getDrillDown, getTablesList, getTableData } from '../../api'
@@ -9,7 +10,7 @@ import { formatCurrency, formatDate } from '../../utils'
 import { FileSpreadsheet, RotateCcw } from 'lucide-react'
 
 // AG Grid v35 requires explicit module registration
-ModuleRegistry.registerModules([AllCommunityModule])
+ModuleRegistry.registerModules([AllEnterpriseModule])
 
 export const TransactionLedger: React.FC = () => {
   const { fy } = useStore()
@@ -157,6 +158,8 @@ export const TransactionLedger: React.FC = () => {
     enablePivot: true, // Allow pivot mode
     enableValue: true, // Allow aggregations
     suppressHeaderMenuButton: false, // Ensure column menu is accessible
+    wrapHeaderText: true, // Word wrap for header text
+    autoHeaderHeight: true, // Auto height adjustment for header rows to fit wrapped text
   }), [])
 
   const sideBar = useMemo(() => ({

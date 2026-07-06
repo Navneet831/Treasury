@@ -1,6 +1,6 @@
 import {
   Calendar, Zap, Sparkles, Globe,
-  Gauge, Package, BookOpen, FileSearch, Layers,
+  Gauge, Package, BookOpen, FileSearch, Layers, Terminal
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -39,4 +39,5 @@ export const bottomItems: NavItemDef[] = [
   { id: 'ai',     label: 'GrewGpt', icon: Sparkles },
   { id: 'audit',  label: 'Audit',   icon: FileSearch },
   { id: 'ledger', label: 'Transaction Ledger', icon: Layers },
+  { id: 'dev',    label: 'Developer', icon: Terminal },
 ]

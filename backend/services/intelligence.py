@@ -46,12 +46,12 @@ def _portfolio_risk_inputs(currency: str = "INR", fy: str = "All") -> Dict[str, 
             COALESCE(SUM(CASE WHEN {st} = 'Open' THEN {amt_inr} ELSE 0 END), 0) as open_inr,
             COALESCE(SUM(CASE WHEN {st} IN ('Open', 'In Process') AND {COL_MAP['currency']} != 'INR' THEN {amt_inr} ELSE 0 END), 0) as fc_exposure_inr,
             COALESCE(SUM(CASE WHEN {st} = 'Open' AND "Type" = 'Unhedged' AND {COL_MAP['currency']} != 'INR' THEN {amt_inr} ELSE 0 END), 0) as unhedged_inr,
-            COALESCE(SUM(CASE WHEN {due} < CURRENT_DATE AND {_UNPAID} AND {st} NOT IN ('Closed', 'Cancelled') THEN {due_amt} ELSE 0 END), 0) as overdue_amt,
-            COALESCE(SUM(CASE WHEN {due} BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL 30 DAY AND {_UNPAID} THEN {due_amt} ELSE 0 END), 0) as due_30d,
-            COALESCE(SUM(CASE WHEN {due} BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL 90 DAY AND {_UNPAID} THEN {due_amt} ELSE 0 END), 0) as due_90d,
+            COALESCE(SUM(CASE WHEN CAST({due} AS DATE) < CURRENT_DATE AND {_UNPAID} AND {st} NOT IN ('Closed', 'Cancelled') THEN {due_amt} ELSE 0 END), 0) as overdue_amt,
+            COALESCE(SUM(CASE WHEN CAST({due} AS DATE) BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL 30 DAY AND {_UNPAID} THEN {due_amt} ELSE 0 END), 0) as due_30d,
+            COALESCE(SUM(CASE WHEN CAST({due} AS DATE) BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL 90 DAY AND {_UNPAID} THEN {due_amt} ELSE 0 END), 0) as due_90d,
             COALESCE(SUM(CASE WHEN {COL_MAP['boe_status']} = 'Received' AND {_UNPAID} THEN {due_amt} ELSE 0 END), 0) as boe_received_unpaid,
             COUNT(CASE WHEN {st} = 'Open' THEN 1 END) as open_count,
-            COUNT(CASE WHEN {st} = 'Open' AND {COL_MAP['expiry_date']} BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL 30 DAY THEN 1 END) as expiring_30d_count,
+            COUNT(CASE WHEN {st} = 'Open' AND CAST({COL_MAP['expiry_date']} AS DATE) BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL 30 DAY THEN 1 END) as expiring_30d_count,
             COUNT(CASE WHEN {st} = 'Open' AND ({COL_MAP['boe_status']} != 'Received' OR {COL_MAP['boe_status']} IS NULL) THEN 1 END) as boe_pending_count
         FROM LC WHERE 1=1 {fy_f}
     """)[0]
@@ -62,9 +62,9 @@ def _peak_outflow_window(fy: str = "All", window_days: int = 7) -> tuple:
     """Largest 7-day cluster of future unpaid obligations: (start ISO date, value)."""
     due = COL_MAP["due_date"]
     rows = fetch_dict(f"""
-        SELECT {due} as d, SUM({_due_amount_expr("INR")}) as v
+        SELECT CAST({due} AS DATE) as d, SUM({_due_amount_expr("INR")}) as v
         FROM LC
-        WHERE {due} >= CURRENT_DATE AND {_UNPAID}
+        WHERE CAST({due} AS DATE) >= CURRENT_DATE AND {_UNPAID}
           AND {COL_MAP['lc_status']} NOT IN ('Closed', 'Cancelled') {get_fy_clause(fy, due)}
         GROUP BY 1 ORDER BY 1
     """)
@@ -134,8 +134,8 @@ def get_strategic_intelligence_data(currency: str = "INR", fy: str = "All") -> D
     demand = fetch_dict(f"""
         SELECT date_trunc('month', {COL_MAP['op_date']}) as m, SUM({COL_MAP['amt_inr']}) as v
         FROM LC
-        WHERE {COL_MAP['op_date']} >= date_trunc('month', CURRENT_DATE) - INTERVAL 3 MONTH
-          AND {COL_MAP['op_date']} < date_trunc('month', CURRENT_DATE)
+        WHERE CAST({COL_MAP['op_date']} AS DATE) >= CAST(date_trunc('month', CURRENT_DATE) - INTERVAL 3 MONTH AS DATE)
+          AND CAST({COL_MAP['op_date']} AS DATE) < CAST(date_trunc('month', CURRENT_DATE) AS DATE)
         GROUP BY 1
     """)
     demand_vals = [float(d["v"] or 0) for d in demand]

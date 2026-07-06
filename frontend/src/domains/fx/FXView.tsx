@@ -51,15 +51,41 @@ const FXView: React.FC = () => {
         <InsightStrip insights={insights} />
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          <StatTile size="hero" label="FC Exposure" value={fmtInr(totalExposure)}
-            sub={`${exposure.length} currencies (INR value)`} />
-          <StatTile size="hero" tone={fx.total_unhedged_pct > 30 ? 'critical' : 'positive'}
-            label="Unhedged Share" value={formatPercent(fx.total_unhedged_pct)}
-            sub={fx.alert || 'Within policy threshold'} />
-          <StatTile size="md" tone="positive" label="Hedged (Unpaid Book)" value={fmtInr(s.hedged)}
-            sub={`${formatPercent(s.hedge_pct)} of unpaid`} />
-          <StatTile size="md" tone={s.unhedged > 0 ? 'warning' : 'default'}
-            label="Open to FX (Unpaid)" value={fmtInr(s.unhedged)} sub={`${formatPercent(s.unhedged_pct)} of unpaid`} />
+          <StatTile 
+            size="hero" 
+            label="FC Exposure" 
+            value={fmtInr(totalExposure)}
+            sub={`${exposure.length} currencies (INR value)`} 
+            metricId="fx-exposure"
+            drillDownParams={{ status: 'Open' }}
+          />
+          <StatTile 
+            size="hero" 
+            tone={fx.total_unhedged_pct > 30 ? 'critical' : 'positive'}
+            label="Unhedged Share" 
+            value={formatPercent(fx.total_unhedged_pct)}
+            sub={fx.alert || 'Within policy threshold'} 
+            metricId="fx-unhedged"
+            drillDownParams={{ status: 'Open' }}
+          />
+          <StatTile 
+            size="md" 
+            tone="positive" 
+            label="Hedged (Unpaid Book)" 
+            value={fmtInr(s.hedged)}
+            sub={`${formatPercent(s.hedge_pct)} of unpaid`} 
+            metricId="fx-hedge-book"
+            drillDownParams={{ payment_status: 'Unpaid' }}
+          />
+          <StatTile 
+            size="md" 
+            tone={s.unhedged > 0 ? 'warning' : 'default'}
+            label="Open to FX (Unpaid)" 
+            value={fmtInr(s.unhedged)} 
+            sub={`${formatPercent(s.unhedged_pct)} of unpaid`} 
+            metricId="fx-loss"
+            drillDownParams={{ payment_status: 'Unpaid' }}
+          />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">

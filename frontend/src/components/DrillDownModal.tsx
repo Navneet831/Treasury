@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { X, Download, ChevronRight, Table } from 'lucide-react'
 import { formatCurrency, formatDate } from '../utils'
-import { useStore } from '../store'
 
 interface DrillDownModalProps {
   isOpen: boolean

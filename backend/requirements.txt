@@ -1,6 +1,5 @@
 fastapi
 uvicorn
-duckdb
 python-dotenv
 prometheus-fastapi-instrumentator
 openai

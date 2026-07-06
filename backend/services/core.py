@@ -14,7 +14,53 @@ from apps.Treasury.backend.database import fetch_dict, fetch_one
 
 logger = logging.getLogger(__name__)
 
-COL_MAP = {
+
+def _normalize_col_name(name: str) -> str:
+    """Collapse whitespace runs (including embedded newlines) and strip.
+
+    The warehouse is refreshed daily from an Excel export; depending on how
+    Excel wrapped a header cell that day, the same logical column can load as
+    either e.g. 'LC Amt (in INR)' or 'LC Amt \\n(in INR)'. Comparing normalized
+    names lets either form resolve to the same logical column.
+    """
+    return re.sub(r"\s+", " ", name).strip()
+
+
+class _ColMap(dict):
+    """COL_MAP: logical column name -> quoted SQL identifier.
+
+    Resolved against the live LC schema on first use (not at import time, so a
+    missing/unavailable warehouse stays degraded rather than fatal — see
+    GrewAnalytics CLAUDE.md). Each candidate is matched to the actual LC
+    column by normalized name (see `_normalize_col_name`), so day-to-day
+    variance in how the Excel-sourced load wraps a header (or stray leading
+    spaces, e.g. ' LC no.') doesn't throw a DuckDB BinderException — both
+    spellings are treated as the same column.
+    """
+    _resolved = False
+
+    def _resolve(self):
+        if self._resolved:
+            return
+        self._resolved = True
+        try:
+            actual_cols = [r["column_name"] for r in fetch_dict("DESCRIBE LC")]
+        except Exception:
+            logger.warning("Treasury: could not introspect LC schema to resolve COL_MAP; using static defaults")
+            return
+        by_normalized = {_normalize_col_name(c): c for c in actual_cols}
+        for key, quoted in list(self.items()):
+            expected = quoted.strip('"')
+            actual = by_normalized.get(_normalize_col_name(expected))
+            if actual and actual != expected:
+                dict.__setitem__(self, key, f'"{actual}"')
+
+    def __getitem__(self, key):
+        self._resolve()
+        return dict.__getitem__(self, key)
+
+
+COL_MAP = _ColMap({
     "amt_inr": '"LC Amt (in INR)"',
     "amt_fc": '"Final LC Amt (in FC)"',
     "boe_pending_inr": '"Pending BOE Amt (in INR)"',
@@ -42,9 +88,21 @@ COL_MAP = {
     "docs_received": '"DOCUMENTS RECEIVED"',
     "rate": '"RATE"',
     "lc_close_date": '"LC Close date"',
-}
+})
 
-_UNPAID = f"({COL_MAP['payment_status']} IS NULL OR {COL_MAP['payment_status']} != 'Paid')"
+def get_unpaid_cond():
+    return f"({COL_MAP['payment_status']} IS NULL OR {COL_MAP['payment_status']} != 'Paid')"
+
+
+# SQL fragment for "not paid" — interpolated directly into f-string queries by
+# lc/payables/intelligence/copilot. Lazily evaluated so COL_MAP resolution stays
+# deferred until first DB use (a missing warehouse must degrade, not crash import).
+class _LazyUnpaid:
+    def __str__(self):
+        return get_unpaid_cond()
+
+
+_UNPAID = _LazyUnpaid()
 
 
 def get_current_date() -> str:
@@ -144,19 +202,25 @@ def _table_exists(name: str) -> bool:
 # ── Shared aggregates ────────────────────────────────────────────────────────
 
 @ttl_cache(seconds=60)
-def _limit_exposure_snapshot(currency: str = "INR", fy: str = "All") -> Dict[str, float]:
+def _limit_exposure_snapshot(currency: str = "INR", fy: str = "All", lc_status: str = "Open") -> Dict[str, float]:
     amt_col = COL_MAP["amt_inr"] if currency == "INR" else COL_MAP["amt_fc"]
+    boe_col = COL_MAP["boe_bill_inr"] if currency == "INR" else COL_MAP["boe_bill_fc"]
     fy_filter = get_fy_clause(fy, COL_MAP["op_date"])
+    status_filter = "('Open', 'In Process')" if lc_status == "Open" else "('Closed')"
     limits = fetch_one("""
-        SELECT COALESCE(SUM(CAST(NULLIF(REPLACE("LC", ',', ''), '') AS DOUBLE)), 0),
-               COALESCE(SUM(CAST(NULLIF(REPLACE("Cash", ',', ''), '') AS DOUBLE)), 0)
+        SELECT COALESCE(SUM(CAST(NULLIF(REPLACE("LC", ',', ''), '') AS DOUBLE)), 0) AS lc_limit,
+               COALESCE(SUM(CAST(NULLIF(REPLACE("Cash", ',', ''), '') AS DOUBLE)), 0) AS cash_limit
         FROM bank_limit WHERE Bank_Table = 'Bank' AND Element != ''
     """)
     nfb_limit = float(limits[0] or 0) if limits else 0.0
     fb_limit = float(limits[1] or 0) if limits else 0.0
     row = fetch_one(f"""
-        SELECT COALESCE(SUM({amt_col}), 0)
-        FROM LC WHERE {COL_MAP['lc_status']} IN ('Open', 'In Process') {fy_filter}
+        SELECT COALESCE(SUM(
+            CASE WHEN UPPER({COL_MAP['bank']}) IN ('BOI', 'IDBI') 
+                 THEN (CASE WHEN {COL_MAP['lc_status']} = 'Open' AND Margin = 0.1 THEN COALESCE({boe_col}, 0) ELSE 0 END)
+                 ELSE {amt_col} END
+        ), 0)
+        FROM LC WHERE {COL_MAP['lc_status']} IN {status_filter} {fy_filter}
     """)
     exposure = float(row[0] or 0) if row else 0.0
     return {
@@ -172,13 +236,27 @@ def _limit_exposure_snapshot(currency: str = "INR", fy: str = "All") -> Dict[str
 def get_fy_list() -> List[str]:
     """Fiscal years actually present in the data — never a frozen list."""
     row = fetch_one(f"""
-        SELECT MIN({COL_MAP['op_date']}),
-               MAX(COALESCE({COL_MAP['due_date']}, {COL_MAP['op_date']}))
+        SELECT MIN({COL_MAP['op_date']}) AS min_date,
+               MAX(COALESCE({COL_MAP['due_date']}, {COL_MAP['op_date']})) AS max_date
         FROM LC
     """)
     if not row or row[0] is None:
         return []
+    def _to_date(val):
+        """Accept both date objects and ISO-string dates."""
+        if val is None:
+            return None
+        if hasattr(val, 'month'):
+            return val
+        from datetime import date as _date
+        try:
+            return _date.fromisoformat(str(val)[:10])
+        except Exception:
+            return None
+    d0, d1 = _to_date(row[0]), _to_date(row[1] or row[0])
+    if d0 is None:
+        return []
     def fy_start_year(d) -> int:
         return d.year if d.month >= 4 else d.year - 1
-    first, last = fy_start_year(row[0]), fy_start_year(row[1] or row[0])
+    first, last = fy_start_year(d0), fy_start_year(d1 or d0)
     return [f"FY{y % 100:02d}-{(y + 1) % 100:02d}" for y in range(first, last + 1)]

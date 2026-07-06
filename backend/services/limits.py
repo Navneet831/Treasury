@@ -9,20 +9,60 @@ from apps.Treasury.backend.services.fx import get_fx_risk_data
 
 
 @ttl_cache(seconds=60)
-def get_limit_utilisation_data(currency: str = "INR", fy: str = "All", payment_status: str = "Unpaid", facility_type: str = "LC") -> Dict[str, Any]:
+def get_limit_utilisation_data(currency: str = "INR", fy: str = "All", payment_status: str = "Unpaid", facility_type: str = "LC", lc_status: str = "Open") -> Dict[str, Any]:
     amt_col = COL_MAP["amt_inr"] if currency == "INR" else COL_MAP["amt_fc"]
     fy_filter = get_fy_clause(fy, COL_MAP['op_date'])
+    
+    # Facility filter for LC table
+    if facility_type == "SBLC":
+        fac_filter = " AND \"SBLC Status\" LIKE 'Yes%'"
+    elif facility_type == "CASH":
+        fac_filter = " AND (\"Product Name\" LIKE '%CASH%' OR \"Type\" LIKE '%CASH%')"
+    else:
+        fac_filter = " AND (\"SBLC Status\" NOT LIKE 'Yes%' OR \"SBLC Status\" IS NULL) AND (\"Product Name\" NOT LIKE '%CASH%' OR \"Product Name\" IS NULL)"
+
+    if lc_status == "Open":
+        status_filter = "('Open', 'In Process')"
+    elif lc_status == "Closed":
+        status_filter = "('Closed')"
+    else:
+        status_filter = "('Open', 'In Process', 'Closed')"
+    
+    boe_col = COL_MAP["boe_bill_inr"] if currency == "INR" else COL_MAP["boe_bill_fc"]
     bank_data = fetch_dict(f"""SELECT LC.{COL_MAP['bank']} as bank, COUNT(*) as lc_count,
-                               SUM(CASE WHEN LC.{COL_MAP['lc_status']} = 'Open' AND Margin = 0.1 THEN LC.{amt_col} ELSE 0 END) as lc_open,
-                               SUM(CASE WHEN LC.{COL_MAP['lc_status']} = 'In Process' AND Margin = 0.1 THEN LC.{amt_col} ELSE 0 END) as lc_in_process,
+                               SUM(CASE WHEN LC.{COL_MAP['lc_status']} = 'Open' AND Margin = 0.1 THEN 
+                                   (CASE WHEN UPPER(LC.{COL_MAP['bank']}) IN ('BOI', 'IDBI') THEN COALESCE(LC.{boe_col}, 0) ELSE LC.{amt_col} END)
+                               ELSE 0 END) as lc_open,
+                               SUM(CASE WHEN LC.{COL_MAP['lc_status']} = 'In Process' AND Margin = 0.1 THEN 
+                                   (CASE WHEN UPPER(LC.{COL_MAP['bank']}) IN ('BOI', 'IDBI') THEN 0 ELSE LC.{amt_col} END)
+                               ELSE 0 END) as lc_in_process,
                                COALESCE(MAX(CAST(NULLIF(REPLACE(bank_limit."LC", ',', ''), '') AS DOUBLE)), 0) as max_limit,
                                MAX(CAST(NULLIF(REPLACE(bank_limit."SBLC", ',', ''), '') AS DOUBLE)) as sblc_limit,
                                MAX(CAST(NULLIF(REPLACE(bank_limit."Cash", ',', ''), '') AS DOUBLE)) as cash_limit
                                FROM LC LEFT JOIN bank_limit ON TRIM(UPPER(LC.{COL_MAP['bank']})) = TRIM(UPPER(bank_limit.Element)) AND bank_limit.Bank_Table = 'Bank'
-                               WHERE LC.{COL_MAP['lc_status']} IN ('Open', 'In Process') {fy_filter} GROUP BY 1 ORDER BY max_limit DESC""")
+                               WHERE LC.{COL_MAP['lc_status']} IN {status_filter} AND LC.{COL_MAP['bank']} IS NOT NULL {fy_filter} GROUP BY 1 ORDER BY max_limit DESC""")
 
     # ── Margin-Bank Pivot (LC Exposure) ──────────────────────────────────────
-    margin_bank_raw = fetch_dict(f"SELECT {COL_MAP['bank']} as bank, Margin as margin_pct, SUM({amt_col}) as value FROM LC WHERE {COL_MAP['lc_status']} = 'Open' {fy_filter} GROUP BY 1, 2")
+    margin_bank_raw = fetch_dict(f"""
+        SELECT {COL_MAP['bank']} as bank, Margin as margin_pct, 
+               SUM(CASE WHEN UPPER({COL_MAP['bank']}) IN ('BOI', 'IDBI') 
+                        THEN (CASE WHEN {COL_MAP['lc_status']} = 'Open' AND Margin = 0.1 THEN COALESCE({boe_col}, 0) ELSE 0 END)
+                        ELSE {amt_col} END) as value 
+        FROM LC WHERE {COL_MAP['lc_status']} IN {status_filter} {fy_filter} {fac_filter} GROUP BY 1, 2
+    """)
+
+    # Include LC in Process from the separate "LC BG in Process" table
+    if facility_type == "LC" and lc_status == "Open":
+        inprocess_amt_col = '"AMT IN INR"' if currency == "INR" else '"Amt in FC"'
+        inprocess_margin_raw = fetch_dict(f"""
+            SELECT "Bank Name" as bank, COALESCE(MRGIN, 0.1) as margin_pct,
+                   SUM(CASE WHEN UPPER("Bank Name") IN ('BOI', 'IDBI') THEN 0 ELSE {inprocess_amt_col} END) as value
+            FROM "LC BG in Process"
+            WHERE "STATUS" = 'DOC SUBMITTED TO BANK' AND UPPER(Type) = 'LC'
+            GROUP BY 1, 2
+        """)
+        margin_bank_raw.extend(inprocess_margin_raw)
+
     banks_list = sorted(list(set(r['bank'] for r in bank_data)))
     margins_list = sorted(list(set(r['margin_pct'] for r in margin_bank_raw if r['margin_pct'] is not None)))
     margin_bank_pivot = []
@@ -35,8 +75,11 @@ def get_limit_utilisation_data(currency: str = "INR", fy: str = "All", payment_s
     boe_amt_col = COL_MAP["boe_bill_inr"] if currency == "INR" else COL_MAP["boe_bill_fc"]
     pay_cond = f"{COL_MAP['payment_status']} = 'Paid'" if payment_status == "Paid" else f"({COL_MAP['payment_status']} != 'Paid' OR {COL_MAP['payment_status']} IS NULL)"
     boe_margin_raw = fetch_dict(f"""
-        SELECT {COL_MAP['bank']} as bank, Margin as margin_pct, SUM(COALESCE({boe_amt_col}, {amt_col})) as value
-        FROM LC WHERE {COL_MAP['boe_status']} = 'Received' AND {pay_cond} {fy_filter}
+        SELECT {COL_MAP['bank']} as bank, Margin as margin_pct, 
+               SUM(CASE WHEN UPPER({COL_MAP['bank']}) IN ('BOI', 'IDBI') 
+                        THEN (CASE WHEN {COL_MAP['lc_status']} = 'Open' AND Margin = 0.1 THEN COALESCE({boe_col}, 0) ELSE 0 END)
+                        ELSE COALESCE({boe_amt_col}, {amt_col}) END) as value
+        FROM LC WHERE {COL_MAP['boe_status']} = 'Received' AND {pay_cond} {fy_filter} {fac_filter}
         GROUP BY 1, 2
     """)
     boe_margin_pivot = []
@@ -47,7 +90,7 @@ def get_limit_utilisation_data(currency: str = "INR", fy: str = "All", payment_s
 
     sblc_data_res = fetch_dict("""
         SELECT
-            BANK as bank,
+            "BANK" as bank,
             SUM(CASE WHEN "Payment Status" != 'Paid' OR "Payment Status" IS NULL THEN "Final PAYMENT AMT INR" ELSE 0 END) as sblc_used
         FROM SBLC
         GROUP BY 1
@@ -58,16 +101,27 @@ def get_limit_utilisation_data(currency: str = "INR", fy: str = "All", payment_s
     inprocess_res = fetch_dict(f"""
         SELECT "Bank Name" as bank, SUM({inprocess_amt_col}) as amt
         FROM "LC BG in Process"
-        WHERE "Status" = 'DOC SUBMITTED TO BANK'
+        WHERE "STATUS" = 'DOC SUBMITTED TO BANK'
         GROUP BY 1
     """)
     inprocess_map = {r['bank']: (r['amt'] or 0) for r in inprocess_res}
     total_max, total_used, total_sblc = 0, 0, 0
     for row in bank_data:
         lc_open = row.get('lc_open', 0)
-        lc_in_process = inprocess_map.get(row['bank'], 0)
+        # For BOI/IDBI, we strictly follow the BOE Bill Amt rule for Open LCs. 
+        # In Process from any source is zeroed.
+        if row['bank'].upper() in ('BOI', 'IDBI'):
+            lc_in_process = 0
+        else:
+            lc_in_process = inprocess_map.get(row['bank'], 0)
+        
         used = lc_open  # utilization reflects drawn (Open) LCs only; in-process is informational
-        limit = row.get('max_limit', 0)
+        
+        # Total Limit = LC Pot + Cash Limit
+        limit_pot = row.get('max_limit', 0)
+        cash_lim = row.get('cash_limit', 0) or 0
+        limit = limit_pot + cash_lim
+        
         sblc_used = sblc_map.get(row['bank'], 0)
         row.update({
             'used_limit': used,
@@ -79,7 +133,7 @@ def get_limit_utilisation_data(currency: str = "INR", fy: str = "All", payment_s
             'sblc_limit': row.get('sblc_limit'),
             'cash_limit': row.get('cash_limit'),
             'cash_utilization': 0,
-            'interchangeability_limit': limit,
+            'interchangeability_limit': limit_pot, # keep original pot name for frontend logic
             'sblc_balance': max(0, limit - used)
         })
         total_max += limit; total_used += used; total_sblc += sblc_used
