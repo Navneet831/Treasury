@@ -22,12 +22,12 @@ export default defineConfig(({ mode }) => {
     },
     resolve: {
       alias: {
-        '@grew/auth': path.resolve(__dirname, '../../packages/auth/src'),
-        '@supabase/supabase-js': path.resolve(__dirname, './node_modules/@supabase/supabase-js'),
-        'zustand': path.resolve(__dirname, './node_modules/zustand'),
-        'react': path.resolve(__dirname, './node_modules/react'),
-        'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
-        'lucide-react': path.resolve(__dirname, './node_modules/lucide-react'),
+        '@grew/auth': path.resolve(__dirname, '../packages/auth/src'),
+        '@supabase/supabase-js$': path.resolve(__dirname, './node_modules/@supabase/supabase-js'),
+        'zustand$': path.resolve(__dirname, './node_modules/zustand'),
+        'react$': path.resolve(__dirname, './node_modules/react'),
+        'react-dom$': path.resolve(__dirname, './node_modules/react-dom'),
+        'lucide-react$': path.resolve(__dirname, './node_modules/lucide-react'),
       },
     },
     server: {

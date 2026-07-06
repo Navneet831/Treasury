@@ -22,8 +22,8 @@
     "noFallthroughCasesInSwitch": true,
 
     "paths": {
-      "@grew/auth": ["../../packages/auth/src/index.ts"],
-      "@grew/auth/*": ["../../packages/auth/src/*"],
+      "@grew/auth": ["../packages/auth/src/index.ts"],
+      "@grew/auth/*": ["../packages/auth/src/*"],
       "react": ["./node_modules/@types/react"],
       "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
       "lucide-react": ["./node_modules/lucide-react"],
@@ -36,7 +36,7 @@
   },
   "include": [
     "src",
-    "../../packages/auth/src/**/*.ts",
-    "../../packages/auth/src/**/*.tsx"
+    "../packages/auth/src/**/*.ts",
+    "../packages/auth/src/**/*.tsx"
   ]
 }
