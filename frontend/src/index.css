@@ -7,6 +7,11 @@
    bg-[#05070A] / slate / emerald palette) get generated and the auth
    page renders unstyled. Path is relative to this CSS file. */
 @source "../../../packages/auth/src";
+@source "../../packages/auth/src";
+@source "../packages/auth/src";
+@source "./packages/auth/src";
+@source "packages/auth/src";
+@source "../../../../packages/auth/src";
 
 /*
  * Design tokens — synthesis of DESIGN-supabase.md and DESIGN-apple.md.
