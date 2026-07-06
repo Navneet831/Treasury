@@ -151,7 +151,7 @@ const App: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   // Auth gate (standalone mode only)
   if (!embedded) {
     if (isBootstrapping) return <BootSpinner />
-    if (!isAuthenticated) return <Login skipIntro redirectTo={window.location.origin + "/auth/callback"} />
+    if (!isAuthenticated) return <Login skipIntro redirectTo="http://127.0.0.1:8001/auth/callback" />
   }
 
   const isEmbedded = embedded
