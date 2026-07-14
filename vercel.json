@@ -2,7 +2,11 @@
   "outputDirectory": "frontend/dist",
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/api/treasury/(.*)",
+      "destination": "https://grewanalytics.vercel.app/api/treasury/$1"
+    },
+    {
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
   ]
