@@ -108,6 +108,39 @@ def get_repo() -> IRepository:
             pg_url = f"postgresql://{db_user}:{encoded_password}@{db_host}:{db_port}/{db_name}"
 
     if not pg_url:
+        supabase_url = os.getenv("SUPABASE_URL") or os.getenv("VITE_SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_ANON_KEY") or os.getenv("VITE_SUPABASE_ANON_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        if supabase_url and supabase_key:
+            import urllib.request
+            import urllib.parse
+            import json
+            url = f"{supabase_url.rstrip('/')}/functions/v1/db-credentials"
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "Authorization": f"Bearer {supabase_key}",
+                    "apikey": supabase_key,
+                    "Content-Type": "application/json"
+                },
+                method="GET"
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=10) as response:
+                    if response.status == 200:
+                        creds = json.loads(response.read().decode('utf-8'))
+                        db_user = creds.get("user")
+                        db_password = creds.get("password")
+                        db_host = creds.get("host")
+                        db_port = str(creds.get("port", 5432))
+                        db_name = creds.get("database")
+                        if db_user and db_password and db_host and db_port and db_name:
+                            encoded_password = urllib.parse.quote_plus(db_password)
+                            pg_url = f"postgresql://{db_user}:{encoded_password}@{db_host}:{db_port}/{db_name}"
+                            logger.info("Treasury: Successfully fetched PostgreSQL credentials from Supabase edge function.")
+            except Exception as e:
+                logger.error(f"Treasury: Failed to fetch PostgreSQL credentials from edge function: {e}")
+
+    if not pg_url:
         raise RuntimeError(
             "Treasury: no PostgreSQL connection configured. Set POSTGRES_URL "
             "(or PG_USER/PG_PASSWORD/PG_HOST/PG_PORT/PG_DATABASE) in the .env."
