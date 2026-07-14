@@ -99,6 +99,12 @@ const App: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
     boot()
     return () => authListener.subscription.unsubscribe()
   }, [embedded, setBootstrapping, setUser, setAuthenticated])
+  useEffect(() => {
+    if (isAuthenticated && window.location.pathname === '/auth/callback') {
+      window.history.replaceState({}, document.title, '/')
+    }
+  }, [isAuthenticated])
+
   // ────────────────────────────────────────────────────────────────────────────
 
   const isFeatureEnabled = (id: string) => {
@@ -151,7 +157,7 @@ const App: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   // Auth gate (standalone mode only)
   if (!embedded) {
     if (isBootstrapping) return <BootSpinner />
-    if (!isAuthenticated) return <Login skipIntro redirectTo="http://127.0.0.1:8001/auth/callback" />
+    if (!isAuthenticated) return <Login skipIntro />
   }
 
   const isEmbedded = embedded
