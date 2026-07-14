@@ -91,6 +91,18 @@ const App: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
     const boot = async () => {
       const searchParams = new URLSearchParams(window.location.search)
       const code = searchParams.get('code')
+      const error = searchParams.get('error')
+      const errorDescription = searchParams.get('error_description')
+
+      if (error) {
+        const msg = `Authentication error: ${errorDescription || error}`
+        console.error(msg)
+        useAuthStore.getState().setAuthError(msg)
+        window.history.replaceState({}, document.title, '/')
+        setBootstrapping(false)
+        return
+      }
+
       let currentSession: Session | null = null
 
       if (code) {

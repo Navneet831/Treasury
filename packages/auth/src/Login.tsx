@@ -34,9 +34,11 @@ export const Login: React.FC<LoginProps> = ({ skipIntro = false, redirectTo }) =
     }, [authError]);
 
     useEffect(() => {
-        const hasCode = new URLSearchParams(window.location.search).has('code');
+        const params = new URLSearchParams(window.location.search);
+        const hasCode = params.has('code');
+        const hasError = params.has('error');
         const hasHash = window.location.hash.includes('access_token');
-        if (window.location.pathname === '/auth/callback' && !hasCode && !hasHash) {
+        if (window.location.pathname === '/auth/callback' && !hasCode && !hasHash && !hasError) {
             window.history.replaceState({}, document.title, '/');
         }
 
