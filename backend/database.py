@@ -51,7 +51,7 @@ class PostgreSQLRepository(IRepository):
             return self._con.cursor(cursor_factory=self._extras.RealDictCursor)
 
     def _translate(self, query: str) -> str:
-        from apps.Treasury.other.Migration.postgres_compat import translate_sql
+        from apps.Treasury.backend.postgres_compat import translate_sql
         return translate_sql(query)
 
     # -- IRepository interface
