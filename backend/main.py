@@ -44,35 +44,27 @@ async def health_check():
 
 @router.get("/db-config")
 async def get_db_config():
-    import os
     import subprocess
-    from apps.Treasury.backend.database import get_repo
-    
+    from apps.Treasury.backend.database import get_db_config_info
+
     connection = None
     source = None
     connection_error = None
-    
+
     try:
-        repo = get_repo()
-        dsn = repo._dsn
-        if dsn.startswith("postgresql://"):
-            parts = dsn[len("postgresql://"):].split("@")
-            user_pass = parts[0].split(":")
-            user = user_pass[0]
-            host_port_db = parts[1].split("/")
-            database = host_port_db[1]
-            host_port = host_port_db[0].split(":")
-            host = host_port[0]
-            port = int(host_port[1]) if len(host_port) > 1 else 5432
-            
+        info = get_db_config_info()
+        if "error" in info:
+            connection_error = info["error"]
+        else:
             connection = {
-                "host": host,
-                "port": port,
-                "user": user,
-                "database": database,
-                "ssl": False
+                "host": info.get("host"),
+                "port": info.get("port"),
+                "user": info.get("user"),
+                "database": info.get("database"),
+                "ssl": "require" if "pooler.supabase.com" in (info.get("host") or "") else False,
+                "masked_password": info.get("masked_password"),
             }
-            source = "env"
+            source = info.get("source", "env")
     except Exception as e:
         connection_error = f"Failed to retrieve database configuration: {str(e)}"
 

@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 # ── Global repository instances ───────────────────────────────────────────────
 _PLATFORM_REPO: Optional[IRepository] = None   # injected by module.py (platform mode)
 _STANDALONE_REPO: Optional[IRepository] = None # lazily created (standalone mode)
+_DB_CONFIG_SOURCE: str = "env"
 
 
 def set_platform_repo(repo: IRepository):
@@ -87,38 +88,104 @@ class PostgreSQLRepository(IRepository):
 # ── Repository factory ────────────────────────────────────────────────────────
 
 def get_repo() -> IRepository:
-    global _STANDALONE_REPO
+    global _STANDALONE_REPO, _DB_CONFIG_SOURCE
     if _PLATFORM_REPO:
         return _PLATFORM_REPO
 
     if _STANDALONE_REPO:
         return _STANDALONE_REPO
 
-    # Check for direct database URL first
+    import urllib.parse
+
+    pg_url = None
+
+    # ── Priority 1: Explicit DATABASE_URL env var (local dev / direct override) ─
     pg_url = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL")
-    
+    if pg_url:
+        _DB_CONFIG_SOURCE = "DATABASE_URL"
+        logger.info("Treasury: Using DATABASE_URL from environment.")
+
+    # ── Priority 2: Supabase edge function (Vercel / production) ─────────────────
     if not pg_url:
-        # Fallback to individual credentials
+        supabase_url = os.getenv("SUPABASE_URL") or os.getenv("VITE_SUPABASE_URL")
+        supabase_key = (
+            os.getenv("SUPABASE_ANON_KEY")
+            or os.getenv("VITE_SUPABASE_ANON_KEY")
+            or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        )
+
+        if supabase_url and supabase_key:
+            import urllib.request
+            import json
+
+            edge_url = f"{supabase_url.rstrip('/')}/functions/v1/db-credentials"
+            req = urllib.request.Request(
+                edge_url,
+                headers={
+                    "Authorization": f"Bearer {supabase_key}",
+                    "apikey": supabase_key,
+                    "Content-Type": "application/json",
+                },
+                method="GET",
+            )
+
+            try:
+                with urllib.request.urlopen(req, timeout=10) as response:
+                    if response.status == 200:
+                        creds = json.loads(response.read().decode("utf-8"))
+                        db_user = creds.get("user")
+                        db_password = creds.get("password")
+                        db_host = creds.get("host")
+                        db_port = str(creds.get("port", 5432))
+                        db_name = creds.get("database")
+
+                        if db_user and db_password and db_host and db_name:
+                            masked = "*" * len(db_password)
+                            logger.info(
+                                f"Treasury: Fetched DB details from edge function: "
+                                f"user={db_user}, host={db_host}, port={db_port}, database={db_name}, password={masked}"
+                            )
+
+                            # Apply IPv4 pooler transform ONLY in Vercel serverless
+                            if os.getenv("VERCEL") and db_host.endswith(".supabase.co") and db_port == "5432":
+                                project_ref = db_host.split(".")[1]
+                                db_host = "aws-0-ap-south-1.pooler.supabase.com"
+                                db_port = "6543"
+                                db_user = f"{db_user}.{project_ref}"
+                                logger.info(
+                                    f"Treasury: IPv4 pooler transform applied: "
+                                    f"host={db_host}, port={db_port}, user={db_user}"
+                                )
+
+                            encoded_password = urllib.parse.quote_plus(db_password)
+                            pg_url = f"postgresql://{db_user}:{encoded_password}@{db_host}:{db_port}/{db_name}"
+                            _DB_CONFIG_SOURCE = "edge_function"
+            except Exception as e:
+                logger.warning(f"Treasury: Failed to fetch DB credentials from edge function: {e}")
+
+    # ── Priority 3: Individual DB_* / PG_* env vars ───────────────────────────
+    if not pg_url:
         db_user = os.getenv("DB_USER") or os.getenv("PG_USER") or "postgres"
         db_password = os.getenv("DB_PASSWORD") or os.getenv("PG_PASSWORD")
         db_host = os.getenv("DB_HOST") or os.getenv("PG_HOST")
         db_port = os.getenv("DB_PORT") or os.getenv("PG_PORT") or "5432"
         db_name = os.getenv("DB_NAME") or os.getenv("PG_DATABASE") or "postgres"
-        
+
         if db_host and db_password:
-            import urllib.parse
             encoded_password = urllib.parse.quote_plus(db_password)
             pg_url = f"postgresql://{db_user}:{encoded_password}@{db_host}:{db_port}/{db_name}"
+            _DB_CONFIG_SOURCE = "env_vars"
 
     if not pg_url:
         raise RuntimeError(
-            "Treasury: DATABASE_URL or DB_HOST/DB_PASSWORD must be configured in environment variables."
+            "Treasury: DATABASE_URL, DB_HOST/DB_PASSWORD, or SUPABASE_URL/SUPABASE_ANON_KEY must be configured."
         )
 
     repo = PostgreSQLRepository(pg_url)
     _STANDALONE_REPO = repo
-    logger.info("Treasury: using PostgreSQL repository (configured from environment).")
+    logger.info("Treasury: using PostgreSQL repository.")
     return _STANDALONE_REPO
+
 
 
 # ── Public helper functions (used by all services) ────────────────────────────
@@ -134,3 +201,29 @@ def fetch_one(query: str, params=None):
 
 def get_polars_df(query: str):
     return get_repo().get_dataframe(query)
+
+
+def get_db_config_info() -> dict:
+    """Return the resolved connection config for transparency/debugging.
+    Password is always masked. Returns None if repo not yet initialised."""
+    try:
+        repo = get_repo()
+        dsn = repo._dsn  # postgresql://user:pass@host:port/db
+        # Parse
+        rest = dsn[len("postgresql://"):]
+        userpass, hostdb = rest.split("@", 1)
+        user = userpass.split(":")[0]
+        hostport, db = hostdb.split("/", 1)
+        host, *port_part = hostport.split(":")
+        port = int(port_part[0]) if port_part else 5432
+        return {
+            "host": host,
+            "port": port,
+            "user": user,
+            "database": db,
+            "source": _DB_CONFIG_SOURCE,
+            "masked_password": "****",
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
