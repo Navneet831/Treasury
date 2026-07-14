@@ -89,9 +89,27 @@ const App: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
     )
 
     const boot = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
-        await verifyWhitelistAndSetUser(session, { skipDelay: true })
+      const searchParams = new URLSearchParams(window.location.search)
+      const code = searchParams.get('code')
+      let currentSession: Session | null = null
+
+      if (code) {
+        try {
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+          if (error) throw error
+          currentSession = data.session
+        } catch (err) {
+          console.error('Error exchanging PKCE code for session:', err)
+        }
+      }
+
+      if (!currentSession) {
+        const { data: { session } } = await supabase.auth.getSession()
+        currentSession = session
+      }
+
+      if (currentSession) {
+        await verifyWhitelistAndSetUser(currentSession, { skipDelay: true })
       }
       setBootstrapping(false)
     }
