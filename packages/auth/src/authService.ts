@@ -10,7 +10,7 @@ export async function verifyWhitelistAndSetUser(
     session: { user?: { email?: string } } | null,
     opts?: { skipDelay?: boolean }
 ): Promise<WhitelistResult> {
-    const email = session?.user?.email;
+    const email = session?.user?.email?.trim().toLowerCase();
     if (!email) return { ok: false, errorMsg: 'No email in session.' };
 
     if (!opts?.skipDelay) {
@@ -24,6 +24,7 @@ export async function verifyWhitelistAndSetUser(
         .single();
 
     if (error || !data) {
+        console.error('Whitelist verification failed for email:', email, 'Error:', error);
         await supabase.auth.signOut();
         const msg = `ACCESS DENIED. The email address (${email}) could not be verified.`;
         useAuthStore.getState().setAuthError(msg);
