@@ -12,7 +12,7 @@
   ],
   "functions": {
     "api/index.py": {
-      "excludeFiles": "{frontend,node_modules,packages/auth/node_modules,.git,docs,other,backend/tests}/**"
+      "excludeFiles": "frontend/** | node_modules/** | packages/auth/node_modules/** | docs/** | other/** | backend/tests/**"
     }
   }
 }
