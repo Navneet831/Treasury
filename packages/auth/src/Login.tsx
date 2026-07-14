@@ -222,6 +222,7 @@ export const Login: React.FC<LoginProps> = ({ skipIntro = false, redirectTo }) =
                 provider: 'azure',
                 options: {
                     redirectTo: redirectTo ?? (window.location.origin + '/auth/callback'),
+                    scopes: 'email openid profile',
                     queryParams: {
                         prompt: 'select_account'
                     }
