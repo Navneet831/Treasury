@@ -175,6 +175,14 @@ def translate_sql(query: str) -> str:
     # 3. Quote unquoted Treasury table names + mixed-case column names
     query = _quote_tables(query)
 
+    # Translate column names with spaces to their newline counterparts in the database
+    query = query.replace('"LC Amt (in INR)"', '"LC Amt \n(in INR)"')
+    query = query.replace('"Final LC Amt (in FC)"', '"Final LC Amt\n(in FC)"')
+    query = query.replace('"BOE Bill Amt (in FC)"', '"BOE Bill Amt\n(in FC)"')
+    query = query.replace('"Pending BOE Amt (in FC)"', '"Pending BOE Amt\n(in FC)"')
+    query = query.replace('"BOE Bill Amt (in INR)"', '"BOE Bill Amt\n(in INR)"')
+    query = query.replace('"Pending BOE Amt (in INR)"', '"Pending BOE Amt\n(in INR)"')
+
     # 3b. Cast known date/timestamp columns stored as TEXT to ::DATE so
     #     comparisons with date literals work. Applies to quoted column refs.
     _DATE_COL_NAMES = (

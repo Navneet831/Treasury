@@ -118,7 +118,7 @@ async def get_db_config():
     
     try:
         repo = get_repo()
-        data_stats["fetchMode"] = "direct_pg" if "Postgres" in type(repo).__name__ else "duckdb"
+        data_stats["fetchMode"] = "direct_pg"
         
         count_res = fetch_dict('SELECT COUNT(*) as cnt FROM "LC"')
         if count_res:

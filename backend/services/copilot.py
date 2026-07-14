@@ -103,7 +103,7 @@ def process_ai_query(query: str) -> Dict[str, Any]:
     client = _get_client()
     if not client:
         fallback = f"GrewGpt API key is missing. System snapshot: Limit Utilisation is {snapshot['limit_snapshot']['utilization_pct']:.1f}%. You have {snapshot['overdue_summary']['count']} overdue bills."
-        return {"answer": fallback, "data": snapshot}
+        return {"answer": fallback, "data": snapshot["top_5_largest_unpaid_bills"]}
 
     system_prompt = (
         "You are GrewGpt, an autonomous Treasury Intelligence Copilot for Grew Energy. "

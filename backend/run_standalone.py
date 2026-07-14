@@ -17,13 +17,31 @@ grew_analytics_root = os.path.dirname(os.path.dirname(os.path.dirname(current_di
 if grew_analytics_root not in sys.path:
     sys.path.insert(0, grew_analytics_root)
 
+# Mock modules for monorepo compatibility
+import types
+if 'apps' not in sys.modules:
+    apps = types.ModuleType('apps')
+    apps.__path__ = []
+    sys.modules['apps'] = apps
+
+if 'apps.Treasury' not in sys.modules:
+    treasury = types.ModuleType('apps.Treasury')
+    treasury.__path__ = [os.path.dirname(current_dir)]
+    sys.modules['apps.Treasury'] = treasury
+
+if 'packages' not in sys.modules:
+    pkgs = types.ModuleType('packages')
+    pkgs.__path__ = []
+    sys.modules['packages'] = pkgs
+
+if 'packages.contracts' not in sys.modules:
+    contracts = types.ModuleType('packages.contracts')
+    sys.modules['packages.contracts'] = contracts
+    contracts.IRepository = type('IRepository', (object,), {})
+    contracts.PlatformModule = type('PlatformModule', (object,), {})
+
 # Import the router after setting up the path
-try:
-    from apps.Treasury.backend.main import router
-except ImportError as e:
-    print(f"Error importing apps.Treasury.backend.main: {e}")
-    # Fallback to local import if the above fails
-    from main import router
+from apps.Treasury.backend.main import router
 
 app = FastAPI(title="Treasury Control Tower Backend")
 
