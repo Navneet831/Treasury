@@ -133,11 +133,11 @@ def get_repo() -> IRepository:
                 with urllib.request.urlopen(req, timeout=10) as response:
                     if response.status == 200:
                         creds = json.loads(response.read().decode("utf-8"))
-                        db_user = creds.get("user")
-                        db_password = creds.get("password")
-                        db_host = creds.get("host")
-                        db_port = str(creds.get("port", 5432))
-                        db_name = creds.get("database")
+                        db_user = creds.get("PG_USER")
+                        db_password = creds.get("PG_PASSWORD")
+                        db_host = creds.get("PG_HOST")
+                        db_port = str(creds.get("PG_PORT", 5432))
+                        db_name = creds.get("PG_DATABASE")
 
                         if db_user and db_password and db_host and db_name:
                             masked = "*" * len(db_password)
