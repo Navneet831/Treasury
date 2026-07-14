@@ -46,25 +46,35 @@ async def health_check():
 async def get_db_config():
     import os
     import subprocess
-    from apps.Treasury.backend.database import fetch_dict, get_repo
+    from apps.Treasury.backend.database import get_repo
     
     connection = None
     source = None
     connection_error = None
     
-    db_host = os.getenv("DB_HOST") or os.getenv("PG_HOST") or "127.0.0.1"
-    db_port = os.getenv("DB_PORT") or os.getenv("PG_PORT") or "5433"
-    db_user = os.getenv("DB_USER") or os.getenv("PG_USER") or "navneet"
-    db_name = os.getenv("DB_NAME") or os.getenv("PG_DATABASE") or "Grewdb"
-    
-    connection = {
-        "host": db_host,
-        "port": int(db_port) if db_port.isdigit() else 5433,
-        "user": db_user,
-        "database": db_name,
-        "ssl": False
-    }
-    source = "local_env"
+    try:
+        repo = get_repo()
+        dsn = repo._dsn
+        if dsn.startswith("postgresql://"):
+            parts = dsn[len("postgresql://"):].split("@")
+            user_pass = parts[0].split(":")
+            user = user_pass[0]
+            host_port_db = parts[1].split("/")
+            database = host_port_db[1]
+            host_port = host_port_db[0].split(":")
+            host = host_port[0]
+            port = int(host_port[1]) if len(host_port) > 1 else 5432
+            
+            connection = {
+                "host": host,
+                "port": port,
+                "user": user,
+                "database": database,
+                "ssl": False
+            }
+            source = "edge_function"
+    except Exception as e:
+        connection_error = f"Failed to retrieve database configuration: {str(e)}"
 
     git_info = {"branch": None, "commits": [], "error": None}
     try:
