@@ -1,7 +1,7 @@
 """
 postgres_compat.py
 ==================
-Thin compatibility layer that translates the DuckDB-dialect SQL used across
+Thin compatibility layer that translates the SQL used across
 Treasury services into standard PostgreSQL before execution.
 
 Translations applied:
@@ -16,7 +16,7 @@ Translations applied:
   • SHOW TABLES                       → SELECT table_name AS name FROM information_schema.tables
   • DESCRIBE <table>                  → SELECT column_name, data_type AS column_type ...
 
-DuckDB positional params (?) → psycopg2 positional params (%s).
+Positional params (?) → psycopg2 positional params (%s).
 """
 
 import re
@@ -150,7 +150,7 @@ def _fix_cast_double(query: str) -> str:
 
 
 def translate_sql(query: str) -> str:
-    """Apply all DuckDB → PostgreSQL dialect translations."""
+    """Apply all dialect translations to PostgreSQL."""
 
     # 1. SHOW TABLES
     if re.match(r"^\s*SHOW\s+TABLES\s*;?\s*$", query, re.IGNORECASE):
@@ -249,14 +249,14 @@ def translate_sql(query: str) -> str:
     #    Uses a scanner because the inner expression may contain nested parentheses.
     query = _fix_cast_double(query)
 
-    # 9. DuckDB ? params → psycopg2 %s params
+    # 9. ? params → psycopg2 %s params
     query = _replace_placeholders(query)
 
     return query
 
 
 def _replace_placeholders(query: str) -> str:
-    """Replace DuckDB ? params with %s, skipping occurrences inside quotes."""
+    """Replace ? params with %s, skipping occurrences inside quotes."""
     result = []
     in_single = False
     in_double = False

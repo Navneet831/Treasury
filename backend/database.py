@@ -22,10 +22,10 @@ def set_platform_repo(repo: IRepository):
 class PostgreSQLRepository(IRepository):
     """IRepository implementation backed by PostgreSQL (psycopg2).
 
-    All Treasury services were written against DuckDB dialect. This class
-    runs every query through ``postgres_compat.translate_sql`` before
-    execution so that DuckDB-specific constructs (date_diff, INTERVAL N DAY,
-    TRY_CAST, SHOW TABLES, DESCRIBE …) work transparently on PostgreSQL.
+    All Treasury services execute queries via this PostgreSQL repository.
+    This class runs every query through ``postgres_compat.translate_sql``
+    before execution so that standard compatibility constructs (date_diff,
+    INTERVAL N DAY, TRY_CAST, SHOW TABLES, DESCRIBE …) work transparently.
     """
 
     def __init__(self, dsn: str):

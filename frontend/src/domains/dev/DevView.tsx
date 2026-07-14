@@ -23,7 +23,7 @@ interface DataStats {
   minDate: string | null;
   maxDate: string | null;
   cacheStatus: 'warm' | 'cold' | 'error';
-  fetchMode: 'direct_pg' | 'duckdb' | 'error';
+  fetchMode: 'direct_pg' | 'error';
 }
 
 interface DataLogic {

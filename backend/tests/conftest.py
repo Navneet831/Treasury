@@ -43,9 +43,9 @@ def db():
     
     class DbWrapper:
         def execute(self, query: str, params=None):
-            # Translate DuckDB dialect to PostgreSQL
+            # Translate query dialect to PostgreSQL
             q = repo._translate(query)
-            # Create a standard tuple cursor (returning tuples, matching DuckDB fetchall behavior)
+            # Create a standard tuple cursor (returning tuples, matching original fetchall behavior)
             cur = repo._con.cursor()
             if params:
                 cur.execute(q, list(params) if not isinstance(params, (list, tuple)) else params)

@@ -34,7 +34,7 @@ class _ColMap(dict):
     GrewAnalytics CLAUDE.md). Each candidate is matched to the actual LC
     column by normalized name (see `_normalize_col_name`), so day-to-day
     variance in how the Excel-sourced load wraps a header (or stray leading
-    spaces, e.g. ' LC no.') doesn't throw a DuckDB BinderException — both
+    spaces, e.g. ' LC no.') doesn't throw a database BinderException — both
     spellings are treated as the same column.
     """
     _resolved = False
