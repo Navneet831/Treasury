@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+python-dotenv
+prometheus-fastapi-instrumentator
+openai
+pandas
+polars
+pywebview
+psycopg2-binary

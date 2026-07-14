@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/treasury/(.*)",
-      "destination": "https://grewanalytics.vercel.app/api/treasury/$1"
+      "destination": "/api/index.py"
     },
     {
       "source": "/((?!api/).*)",
