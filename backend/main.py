@@ -72,7 +72,7 @@ async def get_db_config():
                 "database": database,
                 "ssl": False
             }
-            source = "edge_function"
+            source = "env"
     except Exception as e:
         connection_error = f"Failed to retrieve database configuration: {str(e)}"
 

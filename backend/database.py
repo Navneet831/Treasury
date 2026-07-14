@@ -94,57 +94,30 @@ def get_repo() -> IRepository:
     if _STANDALONE_REPO:
         return _STANDALONE_REPO
 
-    # Fetch database connection details ONLY from the Supabase edge function
-    supabase_url = os.getenv("SUPABASE_URL") or os.getenv("VITE_SUPABASE_URL")
-    supabase_key = os.getenv("SUPABASE_ANON_KEY") or os.getenv("VITE_SUPABASE_ANON_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-
-    if not supabase_url or not supabase_key:
-        raise RuntimeError(
-            "Treasury: SUPABASE_URL and SUPABASE_ANON_KEY must be configured in environment variables "
-            "to fetch database credentials from the Edge Function."
-        )
-
-    import urllib.request
-    import urllib.parse
-    import json
+    # Check for direct database URL first
+    pg_url = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL")
     
-    url = f"{supabase_url.rstrip('/')}/functions/v1/db-credentials"
-    req = urllib.request.Request(
-        url,
-        headers={
-            "Authorization": f"Bearer {supabase_key}",
-            "apikey": supabase_key,
-            "Content-Type": "application/json"
-        },
-        method="GET"
-    )
-
-    pg_url = None
-    try:
-        with urllib.request.urlopen(req, timeout=10) as response:
-            if response.status == 200:
-                creds = json.loads(response.read().decode('utf-8'))
-                db_user = creds.get("user")
-                db_password = creds.get("password")
-                db_host = creds.get("host")
-                db_port = str(creds.get("port", 5432))
-                db_name = creds.get("database")
-                if db_user and db_password and db_host and db_port and db_name:
-                    encoded_password = urllib.parse.quote_plus(db_password)
-                    pg_url = f"postgresql://{db_user}:{encoded_password}@{db_host}:{db_port}/{db_name}"
-                    logger.info("Treasury: Successfully fetched PostgreSQL credentials from Supabase edge function.")
-    except Exception as e:
-        logger.error(f"Treasury: Failed to fetch PostgreSQL credentials from edge function: {e}")
-        raise RuntimeError(f"Treasury: Failed to fetch DB credentials from Supabase edge function: {e}")
+    if not pg_url:
+        # Fallback to individual credentials
+        db_user = os.getenv("DB_USER") or os.getenv("PG_USER") or "postgres"
+        db_password = os.getenv("DB_PASSWORD") or os.getenv("PG_PASSWORD")
+        db_host = os.getenv("DB_HOST") or os.getenv("PG_HOST")
+        db_port = os.getenv("DB_PORT") or os.getenv("PG_PORT") or "5432"
+        db_name = os.getenv("DB_NAME") or os.getenv("PG_DATABASE") or "postgres"
+        
+        if db_host and db_password:
+            import urllib.parse
+            encoded_password = urllib.parse.quote_plus(db_password)
+            pg_url = f"postgresql://{db_user}:{encoded_password}@{db_host}:{db_port}/{db_name}"
 
     if not pg_url:
         raise RuntimeError(
-            "Treasury: Failed to configure PostgreSQL connection. Supabase edge function returned incomplete credentials."
+            "Treasury: DATABASE_URL or DB_HOST/DB_PASSWORD must be configured in environment variables."
         )
 
     repo = PostgreSQLRepository(pg_url)
     _STANDALONE_REPO = repo
-    logger.info("Treasury: using PostgreSQL repository (configured from Edge Function).")
+    logger.info("Treasury: using PostgreSQL repository (configured from environment).")
     return _STANDALONE_REPO
 
 
