@@ -85,6 +85,9 @@ export const InterestSummary: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState<string>('All')
   const [showEmptyAccounts, setShowEmptyAccounts] = useState<boolean>(false)
 
+  // Drill-down FY state (which FY is expanded in the FY→Month tree)
+  const [drilldownFy, setDrilldownFy] = useState<string>('')
+
   // Sorting State
   const [sortColumn, setSortColumn] = useState<string>('')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
@@ -158,17 +161,6 @@ export const InterestSummary: React.FC = () => {
     }
   }, [filteredAccountsForSelect, selectedAccount])
 
-  // Months available for selected FY
-  const monthsForSelectedFy = useMemo(() => {
-    if (!data) return []
-    const months = data.months
-    if (selectedFy === 'All FYs') return months
-    return months.filter(mk => {
-      // Find a row with this month key and selected FY to confirm match
-      const matchingRow = data.rows.find(r => r.monthKey === mk && r.fy === selectedFy)
-      return !!matchingRow
-    })
-  }, [data, selectedFy])
 
   // Clean month filter selection if FY changes
   useEffect(() => {
@@ -517,7 +509,7 @@ export const InterestSummary: React.FC = () => {
         ) : (
           <>
             {/* Filters Bar */}
-            <div className="bg-white rounded-xl border border-hairline p-2 px-3 shadow-sm grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 items-end">
+            <div className="bg-white rounded-xl border border-hairline p-2 px-3 shadow-sm grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 items-start">
               <div>
                 <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">Account Type</label>
                 <select
@@ -552,51 +544,74 @@ export const InterestSummary: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">Fiscal Year</label>
-                <select
-                  value={selectedFy}
-                  onChange={(e) => setSelectedFy(e.target.value)}
-                  className="w-full text-xs bg-canvas border border-hairline rounded-lg px-2 py-1 text-ink outline-none focus:border-emerald-500 transition-colors"
-                >
-                  <option value="All FYs">All FYs</option>
-                  {data?.fyList.map(fy => <option key={fy} value={fy}>{fy}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">Month Slicer</label>
-                <div className="border border-hairline bg-canvas rounded-lg p-1 h-[65px] overflow-y-auto flex flex-col gap-1 custom-scrollbar-vertical">
+                <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">FY / Month</label>
+                <div className="border border-hairline bg-canvas rounded-lg p-1 h-[90px] overflow-y-auto flex flex-col gap-0.5 custom-scrollbar-vertical">
+                  {/* All option */}
                   <button
                     onClick={() => {
+                      setSelectedFy('All FYs')
                       setSelectedMonth('All')
+                      setDrilldownFy('')
                       setDrilldownMonth('all')
                     }}
                     className={`w-full text-left text-[10px] px-2 py-0.5 rounded font-mono font-semibold transition-all border ${
-                      selectedMonth === 'All'
-                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 font-bold'
-                        : 'bg-white border-hairline text-ink-mute hover:bg-canvas'
+                      selectedFy === 'All FYs'
+                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700'
+                        : 'bg-white border-transparent text-ink-mute hover:bg-canvas'
                     }`}
                   >
-                    All Months
+                    All FYs
                   </button>
-                  {monthsForSelectedFy.map(mKey => {
-                    const label = data?.monthLabels[mKey] || mKey
-                    const isSelected = selectedMonth === mKey
+
+                  {/* FY rows — each expands into its months */}
+                  {(data?.fyList ?? []).map(fy => {
+                    const isExpanded = drilldownFy === fy
+                    const fyMonths = (data?.months ?? []).filter(mk =>
+                      data?.rows.some(r => r.monthKey === mk && r.fy === fy)
+                    )
+                    const isFySelected = selectedFy === fy && selectedMonth === 'All'
                     return (
-                      <button
-                        key={mKey}
-                        onClick={() => {
-                          setSelectedMonth(mKey)
-                          setDrilldownMonth(mKey)
-                        }}
-                        className={`w-full text-left text-[10px] px-2 py-0.5 rounded font-mono font-semibold transition-all border ${
-                          isSelected
-                            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 font-bold'
-                            : 'bg-white border-hairline text-ink-mute hover:bg-canvas'
-                        }`}
-                      >
-                        {label}
-                      </button>
+                      <div key={fy}>
+                        {/* FY header row */}
+                        <button
+                          onClick={() => {
+                            const toggled = isExpanded ? '' : fy
+                            setDrilldownFy(toggled)
+                            setSelectedFy(toggled ? fy : 'All FYs')
+                            setSelectedMonth('All')
+                            setDrilldownMonth('all')
+                          }}
+                          className={`w-full text-left text-[10px] px-2 py-0.5 rounded font-mono font-bold transition-all flex items-center justify-between border ${
+                            isFySelected
+                              ? 'bg-sky-500/10 border-sky-500/20 text-sky-700'
+                              : 'bg-white border-transparent text-ink-mute hover:bg-canvas'
+                          }`}
+                        >
+                          <span>{isExpanded ? '▾' : '▸'} {fy}</span>
+                        </button>
+
+                        {/* Expanded months */}
+                        {isExpanded && fyMonths.map(mKey => {
+                          const label = data?.monthLabels[mKey] || mKey
+                          const isMSelected = selectedMonth === mKey
+                          return (
+                            <button
+                              key={mKey}
+                              onClick={() => {
+                                setSelectedMonth(mKey)
+                                setDrilldownMonth(mKey)
+                              }}
+                              className={`w-full text-left text-[10px] pl-5 pr-2 py-0.5 rounded font-mono font-semibold transition-all border ${
+                                isMSelected
+                                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700'
+                                  : 'bg-white border-transparent text-ink-mute hover:bg-canvas'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          )
+                        })}
+                      </div>
                     )
                   })}
                 </div>
