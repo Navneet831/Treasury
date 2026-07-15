@@ -565,10 +565,13 @@ export const InterestSummary: React.FC = () => {
 
               <div>
                 <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">Month Slicer</label>
-                <div className="border border-hairline bg-canvas rounded-lg p-1 h-[100px] overflow-y-auto flex flex-col gap-1 custom-scrollbar-vertical">
+                <div className="border border-hairline bg-canvas rounded-lg p-1 h-[65px] overflow-y-auto flex flex-col gap-1 custom-scrollbar-vertical">
                   <button
-                    onClick={() => setSelectedMonth('All')}
-                    className={`w-full text-left text-[10px] px-2 py-1 rounded font-mono font-semibold transition-all border ${
+                    onClick={() => {
+                      setSelectedMonth('All')
+                      setDrilldownMonth('all')
+                    }}
+                    className={`w-full text-left text-[10px] px-2 py-0.5 rounded font-mono font-semibold transition-all border ${
                       selectedMonth === 'All'
                         ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 font-bold'
                         : 'bg-white border-hairline text-ink-mute hover:bg-canvas'
@@ -582,7 +585,10 @@ export const InterestSummary: React.FC = () => {
                     return (
                       <button
                         key={mKey}
-                        onClick={() => setSelectedMonth(mKey)}
+                        onClick={() => {
+                          setSelectedMonth(mKey)
+                          setDrilldownMonth(mKey)
+                        }}
                         className={`w-full text-left text-[10px] px-2 py-0.5 rounded font-mono font-semibold transition-all border ${
                           isSelected
                             ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 font-bold'
@@ -683,20 +689,20 @@ export const InterestSummary: React.FC = () => {
                 {viewMode === 'all' && (
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-canvas-soft border-b border-hairline">
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono cursor-pointer select-none" onClick={() => handleSort('type')}>Type {renderSortIndicator('type')}</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono cursor-pointer select-none" onClick={() => handleSort('account')}>Account {renderSortIndicator('account')}</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono cursor-pointer select-none" onClick={() => handleSort('bank')}>Bank {renderSortIndicator('bank')}</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono cursor-pointer select-none" onClick={() => handleSort('fy')}>FY {renderSortIndicator('fy')}</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono cursor-pointer select-none" onClick={() => handleSort('monthKey')}>Month {renderSortIndicator('monthKey')}</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono text-right cursor-pointer select-none" onClick={() => handleSort('openingBal')}>Opening Bal {renderSortIndicator('openingBal')}</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono text-right cursor-pointer select-none" onClick={() => handleSort('closingBal')}>Closing Bal {renderSortIndicator('closingBal')}</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono text-right cursor-pointer select-none" onClick={() => handleSort('roi')}>ROI (%) {renderSortIndicator('roi')}</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono text-right cursor-pointer select-none" onClick={() => handleSort('intRecovered')}>Int Recovered {renderSortIndicator('intRecovered')}</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono text-right cursor-pointer select-none" onClick={() => handleSort('intCalculated')}>Int Calculated {renderSortIndicator('intCalculated')}</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono text-right cursor-pointer select-none" onClick={() => handleSort('variance')}>Variance {renderSortIndicator('variance')}</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono text-right cursor-pointer select-none" onClick={() => handleSort('variancePct')}>Var % {renderSortIndicator('variancePct')}</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono text-center">Data</th>
+                      <tr className="bg-slate-100 border-b border-hairline text-[10px] font-mono text-ink-mute uppercase">
+                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-left cursor-pointer select-none" onClick={() => handleSort('type')}>Type {renderSortIndicator('type')}</th>
+                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-left cursor-pointer select-none" onClick={() => handleSort('account')}>Account {renderSortIndicator('account')}</th>
+                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-left cursor-pointer select-none" onClick={() => handleSort('bank')}>Bank {renderSortIndicator('bank')}</th>
+                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-left cursor-pointer select-none" onClick={() => handleSort('fy')}>FY {renderSortIndicator('fy')}</th>
+                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-left cursor-pointer select-none" onClick={() => handleSort('monthKey')}>Month {renderSortIndicator('monthKey')}</th>
+                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('openingBal')}>Opening Bal {renderSortIndicator('openingBal')}</th>
+                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('closingBal')}>Closing Bal {renderSortIndicator('closingBal')}</th>
+                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('roi')}>ROI (%) {renderSortIndicator('roi')}</th>
+                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('intRecovered')}>Int Recovered {renderSortIndicator('intRecovered')}</th>
+                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('intCalculated')}>Int Calculated {renderSortIndicator('intCalculated')}</th>
+                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('variance')}>Variance {renderSortIndicator('variance')}</th>
+                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('variancePct')}>Var % {renderSortIndicator('variancePct')}</th>
+                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-center">Data</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-hairline text-xs">
@@ -756,14 +762,21 @@ export const InterestSummary: React.FC = () => {
                 {viewMode === 'summary' && (
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-canvas-soft border-b border-hairline">
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono">Type</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono">Account</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono">Bank</th>
+                      <tr className="bg-slate-100 border-b border-hairline text-[10px] font-mono text-ink-mute uppercase">
+                        <th rowSpan={2} className="sticky top-0 bg-slate-100 z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('type')}>Type {renderSortIndicator('type')}</th>
+                        <th rowSpan={2} className="sticky top-0 bg-slate-100 z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('account')}>Account {renderSortIndicator('account')}</th>
+                        <th rowSpan={2} className="sticky top-0 bg-slate-100 z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('bank')}>Bank {renderSortIndicator('bank')}</th>
+                        {activeMonthsList.map(m => (
+                          <th key={m} colSpan={2} className="sticky top-0 bg-sky-50 z-10 p-1.5 font-bold text-ink border-l border-hairline text-center">
+                            {data?.monthLabels[m]}
+                          </th>
+                        ))}
+                      </tr>
+                      <tr className="bg-slate-50 border-b border-hairline text-[9px] font-mono text-ink-mute uppercase">
                         {activeMonthsList.map(m => (
                           <React.Fragment key={m}>
-                            <th className="sticky top-0 bg-sky-100 z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Open ({data?.monthLabels[m]})</th>
-                            <th className="sticky top-0 bg-amber-100 z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Close ({data?.monthLabels[m]})</th>
+                            <th className="sticky top-[28px] bg-slate-50 z-10 p-1 border-l border-hairline text-right">Open</th>
+                            <th className="sticky top-[28px] bg-slate-50 z-10 p-1 text-right">Close</th>
                           </React.Fragment>
                         ))}
                       </tr>
@@ -794,26 +807,25 @@ export const InterestSummary: React.FC = () => {
                 {viewMode === 'pivot' && (
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-canvas-soft border-b border-hairline">
-                        <th className="sticky top-0 bg-canvas-soft z-20 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono">Type</th>
-                        <th className="sticky top-0 bg-canvas-soft z-20 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono">Account</th>
-                        <th className="sticky top-0 bg-canvas-soft z-20 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono">Bank</th>
+                      <tr className="bg-slate-100 border-b border-hairline text-[10px] font-mono text-ink-mute uppercase">
+                        <th rowSpan={2} className="sticky top-0 bg-slate-100 z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('type')}>Type {renderSortIndicator('type')}</th>
+                        <th rowSpan={2} className="sticky top-0 bg-slate-100 z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('account')}>Account {renderSortIndicator('account')}</th>
+                        <th rowSpan={2} className="sticky top-0 bg-slate-100 z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('bank')}>Bank {renderSortIndicator('bank')}</th>
                         {activeMonthsList.map(m => (
-                          <th key={m} colSpan={6} className="sticky top-0 bg-emerald-100 z-10 p-2 text-[10px] font-bold text-ink border-l border-hairline text-center">
+                          <th key={m} colSpan={6} className="sticky top-0 bg-emerald-50 z-10 p-1.5 font-bold text-ink border-l border-hairline text-center">
                             {data?.monthLabels[m]}
                           </th>
                         ))}
                       </tr>
-                      <tr className="bg-canvas-soft/70 border-b border-hairline text-[9px] font-mono text-ink-mute uppercase">
-                        <th colSpan={3} className="sticky top-[38px] bg-canvas-soft z-20"></th>
+                      <tr className="bg-slate-50 border-b border-hairline text-[9px] font-mono text-ink-mute uppercase">
                         {activeMonthsList.map(m => (
                           <React.Fragment key={m}>
-                            <th className="sticky top-[38px] bg-canvas-soft z-10 p-2 border-l border-hairline text-right">ROI</th>
-                            <th className="sticky top-[38px] bg-canvas-soft z-10 p-2 text-right">Open</th>
-                            <th className="sticky top-[38px] bg-canvas-soft z-10 p-2 text-right">Close</th>
-                            <th className="sticky top-[38px] bg-canvas-soft z-10 p-2 text-right">Recov.</th>
-                            <th className="sticky top-[38px] bg-canvas-soft z-10 p-2 text-right">Calc.</th>
-                            <th className="sticky top-[38px] bg-canvas-soft z-10 p-2 text-right">Var</th>
+                            <th className="sticky top-[28px] bg-slate-50 z-10 p-1 border-l border-hairline text-right">ROI</th>
+                            <th className="sticky top-[28px] bg-slate-50 z-10 p-1 text-right">Open</th>
+                            <th className="sticky top-[28px] bg-slate-50 z-10 p-1 text-right">Close</th>
+                            <th className="sticky top-[28px] bg-slate-50 z-10 p-1 text-right">Recov.</th>
+                            <th className="sticky top-[28px] bg-slate-50 z-10 p-1 text-right">Calc.</th>
+                            <th className="sticky top-[28px] bg-slate-50 z-10 p-1 text-right">Var</th>
                           </React.Fragment>
                         ))}
                       </tr>
