@@ -87,6 +87,8 @@ export const InterestSummary: React.FC = () => {
 
   // Drill-down FY state (which FY is expanded in the FY→Month tree)
   const [drilldownFy, setDrilldownFy] = useState<string>('')
+  // Drill-down month state (which month is expanded to show accounts)
+  const [drilldownMonthExpanded, setDrilldownMonthExpanded] = useState<string>('')
 
   // Sorting State
   const [sortColumn, setSortColumn] = useState<string>('')
@@ -545,7 +547,7 @@ export const InterestSummary: React.FC = () => {
 
               <div>
                 <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">FY / Month</label>
-                <div className="border border-hairline bg-canvas rounded-lg p-1 h-[90px] overflow-y-auto flex flex-col gap-0.5 custom-scrollbar-vertical">
+                <div className="border border-hairline bg-canvas rounded-lg p-1 h-[130px] overflow-y-auto flex flex-col gap-0.5 custom-scrollbar-vertical">
                   {/* All option */}
                   <button
                     onClick={() => {
@@ -563,7 +565,7 @@ export const InterestSummary: React.FC = () => {
                     All FYs
                   </button>
 
-                  {/* FY rows — each expands into its months */}
+                  {/* FY rows — each expands into months, then accounts */}
                   {(data?.fyList ?? []).map(fy => {
                     const isExpanded = drilldownFy === fy
                     const fyMonths = (data?.months ?? []).filter(mk =>
@@ -572,7 +574,7 @@ export const InterestSummary: React.FC = () => {
                     const isFySelected = selectedFy === fy && selectedMonth === 'All'
                     return (
                       <div key={fy}>
-                        {/* FY header row */}
+                        {/* Level 1: FY row */}
                         <button
                           onClick={() => {
                             const toggled = isExpanded ? '' : fy
@@ -580,6 +582,7 @@ export const InterestSummary: React.FC = () => {
                             setSelectedFy(toggled ? fy : 'All FYs')
                             setSelectedMonth('All')
                             setDrilldownMonth('all')
+                            setDrilldownMonthExpanded('')
                           }}
                           className={`w-full text-left text-[10px] px-2 py-0.5 rounded font-mono font-bold transition-all flex items-center justify-between border ${
                             isFySelected
@@ -590,25 +593,56 @@ export const InterestSummary: React.FC = () => {
                           <span>{isExpanded ? '▾' : '▸'} {fy}</span>
                         </button>
 
-                        {/* Expanded months */}
+                        {/* Level 2: Month rows under expanded FY */}
                         {isExpanded && fyMonths.map(mKey => {
                           const label = data?.monthLabels[mKey] || mKey
                           const isMSelected = selectedMonth === mKey
+                          const isMExpanded = drilldownMonthExpanded === mKey
+                          // Accounts for this FY+month
+                          const mAccounts = (data?.rows ?? []).filter(
+                            r => r.monthKey === mKey && r.fy === fy && r.tableFound
+                          )
                           return (
-                            <button
-                              key={mKey}
-                              onClick={() => {
-                                setSelectedMonth(mKey)
-                                setDrilldownMonth(mKey)
-                              }}
-                              className={`w-full text-left text-[10px] pl-5 pr-2 py-0.5 rounded font-mono font-semibold transition-all border ${
-                                isMSelected
-                                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700'
-                                  : 'bg-white border-transparent text-ink-mute hover:bg-canvas'
-                              }`}
-                            >
-                              {label}
-                            </button>
+                            <div key={mKey}>
+                              {/* Month toggle button */}
+                              <button
+                                onClick={() => {
+                                  setSelectedMonth(mKey)
+                                  setDrilldownMonth(mKey)
+                                  setDrilldownMonthExpanded(isMExpanded ? '' : mKey)
+                                }}
+                                className={`w-full text-left text-[10px] pl-4 pr-2 py-0.5 rounded font-mono font-semibold transition-all flex items-center gap-1 border ${
+                                  isMSelected
+                                    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700'
+                                    : 'bg-white border-transparent text-ink-mute hover:bg-canvas'
+                                }`}
+                              >
+                                <span className="opacity-60 text-[9px]">{isMExpanded ? '▾' : '▸'}</span>
+                                {label}
+                              </button>
+
+                              {/* Level 3: Account buttons */}
+                              {isMExpanded && mAccounts.map(r => {
+                                const isAcctSelected = drilldownAccount === r.account
+                                return (
+                                  <button
+                                    key={r.account}
+                                    onClick={() => {
+                                      setDrilldownAccount(r.account)
+                                      setDrilldownMonth(mKey)
+                                      fetchTransactions(r.account)
+                                    }}
+                                    className={`w-full text-left text-[10px] pl-8 pr-2 py-0.5 rounded font-mono transition-all border ${
+                                      isAcctSelected
+                                        ? 'bg-violet-500/10 border-violet-500/20 text-violet-700 font-bold'
+                                        : 'bg-white border-transparent text-ink-mute hover:bg-canvas'
+                                    }`}
+                                  >
+                                    {r.account}
+                                  </button>
+                                )
+                              })}
+                            </div>
                           )
                         })}
                       </div>
