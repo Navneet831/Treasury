@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   Percent, ArrowDownToLine, RefreshCw, Grid, Table, CheckCircle2, XCircle, HelpCircle,
-  TrendingUp, CreditCard, AlertTriangle, Building, BookOpen, Layers
+  TrendingUp, CreditCard, AlertTriangle, Building, BookOpen, Layers, Search
 } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -89,6 +89,10 @@ export const InterestSummary: React.FC = () => {
   const [drilldownFy, setDrilldownFy] = useState<string>('')
   // Drill-down month state (which month is expanded to show accounts)
   const [drilldownMonthExpanded, setDrilldownMonthExpanded] = useState<string>('')
+
+  // Account search within Account Interest Analysis panel
+  const [acctSearch, setAcctSearch] = useState<string>('')
+  const [acctSearchOpen, setAcctSearchOpen] = useState<boolean>(false)
 
   // Sorting State
   const [sortColumn, setSortColumn] = useState<string>('')
@@ -927,12 +931,67 @@ export const InterestSummary: React.FC = () => {
                     <h3 className="text-[10px] font-bold text-ink tracking-wide uppercase font-mono">Account Interest Analysis</h3>
                   </div>
 
-                  {/* Key facts row */}
-                  <div className="bg-canvas rounded-lg px-2 py-1.5 text-[10px] divide-y divide-hairline/50 font-mono">
-                    <div className="flex justify-between py-1">
-                      <span className="text-ink-mute">Account</span>
-                      <span className="font-semibold text-ink truncate max-w-[140px]" title={drilldownAccount}>{drilldownAccount}</span>
+                  {/* Account Search Combobox */}
+                  <div className="relative">
+                    <div
+                      className="flex items-center gap-1 border border-hairline bg-canvas rounded-lg px-2 py-1 cursor-text"
+                      onClick={() => { setAcctSearchOpen(true); setAcctSearch('') }}
+                    >
+                      <Search className="w-3 h-3 text-ink-mute shrink-0" />
+                      {acctSearchOpen ? (
+                        <input
+                          autoFocus
+                          value={acctSearch}
+                          onChange={e => setAcctSearch(e.target.value)}
+                          onBlur={() => setTimeout(() => setAcctSearchOpen(false), 150)}
+                          placeholder="Search account no..."
+                          className="flex-1 text-[10px] font-mono bg-transparent outline-none text-ink placeholder-ink-faint"
+                        />
+                      ) : (
+                        <span className="flex-1 text-[10px] font-mono font-semibold text-ink truncate" title={drilldownAccount}>
+                          {drilldownAccount}
+                        </span>
+                      )}
                     </div>
+
+                    {/* Dropdown results */}
+                    {acctSearchOpen && (() => {
+                      const allAccts = Array.from(new Set(processedRows.map(r => r.account)))
+                      const filtered = acctSearch
+                        ? allAccts.filter(a => a.toLowerCase().includes(acctSearch.toLowerCase()))
+                        : allAccts
+                      return filtered.length > 0 ? (
+                        <div className="absolute z-30 top-full left-0 right-0 mt-0.5 bg-white border border-hairline rounded-lg shadow-lg overflow-y-auto max-h-40 custom-scrollbar-vertical">
+                          {filtered.map(acct => {
+                            const info = processedRows.find(r => r.account === acct)
+                            const isSelected = drilldownAccount === acct
+                            return (
+                              <button
+                                key={acct}
+                                onMouseDown={() => {
+                                  setDrilldownAccount(acct)
+                                  setAcctSearch('')
+                                  setAcctSearchOpen(false)
+                                  fetchTransactions(acct)
+                                }}
+                                className={`w-full text-left px-2 py-1 text-[10px] font-mono flex items-center justify-between transition-colors ${
+                                  isSelected
+                                    ? 'bg-emerald-500/10 text-emerald-700 font-bold'
+                                    : 'hover:bg-canvas text-ink'
+                                }`}
+                              >
+                                <span className="truncate">{acct}</span>
+                                {info && <span className="text-[9px] text-ink-mute ml-1 shrink-0">{info.bank}</span>}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      ) : null
+                    })()}
+                  </div>
+
+                  {/* Key facts */}
+                  <div className="bg-canvas rounded-lg px-2 py-1.5 text-[10px] divide-y divide-hairline/50 font-mono">
                     {processedRows.filter(r => r.account === drilldownAccount).slice(0, 1).map((info, idx) => (
                       <React.Fragment key={idx}>
                         <div className="flex justify-between py-1">
