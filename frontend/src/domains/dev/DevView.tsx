@@ -16,6 +16,13 @@ interface DbConnection {
   user: string;
   database: string;
   ssl: boolean;
+  masked_password?: string;
+}
+
+interface SchemaColumn {
+  table: string;
+  column: string;
+  type: string;
 }
 
 interface DataStats {
@@ -57,6 +64,7 @@ interface DbConfigResponse {
   dataStats: DataStats | null;
   dataLogic: DataLogic | null;
   gitInfo: GitInfo | null;
+  dbSchema: SchemaColumn[] | null;
 }
 
 // ─── Main View ────────────────────────────────────────────────────────────────
@@ -92,13 +100,18 @@ export const DevView: React.FC = () => {
   }, [])
 
   const fetchWhitelist = useCallback(async () => {
+    if (!user?.email) {
+      setWhitelist([])
+      setLoadingWhitelist(false)
+      return
+    }
     setLoadingWhitelist(true)
     setWhitelistError(null)
     try {
       const { data, error } = await supabase
         .from('whitelist')
         .select('*')
-        .order('email', { ascending: true })
+        .ilike('email', user.email)
 
       if (error) throw error
       setWhitelist(data || [])
@@ -108,7 +121,7 @@ export const DevView: React.FC = () => {
     } finally {
       setLoadingWhitelist(false)
     }
-  }, [])
+  }, [user])
 
   useEffect(() => {
     fetchConfig()
@@ -136,12 +149,6 @@ export const DevView: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {lastFetched && (
-            <span className="text-xs font-mono text-ink-mute flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5" />
-              {lastFetched.toLocaleTimeString()}
-            </span>
-          )}
           <button
             onClick={() => { fetchConfig(); fetchWhitelist(); }}
             disabled={loading || loadingWhitelist}
@@ -176,6 +183,9 @@ export const DevView: React.FC = () => {
                 <DbRow icon={<Server className="w-3.5 h-3.5 text-sky-600" />} label="PG_HOST" value={conn.host} />
                 <DbRow icon={<Hash className="w-3.5 h-3.5 text-violet-600" />} label="PG_PORT" value={String(conn.port)} />
                 <DbRow icon={<User className="w-3.5 h-3.5 text-amber-600" />} label="PG_USER" value={conn.user} />
+                {conn.masked_password && (
+                  <DbRow icon={<Shield className="w-3.5 h-3.5 text-rose-500" />} label="PG_PASSWORD" value={conn.masked_password} />
+                )}
                 <DbRow icon={<Layers className="w-3.5 h-3.5 text-emerald-600" />} label="PG_DATABASE" value={conn.database} />
                 <DbRow icon={<Info className="w-3.5 h-3.5 text-slate-500" />} label="SSL" value={conn.ssl ? 'enabled' : 'disabled'} />
                 <DbRow
@@ -306,13 +316,15 @@ export const DevView: React.FC = () => {
 
           {/* ── DB Schema ── */}
           <DarkCard title="DB Schema" icon={<Database className="w-4 h-4 text-blue-600" />}>
-            <SchemaRow table="LC" col="PO NO / LC no." type="text — references" />
-            <SchemaRow table="LC" col="LC Op. Date / Close date" type="timestamp → cast ::date" />
-            <SchemaRow table="LC" col="Final LC Amt (in INR)" type="numeric — KPI amount" />
-            <SchemaRow table="LC" col="Supplier Name" type="text — vendor lookup" />
-            <SchemaRow table="LC" col="BOE Status / Payment Status" type="text — state logic" />
-            <SchemaRow table="whitelist" col="email" type="text — primary key" />
-            <SchemaRow table="whitelist" col="agentation / audit" type="boolean — feature permissions" />
+            <div className="max-h-72 overflow-y-auto custom-scrollbar-vertical divide-y divide-hairline w-full">
+              {config?.dbSchema && config.dbSchema.length > 0 ? (
+                config.dbSchema.map((col, idx) => (
+                  <SchemaRow key={idx} table={col.table} col={col.column} type={col.type} />
+                ))
+              ) : (
+                <p className="py-4 text-xs text-ink-mute font-mono">No schema information loaded.</p>
+              )}
+            </div>
           </DarkCard>
 
           {/* ── Column Mapping ── */}

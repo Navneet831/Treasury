@@ -125,12 +125,39 @@ async def get_db_config():
         data_stats["cacheStatus"] = "error"
         connection_error = f"Stats query failed: {str(ex)}"
 
+    db_schema = []
+    try:
+        lc_cols = fetch_dict(
+            "SELECT column_name, data_type FROM information_schema.columns "
+            "WHERE table_name = 'LC' AND table_schema = 'public' ORDER BY ordinal_position"
+        )
+        for c in lc_cols:
+            db_schema.append({
+                "table": "LC",
+                "column": c["column_name"],
+                "type": c["data_type"]
+            })
+            
+        wl_cols = fetch_dict(
+            "SELECT column_name, data_type FROM information_schema.columns "
+            "WHERE table_name = 'whitelist' AND table_schema = 'public' ORDER BY ordinal_position"
+        )
+        for c in wl_cols:
+            db_schema.append({
+                "table": "whitelist",
+                "column": c["column_name"],
+                "type": c["data_type"]
+            })
+    except Exception as ex:
+        logger.warning(f"Failed to fetch DB schema: {ex}")
+
     return {
         "connection": connection,
         "source": source,
         "connectionError": connection_error,
         "dataStats": data_stats,
         "gitInfo": git_info,
+        "dbSchema": db_schema,
         "dataLogic": {
             "table": "public.LC",
             "dateColumn": '"LC Op. Date"',
