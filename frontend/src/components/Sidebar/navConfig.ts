@@ -1,6 +1,6 @@
 import {
   Calendar, Zap, Sparkles, Globe,
-  Gauge, Package, BookOpen, FileSearch, Layers, Terminal
+  Gauge, Package, BookOpen, FileSearch, Layers, Terminal, Percent
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -28,6 +28,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { id: 'cashflow',  label: 'Cash Flow',    icon: Zap },
       { id: 'fx',        label: 'FX & Hedging', icon: Globe },
+      { id: 'interest',  label: 'Interest Summary', icon: Percent },
       { id: 'ops',       label: 'Operations',   icon: Package },
       { id: 'lifecycle', label: 'LC Lifecycle', icon: Layers },
       { id: 'research',  label: 'Intelligence', icon: BookOpen },

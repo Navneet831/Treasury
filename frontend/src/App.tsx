@@ -23,6 +23,7 @@ const LifecycleTracker = lazy(() => import('./domains/lc').then(m => ({ default:
 const LimitUtilization = lazy(() => import('./domains/utilization').then(m => ({ default: m.LimitUtilization })))
 const TransactionLedger = lazy(() => import('./domains/ledger').then(m => ({ default: m.TransactionLedger })))
 const DevView = lazy(() => import('./domains/dev/DevView').then(m => ({ default: m.DevView })))
+const InterestSummary = lazy(() => import('./domains/interest/InterestSummary').then(m => ({ default: m.InterestSummary })))
 
 // Legacy view ids (old shell links, bookmarks) → consolidated tabs
 const LEGACY_ALIASES: Record<string, string> = {
@@ -167,6 +168,7 @@ const App: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
       case 'calendar':     return <DomainSandbox name="Calendar"><CalendarView /></DomainSandbox>
       case 'cashflow':     return <DomainSandbox name="Cash Flow"><CashFlowView /></DomainSandbox>
       case 'fx':           return <DomainSandbox name="FX & Hedging"><FXView /></DomainSandbox>
+      case 'interest':     return <DomainSandbox name="Interest Summary"><InterestSummary /></DomainSandbox>
       case 'ops':          return <DomainSandbox name="Operations"><OperationsView /></DomainSandbox>
       case 'lifecycle':    return <DomainSandbox name="LC Lifecycle"><LifecycleTracker /></DomainSandbox>
       case 'research':     return <DomainSandbox name="Intelligence"><IntelligenceView /></DomainSandbox>

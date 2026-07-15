@@ -351,6 +351,10 @@ from apps.Treasury.backend.database import fetch_dict
 async def ai_copilot(query: str = Body(..., embed=True)):
     return datalogic.process_ai_query(query)
 
+@router.get("/interest-summary")
+async def get_interest_summary():
+    return datalogic.get_interest_summary_data()
+
 @router.get("/tables")
 async def get_tables():
     try:
