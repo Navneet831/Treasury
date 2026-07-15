@@ -118,7 +118,7 @@ def get_repo() -> IRepository:
             import urllib.request
             import json
 
-            edge_url = f"{supabase_url.rstrip('/')}/functions/v1/db-credentials"
+            edge_url = f"{supabase_url.rstrip('/')}/functions/v1/credentials"
             req = urllib.request.Request(
                 edge_url,
                 headers={
