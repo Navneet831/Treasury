@@ -324,7 +324,7 @@ export const InterestSummary: React.FC = () => {
             <Percent className="w-5 h-5 text-emerald-600" />
           </div>
           <div>
-            <h1 className="text-sm font-semibold text-ink">Interest Summary</h1>
+            <h1 className="text-sm font-semibold text-ink">interest</h1>
             <p className="text-xs text-ink-mute mt-0.5">
               Reconciliation between interest charged vs calculated simple interest on daily statement balances.
             </p>

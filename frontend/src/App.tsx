@@ -168,7 +168,7 @@ const App: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
       case 'calendar':     return <DomainSandbox name="Calendar"><CalendarView /></DomainSandbox>
       case 'cashflow':     return <DomainSandbox name="Cash Flow"><CashFlowView /></DomainSandbox>
       case 'fx':           return <DomainSandbox name="FX & Hedging"><FXView /></DomainSandbox>
-      case 'interest':     return <DomainSandbox name="Interest Summary"><InterestSummary /></DomainSandbox>
+      case 'interest':     return <DomainSandbox name="interest"><InterestSummary /></DomainSandbox>
       case 'ops':          return <DomainSandbox name="Operations"><OperationsView /></DomainSandbox>
       case 'lifecycle':    return <DomainSandbox name="LC Lifecycle"><LifecycleTracker /></DomainSandbox>
       case 'research':     return <DomainSandbox name="Intelligence"><IntelligenceView /></DomainSandbox>

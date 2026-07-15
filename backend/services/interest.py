@@ -1,5 +1,6 @@
 import calendar
 import logging
+import math
 import re
 from datetime import datetime, date, timedelta
 from typing import Any, Dict, List
@@ -9,6 +10,17 @@ from apps.Treasury.backend.database import fetch_dict
 from apps.Treasury.backend.services.core import ttl_cache
 
 logger = logging.getLogger(__name__)
+
+def clean_float(val):
+    if val is None:
+        return None
+    try:
+        f_val = float(val)
+        if math.isnan(f_val) or math.isinf(f_val):
+            return None
+        return f_val
+    except (ValueError, TypeError):
+        return None
 
 def parse_date_flexible(val):
     if not val:
@@ -260,13 +272,13 @@ def get_interest_summary_data() -> Dict[str, Any]:
                 "month": month_labels[mk],
                 "monthKey": mk,
                 "fy": get_fy_label(dt),
-                "openingBal": opening_bal,
-                "closingBal": closing_bal,
-                "roi": float(roi_val) if roi_val is not None else None,
-                "intRecovered": int_recovered,
-                "intCalculated": int_calculated,
-                "variance": variance,
-                "variancePct": variance_pct,
+                "openingBal": clean_float(opening_bal),
+                "closingBal": clean_float(closing_bal),
+                "roi": clean_float(roi_val),
+                "intRecovered": clean_float(int_recovered),
+                "intCalculated": clean_float(int_calculated),
+                "variance": clean_float(variance),
+                "variancePct": clean_float(variance_pct),
                 "tableFound": True if tbl_name else False,
                 "tableName": tbl_name
             })
