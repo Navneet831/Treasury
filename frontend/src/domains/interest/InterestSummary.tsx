@@ -918,70 +918,94 @@ export const InterestSummary: React.FC = () => {
 
             {/* Drilldown Section */}
             {drilldownAccount && (
-              <div className="bg-white rounded-xl border border-hairline shadow-sm overflow-hidden flex flex-col xl:flex-row gap-6 p-6">
+              <div className="bg-white rounded-xl border border-hairline shadow-sm overflow-hidden flex flex-col xl:flex-row gap-3 p-3">
                 
-                {/* Account Details Box */}
-                <div className="w-full xl:w-2/5 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <BookOpen className="w-4 h-4 text-emerald-600" />
-                    <h3 className="text-xs font-bold text-ink tracking-wide uppercase font-mono">Account Interest Analysis</h3>
+                {/* Account Details Box — compact left panel */}
+                <div className="w-full xl:w-[280px] shrink-0 space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
+                    <h3 className="text-[10px] font-bold text-ink tracking-wide uppercase font-mono">Account Interest Analysis</h3>
                   </div>
 
-                  <div className="p-4 bg-canvas rounded-lg space-y-3.5 text-xs">
-                    <div className="flex justify-between py-1.5 border-b border-hairline/60">
-                      <span className="text-ink-mute font-medium">Account Number</span>
-                      <span className="font-mono font-semibold text-ink">{drilldownAccount}</span>
+                  {/* Key facts row */}
+                  <div className="bg-canvas rounded-lg px-2 py-1.5 text-[10px] divide-y divide-hairline/50 font-mono">
+                    <div className="flex justify-between py-1">
+                      <span className="text-ink-mute">Account</span>
+                      <span className="font-semibold text-ink truncate max-w-[140px]" title={drilldownAccount}>{drilldownAccount}</span>
                     </div>
                     {processedRows.filter(r => r.account === drilldownAccount).slice(0, 1).map((info, idx) => (
                       <React.Fragment key={idx}>
-                        <div className="flex justify-between py-1.5 border-b border-hairline/60">
-                          <span className="text-ink-mute font-medium">Type / Bank</span>
-                          <span className="text-ink font-semibold">{info.type} | {info.bank}</span>
+                        <div className="flex justify-between py-1">
+                          <span className="text-ink-mute">Type / Bank</span>
+                          <span className="font-semibold text-ink">{info.type} | {info.bank}</span>
                         </div>
-                        <div className="flex justify-between py-1.5 border-b border-hairline/60">
-                          <span className="text-ink-mute font-medium">ROI rate</span>
-                          <span className="font-mono font-bold text-sky-600">{info.roi !== null ? `${info.roi.toFixed(2)}%` : 'No ROI configured'}</span>
+                        <div className="flex justify-between py-1">
+                          <span className="text-ink-mute">ROI</span>
+                          <span className="font-bold text-sky-600">{info.roi !== null ? `${info.roi.toFixed(2)}%` : '—'}</span>
                         </div>
                       </React.Fragment>
                     ))}
                   </div>
 
-                  {/* Monthly data cards */}
-                  <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar-vertical">
-                    <h4 className="text-[10px] font-bold text-ink-mute uppercase tracking-wide font-mono">Monthly Splits</h4>
-                    {processedRows.filter(r => r.account === drilldownAccount).map((r, idx) => (
-                      <div key={idx} className="flex justify-between items-center p-3 rounded-lg border border-hairline/60 hover:bg-canvas transition-colors">
-                        <div>
-                          <div className="text-xs font-bold text-ink font-mono">{r.month}</div>
-                          <div className="text-[10px] text-ink-mute">ROI: {r.roi !== null ? `${r.roi.toFixed(2)}%` : '-'}</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs font-bold text-emerald-600 font-mono">₹ {formatAmt(r.intRecovered)} <span className="text-[9px] text-ink-mute font-normal">Rec</span></div>
-                          <div className="text-[10px] text-ink-mute font-mono">₹ {formatAmt(r.intCalculated)} <span className="text-[9px] text-ink-faint">Calc</span></div>
-                        </div>
+                  {/* Monthly splits — compact table style */}
+                  <div>
+                    <div className="text-[9px] font-bold text-ink-mute uppercase tracking-wide font-mono mb-1">Monthly Splits <span className="font-normal normal-case">(click row to load statements)</span></div>
+                    <div className="border border-hairline rounded-lg overflow-hidden">
+                      <div className="overflow-y-auto max-h-[280px] custom-scrollbar-vertical">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-slate-100 text-[9px] font-mono text-ink-mute uppercase">
+                              <th className="sticky top-0 bg-slate-100 p-1.5 font-bold">Month</th>
+                              <th className="sticky top-0 bg-slate-100 p-1.5 font-bold text-right">ROI</th>
+                              <th className="sticky top-0 bg-slate-100 p-1.5 font-bold text-right text-emerald-700">Rec</th>
+                              <th className="sticky top-0 bg-slate-100 p-1.5 font-bold text-right">Calc</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-hairline text-[10px] font-mono">
+                            {processedRows.filter(r => r.account === drilldownAccount).map((r, idx) => {
+                              const isActive = drilldownMonth === r.monthKey
+                              return (
+                                <tr
+                                  key={idx}
+                                  onClick={() => {
+                                    setDrilldownMonth(r.monthKey)
+                                    fetchTransactions(r.account)
+                                  }}
+                                  className={`cursor-pointer transition-colors hover:bg-emerald-500/5 ${isActive ? 'bg-emerald-500/10' : ''}`}
+                                >
+                                  <td className="p-1.5 font-semibold text-ink">{r.month}</td>
+                                  <td className="p-1.5 text-right text-sky-600">{r.roi !== null ? `${r.roi.toFixed(2)}%` : '-'}</td>
+                                  <td className="p-1.5 text-right text-emerald-600 font-medium">{formatAmt(r.intRecovered)}</td>
+                                  <td className="p-1.5 text-right text-ink-mute">{formatAmt(r.intCalculated)}</td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
                       </div>
-                    ))}
+                    </div>
                   </div>
                 </div>
 
-                {/* Transactions list Box */}
-                <div className="flex-1 space-y-4">
+                {/* Transactions list Box — wider, taller */}
+                <div className="flex-1 flex flex-col gap-2 min-w-0">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-2">
-                        <Table className="w-4 h-4 text-emerald-600" />
-                        <h3 className="text-xs font-bold text-ink tracking-wide uppercase font-mono">Statement Transactions</h3>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1.5">
+                        <Table className="w-3.5 h-3.5 text-emerald-600" />
+                        <h3 className="text-[10px] font-bold text-ink tracking-wide uppercase font-mono">Statement Transactions</h3>
+                        {drilldownAccount && <span className="text-[9px] font-mono text-ink-mute bg-canvas border border-hairline rounded px-1.5 py-0.5">{drilldownAccount}</span>}
                       </div>
                       
                       {/* Month filter select */}
-                      <div className="flex items-center gap-1.5 bg-canvas border border-hairline rounded px-1.5 py-0.5">
+                      <div className="flex items-center gap-1 bg-canvas border border-hairline rounded px-1.5 py-0.5">
                         <span className="text-[9px] font-bold text-ink-mute uppercase font-mono">Month:</span>
                         <select
                           value={drilldownMonth}
                           onChange={(e) => setDrilldownMonth(e.target.value)}
-                          className="text-[10px] bg-transparent text-ink font-mono outline-none border-none cursor-pointer"
+                          className="text-[9px] bg-transparent text-ink font-mono outline-none border-none cursor-pointer"
                         >
-                          <option value="all">All Months</option>
+                          <option value="all">All</option>
                           {data?.months.map(m => (
                             <option key={m} value={m}>
                               {data?.monthLabels[m]}
@@ -991,7 +1015,7 @@ export const InterestSummary: React.FC = () => {
                       </div>
                     </div>
                     {filteredTxns.length > 0 && (
-                      <span className="text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded-full font-mono">
+                      <span className="text-[9px] font-semibold bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded-full font-mono">
                         {filteredTxns.length === txnList.length 
                           ? `${txnList.length} rows` 
                           : `${filteredTxns.length} / ${txnList.length} rows`}
@@ -1000,8 +1024,8 @@ export const InterestSummary: React.FC = () => {
                   </div>
 
                   {loadingTxns ? (
-                    <div className="flex flex-col items-center justify-center py-12 gap-2 bg-canvas rounded-xl border border-hairline border-dashed">
-                      <RefreshCw className="w-6 h-6 text-emerald-600 animate-spin" />
+                    <div className="flex flex-col items-center justify-center py-10 gap-2 bg-canvas rounded-xl border border-hairline border-dashed flex-1">
+                      <RefreshCw className="w-5 h-5 text-emerald-600 animate-spin" />
                       <p className="text-[10px] text-ink-mute font-mono">Loading transaction statements...</p>
                     </div>
                   ) : txnError ? (
@@ -1009,26 +1033,26 @@ export const InterestSummary: React.FC = () => {
                       {txnError}
                     </div>
                   ) : txnList.length > 0 ? (
-                    <div className="border border-hairline rounded-xl overflow-hidden bg-canvas">
-                      <div className="overflow-x-auto max-h-72 custom-scrollbar-vertical custom-scrollbar-horizontal">
+                    <div className="border border-hairline rounded-xl overflow-hidden bg-canvas flex-1">
+                      <div className="overflow-auto max-h-[420px] custom-scrollbar-vertical custom-scrollbar-horizontal">
                         <table className="w-full text-left border-collapse">
                           <thead>
-                            <tr className="bg-white border-b border-hairline text-[9px] font-bold text-ink-mute uppercase font-mono">
-                              <th className="sticky top-0 bg-white z-10 p-2.5">Date</th>
-                              <th className="sticky top-0 bg-white z-10 p-2.5">Description</th>
-                              <th className="sticky top-0 bg-white z-10 p-2.5 text-right">Debit</th>
-                              <th className="sticky top-0 bg-white z-10 p-2.5 text-right">Credit</th>
-                              <th className="sticky top-0 bg-white z-10 p-2.5 text-right">Balance</th>
+                            <tr className="bg-slate-100 border-b border-hairline text-[9px] font-bold text-ink-mute uppercase font-mono">
+                              <th className="sticky top-0 bg-slate-100 z-10 p-1.5">Date</th>
+                              <th className="sticky top-0 bg-slate-100 z-10 p-1.5">Description</th>
+                              <th className="sticky top-0 bg-slate-100 z-10 p-1.5 text-right">Debit</th>
+                              <th className="sticky top-0 bg-slate-100 z-10 p-1.5 text-right">Credit</th>
+                              <th className="sticky top-0 bg-slate-100 z-10 p-1.5 text-right">Balance</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-hairline text-[11px] font-mono bg-white">
+                          <tbody className="divide-y divide-hairline text-[10px] font-mono bg-white">
                             {filteredTxns.map((t, idx) => (
                               <tr key={idx} className="hover:bg-canvas-soft/35 transition-colors">
-                                <td className="p-2.5 text-ink-mute truncate max-w-[80px]" title={t.txn_date}>{t.txn_date}</td>
-                                <td className="p-2.5 text-ink max-w-[200px] truncate" title={t.description}>{t.description}</td>
-                                <td className="p-2.5 text-right text-rose-600">{t.debit > 0 ? formatAmt(t.debit) : '-'}</td>
-                                <td className="p-2.5 text-right text-emerald-600 font-medium">{t.credit > 0 ? formatAmt(t.credit) : '-'}</td>
-                                <td className="p-2.5 text-right text-ink font-semibold">{t.balance !== null ? formatAmt(t.balance) : '-'}</td>
+                                <td className="p-1.5 text-ink-mute whitespace-nowrap">{t.txn_date}</td>
+                                <td className="p-1.5 text-ink max-w-[300px] truncate" title={t.description}>{t.description}</td>
+                                <td className="p-1.5 text-right text-rose-600">{t.debit > 0 ? formatAmt(t.debit) : '-'}</td>
+                                <td className="p-1.5 text-right text-emerald-600 font-medium">{t.credit > 0 ? formatAmt(t.credit) : '-'}</td>
+                                <td className="p-1.5 text-right text-ink font-semibold">{t.balance !== null ? formatAmt(t.balance) : '-'}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -1036,8 +1060,10 @@ export const InterestSummary: React.FC = () => {
                       </div>
                     </div>
                   ) : (
-                    <div className="p-12 text-center text-xs text-ink-mute italic bg-canvas rounded-xl border border-hairline border-dashed font-mono">
-                      No transactions match the selected month filter ({data?.monthLabels[drilldownMonth] || drilldownMonth}).
+                    <div className="p-10 text-center text-xs text-ink-mute italic bg-canvas rounded-xl border border-hairline border-dashed font-mono flex-1 flex items-center justify-center">
+                      {txnList.length === 0 && !loadingTxns
+                        ? 'Click a month row on the left or an account in the drill-down tree to load statements.'
+                        : `No transactions for ${data?.monthLabels[drilldownMonth] || drilldownMonth}.`}
                     </div>
                   )}
 
