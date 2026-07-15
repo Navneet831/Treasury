@@ -184,6 +184,23 @@ def get_repo() -> IRepository:
     repo = PostgreSQLRepository(pg_url)
     _STANDALONE_REPO = repo
     logger.info("Treasury: using PostgreSQL repository.")
+
+    # Detect if database columns use newlines
+    try:
+        check_query = (
+            "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
+            "WHERE table_name = 'LC' AND column_name = 'BOE Bill Amt\n(in FC)')"
+        )
+        cur = repo._cursor()
+        cur.execute(check_query)
+        row = cur.fetchone()
+        has_newlines = row['exists'] if row else False
+        import apps.Treasury.backend.postgres_compat as compat
+        compat.HAS_NEWLINE_COLUMNS = has_newlines
+        logger.info(f"Treasury: Detected database column style: {'newline' if has_newlines else 'space'}")
+    except Exception as e:
+        logger.warning(f"Treasury: Failed to detect column style: {e}")
+
     return _STANDALONE_REPO
 
 

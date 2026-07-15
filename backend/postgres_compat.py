@@ -21,6 +21,9 @@ Positional params (?) → psycopg2 positional params (%s).
 
 import re
 
+# If True, replaces space-based column names with newline-based column names in queries
+HAS_NEWLINE_COLUMNS = True
+
 # Treasury tables that must be double-quoted in PostgreSQL
 # (they were created with uppercase names via CREATE TABLE "LC" etc.)
 _TREASURY_TABLES = {
@@ -176,12 +179,13 @@ def translate_sql(query: str) -> str:
     query = _quote_tables(query)
 
     # Translate column names with spaces to their newline counterparts in the database
-    query = query.replace('"LC Amt (in INR)"', '"LC Amt \n(in INR)"')
-    query = query.replace('"Final LC Amt (in FC)"', '"Final LC Amt\n(in FC)"')
-    query = query.replace('"BOE Bill Amt (in FC)"', '"BOE Bill Amt\n(in FC)"')
-    query = query.replace('"Pending BOE Amt (in FC)"', '"Pending BOE Amt\n(in FC)"')
-    query = query.replace('"BOE Bill Amt (in INR)"', '"BOE Bill Amt\n(in INR)"')
-    query = query.replace('"Pending BOE Amt (in INR)"', '"Pending BOE Amt\n(in INR)"')
+    if HAS_NEWLINE_COLUMNS:
+        query = query.replace('"LC Amt (in INR)"', '"LC Amt \n(in INR)"')
+        query = query.replace('"Final LC Amt (in FC)"', '"Final LC Amt\n(in FC)"')
+        query = query.replace('"BOE Bill Amt (in FC)"', '"BOE Bill Amt\n(in FC)"')
+        query = query.replace('"Pending BOE Amt (in FC)"', '"Pending BOE Amt\n(in FC)"')
+        query = query.replace('"BOE Bill Amt (in INR)"', '"BOE Bill Amt\n(in INR)"')
+        query = query.replace('"Pending BOE Amt (in INR)"', '"Pending BOE Amt\n(in INR)"')
 
     # 3b. Cast known date/timestamp columns stored as TEXT to ::DATE so
     #     comparisons with date literals work. Applies to quoted column refs.
