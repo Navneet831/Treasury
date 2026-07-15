@@ -119,6 +119,39 @@ def discover_months_info():
 
     return months_order, month_labels, month_ranges
 
+def get_daily_balances_for_month(stmt_rows: List[Dict[str, Any]], year: int, month: int, days_in_month: int) -> List[float]:
+    # Group statement rows by transaction date (date -> last balance)
+    date_balances = {}
+    for r in stmt_rows:
+        parsed_d = parse_date_flexible(r["txn_date"])
+        if parsed_d:
+            d_key = parsed_d.date()
+            date_balances[d_key] = float(r["balance"]) if r["balance"] is not None else None
+
+    # Sort all unique transaction dates
+    sorted_tx_dates = sorted(date_balances.keys())
+    
+    daily_balances = []
+    for d in range(1, days_in_month + 1):
+        day_date = date(year, month, d)
+        
+        last_bal = 0.0
+        if day_date in date_balances and date_balances[day_date] is not None:
+            last_bal = date_balances[day_date]
+        else:
+            # Find the most recent transaction date before day_date
+            candidates = [td for td in sorted_tx_dates if td < day_date]
+            if candidates:
+                last_bal = date_balances[candidates[-1]] if date_balances[candidates[-1]] is not None else 0.0
+            else:
+                # Fallback to the first transaction balance if no transaction has occurred yet
+                if sorted_tx_dates:
+                    last_bal = date_balances[sorted_tx_dates[0]] if date_balances[sorted_tx_dates[0]] is not None else 0.0
+                else:
+                    last_bal = 0.0
+        daily_balances.append(last_bal)
+    return daily_balances
+
 @ttl_cache(seconds=300)
 def get_interest_summary_data() -> Dict[str, Any]:
     # 1. Load Bank_summary
@@ -246,12 +279,20 @@ def get_interest_summary_data() -> Dict[str, Any]:
             closing_bal = m_metric.get("closing")
             int_recovered = m_metric.get("int_recovered", 0)
 
-            # Interest calculation: Simple interest = |Opening Balance| * ROI% / 100 * (days / 365)
+            # Interest calculation: Daily balance method
             int_calculated = None
-            if opening_bal is not None and roi_val is not None:
-                principal = abs(opening_bal)
+            if roi_val is not None:
                 rate = float(roi_val)
-                int_calculated = round((principal * rate / 100) * (days_in_month / 365.0), 2)
+                if stmt_rows:
+                    daily_bals = get_daily_balances_for_month(stmt_rows, dt.year, dt.month, days_in_month)
+                    daily_interests = [abs(bal) * (rate / 100.0) / 365.0 for bal in daily_bals]
+                    int_calculated = round(sum(daily_interests), 2)
+                else:
+                    if opening_bal is not None:
+                        principal = abs(opening_bal)
+                        int_calculated = round((principal * rate / 100) * (days_in_month / 365.0), 2)
+                    else:
+                        int_calculated = 0.0
 
             # Variance
             variance = 0.0

@@ -82,8 +82,12 @@ export const InterestSummary: React.FC = () => {
   const [selectedBank, setSelectedBank] = useState<string>('All')
   const [selectedAccount, setSelectedAccount] = useState<string>('All')
   const [selectedFy, setSelectedFy] = useState<string>('All FYs')
-  const [selectedMonths, setSelectedMonths] = useState<string[]>([]) // empty means 'All'
+  const [selectedMonth, setSelectedMonth] = useState<string>('All')
   const [showEmptyAccounts, setShowEmptyAccounts] = useState<boolean>(false)
+
+  // Sorting State
+  const [sortColumn, setSortColumn] = useState<string>('')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   // UI View Modes: 'all' | 'summary' | 'pivot'
   const [viewMode, setViewMode] = useState<'all' | 'summary' | 'pivot'>('all')
@@ -166,9 +170,9 @@ export const InterestSummary: React.FC = () => {
     })
   }, [data, selectedFy])
 
-  // Clean months filter selection if FY changes
+  // Clean month filter selection if FY changes
   useEffect(() => {
-    setSelectedMonths([])
+    setSelectedMonth('All')
   }, [selectedFy])
 
   // Master filter application
@@ -184,12 +188,12 @@ export const InterestSummary: React.FC = () => {
       // 4. FY
       if (selectedFy !== 'All FYs' && r.fy !== selectedFy) return false
       // 5. Month
-      if (selectedMonths.length > 0 && !selectedMonths.includes(r.monthKey)) return false
+      if (selectedMonth !== 'All' && r.monthKey !== selectedMonth) return false
       // 6. Has statement data filter
       if (!showEmptyAccounts && !r.tableFound) return false
       return true
     })
-  }, [data, selectedType, selectedBank, selectedAccount, selectedFy, selectedMonths, showEmptyAccounts])
+  }, [data, selectedType, selectedBank, selectedAccount, selectedFy, selectedMonth, showEmptyAccounts])
 
   // Metrics calculations
   const metrics = useMemo(() => {
@@ -214,17 +218,100 @@ export const InterestSummary: React.FC = () => {
   }, [processedRows])
 
   // Pivot formatting functions
+  // Pivot formatting functions
   const activeMonthsList = useMemo(() => {
     if (!data) return []
     const baseList = selectedFy === 'All FYs' ? data.months : data.months.filter(m => {
       const match = data.rows.find(r => r.monthKey === m && r.fy === selectedFy)
       return !!match
     })
-    if (selectedMonths.length > 0) {
-      return baseList.filter(m => selectedMonths.includes(m))
+    
+    // Sort baseList from current to past (newest month first)
+    const sorted = [...baseList].sort((a, b) => {
+      const parseMk = (mk: string) => {
+        const parts = mk.split('_')
+        if (parts.length !== 2) return 0
+        const shortMonths = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+        const monthIdx = shortMonths.indexOf(parts[0].toLowerCase())
+        const yr = 2000 + Number(parts[1])
+        return new Date(yr, monthIdx, 1).getTime()
+      }
+      return parseMk(b) - parseMk(a) // descending order
+    })
+
+    if (selectedMonth !== 'All') {
+      return sorted.filter(m => m === selectedMonth)
     }
-    return baseList
-  }, [data, selectedFy, selectedMonths])
+    return sorted
+  }, [data, selectedFy, selectedMonth])
+
+  // Sorting Logic and Memo
+  const sortedRows = useMemo(() => {
+    let temp = [...processedRows]
+    
+    const parseMk = (mk: string) => {
+      if (!mk) return 0
+      const parts = mk.split('_')
+      if (parts.length !== 2) return 0
+      const shortMonths = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+      const monthIdx = shortMonths.indexOf(parts[0].toLowerCase())
+      const yr = 2000 + Number(parts[1])
+      return new Date(yr, monthIdx, 1).getTime()
+    }
+
+    if (sortColumn) {
+      temp.sort((a, b) => {
+        let valA = (a as any)[sortColumn]
+        let valB = (b as any)[sortColumn]
+        
+        if (valA === null || valA === undefined) return sortDirection === 'asc' ? 1 : -1
+        if (valB === null || valB === undefined) return sortDirection === 'asc' ? -1 : 1
+        
+        if (sortColumn === 'monthKey') {
+          const tA = parseMk(valA)
+          const tB = parseMk(valB)
+          return sortDirection === 'asc' ? tA - tB : tB - tA
+        }
+
+        if (typeof valA === 'string') {
+          return sortDirection === 'asc' 
+            ? valA.localeCompare(valB) 
+            : valB.localeCompare(valA)
+        } else {
+          return sortDirection === 'asc'
+            ? valA - valB
+            : valB - valA
+        }
+      })
+    } else {
+      // Default sorting: Newest month first, then Account Type, then Account No.
+      temp.sort((a, b) => {
+        const tA = parseMk(a.monthKey)
+        const tB = parseMk(b.monthKey)
+        if (tA !== tB) return tB - tA
+        
+        const typeCompare = a.type.localeCompare(b.type)
+        if (typeCompare !== 0) return typeCompare
+        
+        return a.account.localeCompare(b.account)
+      })
+    }
+    return temp
+  }, [processedRows, sortColumn, sortDirection])
+
+  const handleSort = (colName: string) => {
+    if (sortColumn === colName) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(colName)
+      setSortDirection('asc')
+    }
+  }
+
+  const renderSortIndicator = (colName: string) => {
+    if (sortColumn !== colName) return <span className="opacity-30 ml-1">⇅</span>
+    return sortDirection === 'asc' ? <span className="text-emerald-600 ml-1">▲</span> : <span className="text-emerald-600 ml-1">▼</span>
+  }
 
   // 1. Opening/Closing Summary Rows
   const openingClosingSummary = useMemo(() => {
@@ -318,13 +405,14 @@ export const InterestSummary: React.FC = () => {
     if (processedRows.length === 0) return
 
     let csvContent = "data:text/csv;charset=utf-8,"
-    csvContent += "Account,Type,Bank,Month,Opening Bal,Closing Bal,ROI (%),Int Recovered,Int Calculated,Variance,Var %\n"
+    csvContent += "Type,Account,Bank,FY,Month,Opening Bal,Closing Bal,ROI (%),Int Recovered,Int Calculated,Variance,Var %\n"
 
     processedRows.forEach(r => {
       const row = [
-        r.account,
         r.type,
+        r.account,
         r.bank,
+        r.fy,
         r.month,
         r.openingBal ?? '',
         r.closingBal ?? '',
@@ -405,7 +493,7 @@ export const InterestSummary: React.FC = () => {
         ) : (
           <>
             {/* Filters Bar */}
-            <div className="bg-white rounded-xl border border-hairline p-2 px-3 shadow-sm grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-2 items-end">
+            <div className="bg-white rounded-xl border border-hairline p-2 px-3 shadow-sm grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 items-end">
               <div>
                 <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">Account Type</label>
                 <select
@@ -451,7 +539,23 @@ export const InterestSummary: React.FC = () => {
                 </select>
               </div>
 
-              <div className="flex flex-col gap-2 items-stretch">
+              <div>
+                <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">Month</label>
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="w-full text-xs bg-canvas border border-hairline rounded-lg px-2 py-1 text-ink outline-none focus:border-emerald-500 transition-colors"
+                >
+                  <option value="All">All Months</option>
+                  {monthsForSelectedFy.map(mKey => (
+                    <option key={mKey} value={mKey}>
+                      {data?.monthLabels[mKey] || mKey}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center h-8 pb-1">
                 <label className="flex items-center gap-1.5 select-none cursor-pointer">
                   <input
                     type="checkbox"
@@ -461,37 +565,6 @@ export const InterestSummary: React.FC = () => {
                   />
                   <span className="text-[10px] font-semibold text-ink-mute">Show empty accounts</span>
                 </label>
-                
-                {/* Month Picker dropdown wrapper */}
-                <div className="relative">
-                  <div className="text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">Months Filter</div>
-                  <div className="flex flex-wrap gap-1 border border-hairline bg-canvas rounded-lg px-2 py-1 text-[11px] text-ink max-h-16 overflow-y-auto">
-                    {monthsForSelectedFy.map(mKey => {
-                      const label = data?.monthLabels[mKey] || mKey
-                      const isSelected = selectedMonths.includes(mKey)
-                      return (
-                        <button
-                          key={mKey}
-                          onClick={() => {
-                            setSelectedMonths(prev =>
-                              prev.includes(mKey) ? prev.filter(x => x !== mKey) : [...prev, mKey]
-                            )
-                          }}
-                          className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-semibold border transition-all ${
-                            isSelected
-                              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700'
-                              : 'bg-white border-hairline text-ink-mute hover:bg-canvas'
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      )
-                    })}
-                    {monthsForSelectedFy.length === 0 && (
-                      <span className="text-ink-faint italic text-[10px]">No months found</span>
-                    )}
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -564,28 +637,29 @@ export const InterestSummary: React.FC = () => {
 
             {/* Table Area */}
             <div className="bg-white rounded-xl border border-hairline shadow-sm overflow-hidden flex flex-col">
-              <div className="overflow-x-auto max-h-[500px] custom-scrollbar-horizontal custom-scrollbar-vertical">
+              <div className="overflow-auto max-h-[350px] custom-scrollbar-horizontal custom-scrollbar-vertical">
                 
                 {viewMode === 'all' && (
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-canvas-soft border-b border-hairline">
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Account</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Type</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Bank</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Month</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Opening Bal</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Closing Bal</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">ROI (%)</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Int Recovered</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Int Calculated</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Variance</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Var %</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-center">Data</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono cursor-pointer select-none" onClick={() => handleSort('type')}>Type {renderSortIndicator('type')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono cursor-pointer select-none" onClick={() => handleSort('account')}>Account {renderSortIndicator('account')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono cursor-pointer select-none" onClick={() => handleSort('bank')}>Bank {renderSortIndicator('bank')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono cursor-pointer select-none" onClick={() => handleSort('fy')}>FY {renderSortIndicator('fy')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono cursor-pointer select-none" onClick={() => handleSort('monthKey')}>Month {renderSortIndicator('monthKey')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono text-right cursor-pointer select-none" onClick={() => handleSort('openingBal')}>Opening Bal {renderSortIndicator('openingBal')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono text-right cursor-pointer select-none" onClick={() => handleSort('closingBal')}>Closing Bal {renderSortIndicator('closingBal')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono text-right cursor-pointer select-none" onClick={() => handleSort('roi')}>ROI (%) {renderSortIndicator('roi')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono text-right cursor-pointer select-none" onClick={() => handleSort('intRecovered')}>Int Recovered {renderSortIndicator('intRecovered')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono text-right cursor-pointer select-none" onClick={() => handleSort('intCalculated')}>Int Calculated {renderSortIndicator('intCalculated')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono text-right cursor-pointer select-none" onClick={() => handleSort('variance')}>Variance {renderSortIndicator('variance')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono text-right cursor-pointer select-none" onClick={() => handleSort('variancePct')}>Var % {renderSortIndicator('variancePct')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono text-center">Data</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-hairline text-xs">
-                      {processedRows.map((r, idx) => (
+                      {sortedRows.map((r, idx) => (
                         <tr
                           key={idx}
                           onClick={() => {
@@ -598,22 +672,23 @@ export const InterestSummary: React.FC = () => {
                             r.tableFound ? 'cursor-pointer' : 'opacity-60'
                           } ${drilldownAccount === r.account ? 'bg-emerald-500/5' : ''}`}
                         >
-                          <td className="p-3 font-mono font-medium text-ink">{r.account}</td>
-                          <td className="p-3 text-ink-mute">{r.type}</td>
-                          <td className="p-3 font-semibold text-ink-mute">{r.bank}</td>
-                          <td className="p-3 text-ink font-mono">{r.month}</td>
-                          <td className="p-3 text-right font-mono text-ink-mute">{formatAmt(r.openingBal)}</td>
-                          <td className="p-3 text-right font-mono text-ink-mute">{formatAmt(r.closingBal)}</td>
-                          <td className="p-3 text-right font-mono font-semibold text-sky-600">{r.roi !== null ? `${r.roi.toFixed(2)}%` : '-'}</td>
-                          <td className="p-3 text-right font-mono font-medium text-emerald-600">{formatAmt(r.intRecovered)}</td>
-                          <td className="p-3 text-right font-mono text-ink">{formatAmt(r.intCalculated)}</td>
-                          <td className={`p-3 text-right font-mono font-semibold ${
+                          <td className="p-2 text-ink-mute">{r.type}</td>
+                          <td className="p-2 font-mono font-medium text-ink">{r.account}</td>
+                          <td className="p-2 font-semibold text-ink-mute">{r.bank}</td>
+                          <td className="p-2 text-ink-mute font-mono">{r.fy}</td>
+                          <td className="p-2 text-ink font-mono">{r.month}</td>
+                          <td className="p-2 text-right font-mono text-ink-mute">{formatAmt(r.openingBal)}</td>
+                          <td className="p-2 text-right font-mono text-ink-mute">{formatAmt(r.closingBal)}</td>
+                          <td className="p-2 text-right font-mono font-semibold text-sky-600">{r.roi !== null ? `${r.roi.toFixed(2)}%` : '-'}</td>
+                          <td className="p-2 text-right font-mono font-medium text-emerald-600">{formatAmt(r.intRecovered)}</td>
+                          <td className="p-2 text-right font-mono text-ink">{formatAmt(r.intCalculated)}</td>
+                          <td className={`p-2 text-right font-mono font-semibold ${
                             r.variance < 0 ? 'text-amber-600' : r.variance > 0 ? 'text-emerald-700' : 'text-ink-mute'
                           }`}>
                             {formatAmt(r.variance)}
                           </td>
-                          <td className="p-3 text-right font-mono text-ink-mute">{r.roi !== null && r.openingBal !== null ? `${r.variancePct.toFixed(1)}%` : '-'}</td>
-                          <td className="p-3 text-center">
+                          <td className="p-2 text-right font-mono text-ink-mute">{r.roi !== null && r.openingBal !== null ? `${r.variancePct.toFixed(1)}%` : '-'}</td>
+                          <td className="p-2 text-center">
                             {r.tableFound ? (
                               <span className="inline-flex items-center justify-center p-1 bg-emerald-500/10 rounded-full">
                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
@@ -626,9 +701,9 @@ export const InterestSummary: React.FC = () => {
                           </td>
                         </tr>
                       ))}
-                      {processedRows.length === 0 && (
+                      {sortedRows.length === 0 && (
                         <tr>
-                          <td colSpan={12} className="p-8 text-center text-xs text-ink-mute italic">
+                          <td colSpan={13} className="p-8 text-center text-xs text-ink-mute italic">
                             No rows matched the active filters.
                           </td>
                         </tr>
@@ -641,13 +716,13 @@ export const InterestSummary: React.FC = () => {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-canvas-soft border-b border-hairline">
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Account</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Type</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Bank</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono">Type</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono">Account</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono">Bank</th>
                         {activeMonthsList.map(m => (
                           <React.Fragment key={m}>
-                            <th className="sticky top-0 bg-sky-100 z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Open ({data?.monthLabels[m]})</th>
-                            <th className="sticky top-0 bg-amber-100 z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Close ({data?.monthLabels[m]})</th>
+                            <th className="sticky top-0 bg-sky-100 z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Open ({data?.monthLabels[m]})</th>
+                            <th className="sticky top-0 bg-amber-100 z-10 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Close ({data?.monthLabels[m]})</th>
                           </React.Fragment>
                         ))}
                       </tr>
@@ -660,13 +735,13 @@ export const InterestSummary: React.FC = () => {
                             drilldownAccount === acctRow.account ? 'bg-emerald-500/5' : ''
                           }`}
                         >
-                          <td className="p-3 font-semibold text-ink" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.account}</td>
-                          <td className="p-3 text-ink-mute font-sans" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.type}</td>
-                          <td className="p-3 text-ink-mute font-sans" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.bank}</td>
+                          <td className="p-2 text-ink-mute font-sans" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.type}</td>
+                          <td className="p-2 font-semibold text-ink" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.account}</td>
+                          <td className="p-2 text-ink-mute font-sans" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.bank}</td>
                           {activeMonthsList.map(m => (
                             <React.Fragment key={m}>
-                              <td className="p-3 text-right text-ink-mute hover:bg-sky-500/10 transition-colors" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth(m); }}>{formatAmt(acctRow[`open_${m}`])}</td>
-                              <td className="p-3 text-right text-ink-mute hover:bg-amber-500/10 transition-colors" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth(m); }}>{formatAmt(acctRow[`close_${m}`])}</td>
+                              <td className="p-2 text-right text-ink-mute hover:bg-sky-500/10 transition-colors" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth(m); }}>{formatAmt(acctRow[`open_${m}`])}</td>
+                              <td className="p-2 text-right text-ink-mute hover:bg-amber-500/10 transition-colors" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth(m); }}>{formatAmt(acctRow[`close_${m}`])}</td>
                             </React.Fragment>
                           ))}
                         </tr>
@@ -679,11 +754,11 @@ export const InterestSummary: React.FC = () => {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-canvas-soft border-b border-hairline">
-                        <th className="sticky top-0 bg-canvas-soft z-20 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Account</th>
-                        <th className="sticky top-0 bg-canvas-soft z-20 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Type</th>
-                        <th className="sticky top-0 bg-canvas-soft z-20 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Bank</th>
+                        <th className="sticky top-0 bg-canvas-soft z-20 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono">Type</th>
+                        <th className="sticky top-0 bg-canvas-soft z-20 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono">Account</th>
+                        <th className="sticky top-0 bg-canvas-soft z-20 p-2 text-[10px] font-bold text-ink-mute uppercase font-mono">Bank</th>
                         {activeMonthsList.map(m => (
-                          <th key={m} colSpan={6} className="sticky top-0 bg-emerald-100 z-10 p-3 text-[10px] font-bold text-ink border-l border-hairline text-center">
+                          <th key={m} colSpan={6} className="sticky top-0 bg-emerald-100 z-10 p-2 text-[10px] font-bold text-ink border-l border-hairline text-center">
                             {data?.monthLabels[m]}
                           </th>
                         ))}
@@ -710,9 +785,9 @@ export const InterestSummary: React.FC = () => {
                             drilldownAccount === acctRow.account ? 'bg-emerald-500/5' : ''
                           }`}
                         >
-                          <td className="p-3 font-semibold text-ink" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.account}</td>
-                          <td className="p-3 text-ink-mute font-sans" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.type}</td>
-                          <td className="p-3 text-ink-mute font-sans" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.bank}</td>
+                          <td className="p-2 text-ink-mute font-sans" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.type}</td>
+                          <td className="p-2 font-semibold text-ink" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.account}</td>
+                          <td className="p-2 text-ink-mute font-sans" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.bank}</td>
                           {activeMonthsList.map(m => {
                             const v = acctRow[`variance_${m}`]
                             return (
