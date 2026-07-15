@@ -77,7 +77,6 @@ export const DevView: React.FC = () => {
   const [config, setConfig] = useState<DbConfigResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [lastFetched, setLastFetched] = useState<Date | null>(null)
 
   // Whitelist table state
   const [whitelist, setWhitelist] = useState<any[]>([])
@@ -91,7 +90,6 @@ export const DevView: React.FC = () => {
       const res = await fetch('/api/treasury/db-config')
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setConfig(await res.json())
-      setLastFetched(new Date())
     } catch (err: any) {
       setError(err.message)
     } finally {
