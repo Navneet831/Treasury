@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   Percent, ArrowDownToLine, RefreshCw, Grid, Table, CheckCircle2, XCircle, HelpCircle,
-  TrendingUp, CreditCard, AlertTriangle, Building, BookOpen, Layers, Search
+  BookOpen, Layers, Search
 } from 'lucide-react'
+import api from '../../api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -72,10 +73,46 @@ const matchTxnMonth = (txnDateStr: string, monthKey: string) => {
   return txnMonth === mStr && txnYear === yStr
 }
 
+const getCurrentFy = (): string => {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = now.getMonth() + 1 // 1-indexed (Jan is 1, July is 7)
+  if (month >= 4) {
+    const start = year % 100
+    const end = (year + 1) % 100
+    return `FY${start.toString().padStart(2, '0')}-${end.toString().padStart(2, '0')}`
+  } else {
+    const start = (year - 1) % 100
+    const end = year % 100
+    return `FY${start.toString().padStart(2, '0')}-${end.toString().padStart(2, '0')}`
+  }
+}
+
+const parseMk = (mk: string) => {
+  if (!mk) return 0
+  const parts = mk.split('_')
+  if (parts.length !== 2) return 0
+  const shortMonths = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+  const monthIdx = shortMonths.indexOf(parts[0].toLowerCase())
+  const yr = 2000 + Number(parts[1])
+  return new Date(yr, monthIdx, 1).getTime()
+}
+
+const getLatestMonthForFy = (fy: string, months: string[], rows: InterestRow[]) => {
+  const baseList = fy === 'All FYs' ? months : months.filter(m => {
+    const match = rows.find(r => r.monthKey === m && r.fy === fy)
+    return !!match
+  })
+  const sorted = [...baseList].sort((a, b) => parseMk(b) - parseMk(a))
+  return sorted.length > 0 ? sorted[0] : 'All'
+}
+
 export const InterestSummary: React.FC = () => {
   const [data, setData] = useState<InterestSummaryData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+
 
   // Filters State
   const [selectedType, setSelectedType] = useState<string>('All')
@@ -87,12 +124,11 @@ export const InterestSummary: React.FC = () => {
 
   // Drill-down FY state (which FY is expanded in the FY→Month tree)
   const [drilldownFy, setDrilldownFy] = useState<string>('')
-  // Drill-down month state (which month is expanded to show accounts)
-  const [drilldownMonthExpanded, setDrilldownMonthExpanded] = useState<string>('')
 
   // Account search within Account Interest Analysis panel
   const [acctSearch, setAcctSearch] = useState<string>('')
   const [acctSearchOpen, setAcctSearchOpen] = useState<boolean>(false)
+  const [drilldownTypeFilter, setDrilldownTypeFilter] = useState<string>('All')
 
   // Sorting State
   const [sortColumn, setSortColumn] = useState<string>('')
@@ -107,22 +143,52 @@ export const InterestSummary: React.FC = () => {
   const [txnList, setTxnList] = useState<StatementTxn[]>([])
   const [loadingTxns, setLoadingTxns] = useState(false)
   const [txnError, setTxnError] = useState<string | null>(null)
+  const [fyList, setFyList] = useState<string[]>([])
 
-  const fetchData = useCallback(async () => {
+  // Load data for a specific FY (or All FYs)
+  const loadFyData = useCallback(async (fyToLoad?: string) => {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/treasury/interest-summary')
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const payload: InterestSummaryData = await res.json()
+      const params: Record<string, string> = {}
+      if (fyToLoad && fyToLoad !== 'All FYs') {
+        params.fy = fyToLoad
+      }
+      const res = await api.get('/interest-summary', { params })
+      const payload: InterestSummaryData = res.data
       setData(payload)
-      
-      // Auto-select first account for drilldown if none selected
-      if (payload.rows.length > 0) {
-        const uniqueAccounts = Array.from(new Set(payload.rows.map(r => r.account)))
-        if (uniqueAccounts.length > 0 && !drilldownAccount) {
-          setDrilldownAccount(uniqueAccounts[0])
+
+      // Sync FY list from payload (already sorted descending in backend)
+      if (payload.fyList && payload.fyList.length > 0) {
+        setFyList(payload.fyList)
+        
+        // Auto-select default FY if not already selected
+        let targetFy = 'All FYs'
+        setSelectedFy(prev => {
+          if (prev && prev !== 'All FYs' && payload.fyList.includes(prev)) {
+            targetFy = prev
+            return prev
+          }
+          const currentFy = getCurrentFy()
+          const defaultFy = payload.fyList.includes(currentFy) ? currentFy : payload.fyList[0]
+          setDrilldownFy(defaultFy)
+          targetFy = defaultFy
+          return defaultFy
+        })
+
+        // Auto-select latest month by default for targetFy
+        if (payload.months && payload.months.length > 0) {
+          const latest = getLatestMonthForFy(targetFy, payload.months, payload.rows)
+          setSelectedMonth(latest)
+          setDrilldownMonth(latest)
         }
+      }
+
+      // Auto-select first account (prioritise one with statement table found)
+      if (payload.rows.length > 0) {
+        const matched = payload.rows.find(r => r.tableFound)
+        const defaultAcct = matched ? matched.account : payload.rows[0].account
+        setDrilldownAccount(defaultAcct)
       }
     } catch (err: any) {
       console.error('Error fetching interest summary:', err)
@@ -130,11 +196,12 @@ export const InterestSummary: React.FC = () => {
     } finally {
       setLoading(false)
     }
-  }, [drilldownAccount])
-
-  useEffect(() => {
-    fetchData()
   }, [])
+
+  // On mount: load all data on mount
+  useEffect(() => {
+    loadFyData('All FYs')
+  }, [loadFyData])
 
   // Unique options for filters
   const accountTypes = useMemo(() => {
@@ -167,11 +234,6 @@ export const InterestSummary: React.FC = () => {
     }
   }, [filteredAccountsForSelect, selectedAccount])
 
-
-  // Clean month filter selection if FY changes
-  useEffect(() => {
-    setSelectedMonth('All')
-  }, [selectedFy])
 
   // Master filter application
   const processedRows = useMemo(() => {
@@ -369,29 +431,54 @@ export const InterestSummary: React.FC = () => {
     return list
   }, [processedRows, sortColumn, sortDirection])
 
+  const drilldownAccountRows = useMemo(() => {
+    if (!data || !drilldownAccount) return []
+    let rows = data.rows.filter(r => r.account === drilldownAccount)
+    if (selectedFy !== 'All FYs') {
+      rows = rows.filter(r => r.fy === selectedFy)
+    }
+    
+    // De-duplicate by monthKey to ensure unique months
+    const seen = new Set()
+    rows = rows.filter(r => {
+      if (seen.has(r.monthKey)) return false
+      seen.add(r.monthKey)
+      return true
+    })
+    const parseMkLocal = (mk: string) => {
+      const parts = mk.split('_')
+      if (parts.length !== 2) return 0
+      const shortMonths = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+      const monthIdx = shortMonths.indexOf(parts[0].toLowerCase())
+      const yr = 2000 + Number(parts[1])
+      return new Date(yr, monthIdx, 1).getTime()
+    }
+    return [...rows].sort((a, b) => parseMkLocal(b.monthKey) - parseMkLocal(a.monthKey))
+  }, [data, drilldownAccount, selectedFy])
+
   // Load drilldown transactions
   const fetchTransactions = useCallback(async (accountNo: string) => {
     if (!accountNo) return
     
     // Find resolved table name from row data
-    const matchedRow = data?.rows.find(r => r.account === accountNo && r.tableName)
-    const tblName = matchedRow ? matchedRow.tableName : accountNo
+    const matchedRow = data?.rows.find(r => r.account === accountNo)
+    if (!matchedRow || !matchedRow.tableFound) {
+      setTxnList([])
+      setTxnError(null)
+      return
+    }
+    
+    const tblName = matchedRow.tableName || accountNo
 
     setLoadingTxns(true)
     setTxnError(null)
     setTxnList([])
 
     try {
-      const res = await fetch(`/api/treasury/tables/${tblName}`)
-      if (!res.ok) {
-        if (res.status === 400 || res.status === 500) {
-          throw new Error('No statement data table matches this account number.')
-        }
-        throw new Error(`HTTP ${res.status}`)
-      }
-      const rawTxns = await res.json()
+      const res = await api.get(`/tables/${encodeURIComponent(tblName)}`)
+      const rawTxns = res.data
       
-      // Sort transactions by date
+      // Format transactions
       const formattedTxns: StatementTxn[] = rawTxns.map((t: any) => ({
         txn_date: t.txn_date,
         value_date: t.value_date,
@@ -473,17 +560,17 @@ export const InterestSummary: React.FC = () => {
             <Percent className="w-4 h-4 text-emerald-600" />
           </div>
           <div>
-            <h1 className="text-xs font-semibold text-ink leading-none">interest</h1>
+            <h1 className="text-xs font-semibold text-ink leading-none">Interest</h1>
             <p className="text-[10px] text-ink-mute mt-0.5">
-              Reconciliation between interest charged vs calculated simple interest on daily statement balances.
+               Reconciliation between interest charged vs calculated simple interest on daily statement balances.
             </p>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
           <button
-            onClick={fetchData}
+            onClick={() => loadFyData('All FYs')}
             disabled={loading}
-            className="flex items-center gap-1 px-2 py-1 rounded-md bg-white border border-hairline text-[11px] font-medium text-ink hover:bg-canvas transition-colors disabled:opacity-40 shadow-sm font-mono"
+            className="flex items-center gap-1 px-2 py-1 rounded-md bg-white border border-hairline text-[11px] font-medium text-ink hover:bg-canvas transition-colors disabled:opacity-40 shadow-sm font-mono cursor-pointer"
           >
             <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -515,41 +602,93 @@ export const InterestSummary: React.FC = () => {
         ) : (
           <>
             {/* Filters Bar */}
-            <div className="bg-white rounded-xl border border-hairline p-2 px-3 shadow-sm grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 items-start">
-              <div>
-                <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">Account Type</label>
-                <select
-                  value={selectedType}
-                  onChange={(e) => setSelectedType(e.target.value)}
-                  className="w-full text-xs bg-canvas border border-hairline rounded-lg px-2 py-1 text-ink outline-none focus:border-emerald-500 transition-colors"
-                >
-                  {accountTypes.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+            <div className="bg-white rounded-xl border border-black p-2 px-3 shadow-sm flex gap-3 items-start">
+              {/* Left: filters and KPI cards */}
+              <div className="flex-1 flex flex-col gap-2">
+                {/* Selects Row */}
+                <div className="flex gap-2 flex-wrap">
+                  <div className="min-w-[130px]">
+                    <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">Account Type</label>
+                    <select
+                      value={selectedType}
+                      onChange={(e) => setSelectedType(e.target.value)}
+                      className="w-full text-xs bg-canvas border border-hairline rounded-lg px-2 py-1 text-ink outline-none focus:border-emerald-500 transition-colors"
+                    >
+                      {accountTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="min-w-[130px]">
+                    <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">Bank</label>
+                    <select
+                      value={selectedBank}
+                      onChange={(e) => setSelectedBank(e.target.value)}
+                      className="w-full text-xs bg-canvas border border-hairline rounded-lg px-2 py-1 text-ink outline-none focus:border-emerald-500 transition-colors"
+                    >
+                      {banks.map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="min-w-[160px]">
+                    <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">Filter by Account No.</label>
+                    <select
+                      value={selectedAccount}
+                      onChange={(e) => setSelectedAccount(e.target.value)}
+                      className="w-full text-xs bg-canvas border border-hairline rounded-lg px-2 py-1 text-ink outline-none focus:border-emerald-500 transition-colors"
+                    >
+                      {filteredAccountsForSelect.map(a => <option key={a} value={a}>{a}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="flex items-center h-8 self-end mb-0.5 ml-2">
+                    <label className="flex items-center gap-1.5 select-none cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={showEmptyAccounts}
+                        onChange={(e) => setShowEmptyAccounts(e.target.checked)}
+                        className="accent-emerald-600 rounded"
+                      />
+                      <span className="text-[10px] font-semibold text-ink-mute">Show empty accounts</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* KPI Cards Row */}
+                <div className="grid grid-cols-3 gap-3 mt-1">
+                  <div className="flex items-center gap-2.5 bg-emerald-500/5 border border-emerald-500/15 rounded-xl px-3 py-2">
+                    <div className="p-1.5 bg-emerald-500/10 rounded-lg">
+                      <Percent className="w-3.5 h-3.5 text-emerald-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[9px] font-bold text-ink-mute uppercase tracking-wide font-mono leading-none">Total Int Recovered</div>
+                      <div className="text-xs font-bold text-emerald-700 font-mono mt-1">₹ {formatAmt(metrics.totalRecovered)}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2.5 bg-violet-500/5 border border-violet-500/15 rounded-xl px-3 py-2">
+                    <div className="p-1.5 bg-violet-500/10 rounded-lg">
+                      <Layers className="w-3.5 h-3.5 text-violet-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[9px] font-bold text-ink-mute uppercase tracking-wide font-mono leading-none">Total Int Calculated</div>
+                      <div className="text-xs font-bold text-violet-700 font-mono mt-1">₹ {formatAmt(metrics.totalCalculated)}</div>
+                    </div>
+                  </div>
+
+                  <div className={`flex items-center gap-2.5 border rounded-xl px-3 py-2 ${metrics.totalVariance < 0 ? 'bg-amber-500/5 border-amber-500/15' : 'bg-sky-500/5 border-sky-500/15'}`}>
+                    <div className={`p-1.5 rounded-lg ${metrics.totalVariance < 0 ? 'bg-amber-500/10' : 'bg-sky-500/10'}`}>
+                      <ArrowDownToLine className={`w-3.5 h-3.5 ${metrics.totalVariance < 0 ? 'text-amber-600' : 'text-sky-600'}`} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[9px] font-bold text-ink-mute uppercase tracking-wide font-mono leading-none">Total Variance</div>
+                      <div className={`text-xs font-bold font-mono mt-1 ${metrics.totalVariance < 0 ? 'text-amber-700' : 'text-sky-700'}`}>₹ {formatAmt(metrics.totalVariance)}</div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">Bank</label>
-                <select
-                  value={selectedBank}
-                  onChange={(e) => setSelectedBank(e.target.value)}
-                  className="w-full text-xs bg-canvas border border-hairline rounded-lg px-2 py-1 text-ink outline-none focus:border-emerald-500 transition-colors"
-                >
-                  {banks.map(b => <option key={b} value={b}>{b}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">Filter by Account No.</label>
-                <select
-                  value={selectedAccount}
-                  onChange={(e) => setSelectedAccount(e.target.value)}
-                  className="w-full text-xs bg-canvas border border-hairline rounded-lg px-2 py-1 text-ink outline-none focus:border-emerald-500 transition-colors"
-                >
-                  {filteredAccountsForSelect.map(a => <option key={a} value={a}>{a}</option>)}
-                </select>
-              </div>
-
-              <div>
+              {/* Right: FY / Month drill-down */}
+              <div className="shrink-0 w-[160px]">
                 <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">FY / Month</label>
                 <div className="border border-hairline bg-canvas rounded-lg p-1 h-[130px] overflow-y-auto flex flex-col gap-0.5 custom-scrollbar-vertical">
                   {/* All option */}
@@ -559,6 +698,7 @@ export const InterestSummary: React.FC = () => {
                       setSelectedMonth('All')
                       setDrilldownFy('')
                       setDrilldownMonth('all')
+                      loadFyData('All FYs')
                     }}
                     className={`w-full text-left text-[10px] px-2 py-0.5 rounded font-mono font-semibold transition-all border ${
                       selectedFy === 'All FYs'
@@ -570,23 +710,31 @@ export const InterestSummary: React.FC = () => {
                   </button>
 
                   {/* FY rows — each expands into months, then accounts */}
-                  {(data?.fyList ?? []).map(fy => {
+                  {(fyList ?? []).map(fy => {
                     const isExpanded = drilldownFy === fy
-                    const fyMonths = (data?.months ?? []).filter(mk =>
-                      data?.rows.some(r => r.monthKey === mk && r.fy === fy)
-                    )
+                     const parseMk = (mk: string) => {
+                       const parts = mk.split('_')
+                       if (parts.length !== 2) return 0
+                       const shortMonths = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+                       const monthIdx = shortMonths.indexOf(parts[0].toLowerCase())
+                       const yr = 2000 + Number(parts[1])
+                       return new Date(yr, monthIdx, 1).getTime()
+                     }
+                     const fyMonths = (data?.months ?? []).filter(mk =>
+                       data?.rows.some(r => r.monthKey === mk && r.fy === fy)
+                     ).sort((a, b) => parseMk(b) - parseMk(a))
                     const isFySelected = selectedFy === fy && selectedMonth === 'All'
                     return (
                       <div key={fy}>
                         {/* Level 1: FY row */}
                         <button
                           onClick={() => {
-                            const toggled = isExpanded ? '' : fy
-                            setDrilldownFy(toggled)
+                            const isFyAlreadyActive = selectedFy === fy && selectedMonth === 'All'
+                            const toggled = isFyAlreadyActive ? '' : fy
+                            setDrilldownFy(toggled ? fy : '')
                             setSelectedFy(toggled ? fy : 'All FYs')
                             setSelectedMonth('All')
                             setDrilldownMonth('all')
-                            setDrilldownMonthExpanded('')
                           }}
                           className={`w-full text-left text-[10px] px-2 py-0.5 rounded font-mono font-bold transition-all flex items-center justify-between border ${
                             isFySelected
@@ -601,19 +749,12 @@ export const InterestSummary: React.FC = () => {
                         {isExpanded && fyMonths.map(mKey => {
                           const label = data?.monthLabels[mKey] || mKey
                           const isMSelected = selectedMonth === mKey
-                          const isMExpanded = drilldownMonthExpanded === mKey
-                          // Accounts for this FY+month
-                          const mAccounts = (data?.rows ?? []).filter(
-                            r => r.monthKey === mKey && r.fy === fy && r.tableFound
-                          )
                           return (
                             <div key={mKey}>
-                              {/* Month toggle button */}
                               <button
                                 onClick={() => {
                                   setSelectedMonth(mKey)
                                   setDrilldownMonth(mKey)
-                                  setDrilldownMonthExpanded(isMExpanded ? '' : mKey)
                                 }}
                                 className={`w-full text-left text-[10px] pl-4 pr-2 py-0.5 rounded font-mono font-semibold transition-all flex items-center gap-1 border ${
                                   isMSelected
@@ -621,31 +762,8 @@ export const InterestSummary: React.FC = () => {
                                     : 'bg-white border-transparent text-ink-mute hover:bg-canvas'
                                 }`}
                               >
-                                <span className="opacity-60 text-[9px]">{isMExpanded ? '▾' : '▸'}</span>
                                 {label}
                               </button>
-
-                              {/* Level 3: Account buttons */}
-                              {isMExpanded && mAccounts.map(r => {
-                                const isAcctSelected = drilldownAccount === r.account
-                                return (
-                                  <button
-                                    key={r.account}
-                                    onClick={() => {
-                                      setDrilldownAccount(r.account)
-                                      setDrilldownMonth(mKey)
-                                      fetchTransactions(r.account)
-                                    }}
-                                    className={`w-full text-left text-[10px] pl-8 pr-2 py-0.5 rounded font-mono transition-all border ${
-                                      isAcctSelected
-                                        ? 'bg-violet-500/10 border-violet-500/20 text-violet-700 font-bold'
-                                        : 'bg-white border-transparent text-ink-mute hover:bg-canvas'
-                                    }`}
-                                  >
-                                    {r.account}
-                                  </button>
-                                )
-                              })}
                             </div>
                           )
                         })}
@@ -654,50 +772,17 @@ export const InterestSummary: React.FC = () => {
                   })}
                 </div>
               </div>
+            </div>
 
-              <div className="flex items-center h-8 pb-1">
-                <label className="flex items-center gap-1.5 select-none cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={showEmptyAccounts}
-                    onChange={(e) => setShowEmptyAccounts(e.target.checked)}
-                    className="accent-emerald-600 rounded"
-                  />
-                  <span className="text-[10px] font-semibold text-ink-mute">Show empty accounts</span>
-                </label>
+            {/* Empty state: prompt user to select an FY */}
+            {!data ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-3 bg-white rounded-xl border border-black shadow-sm">
+                <Search className="w-8 h-8 text-ink-mute" />
+                <p className="text-xs text-ink-mute font-mono text-center max-w-md">
+                  Select a fiscal year from the <span className="font-bold">FY / Month</span> panel to load interest reconciliation data.
+                </p>
               </div>
-            </div>
-
-            {/* Metrics cards row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-              <MetricCard
-                title="Accounts Selected"
-                icon={<Building className="w-4 h-4 text-sky-600" />}
-                value={String(metrics.accountCount)}
-                subtitle="Unique accounts analyzed"
-              />
-              <MetricCard
-                title="Total Int (Recovered)"
-                icon={<CreditCard className="w-4 h-4 text-emerald-600" />}
-                value={`₹ ${formatAmt(metrics.totalRecovered)}`}
-                subtitle="Sum of statement credits"
-              />
-              <MetricCard
-                title="Total Int (Calculated)"
-                icon={<TrendingUp className="w-4 h-4 text-violet-600" />}
-                value={`₹ ${formatAmt(metrics.totalCalculated)}`}
-                subtitle="Based on opening balance & ROI"
-              />
-              <MetricCard
-                title="Total Variance"
-                icon={<AlertTriangle className="w-4 h-4 text-amber-600" />}
-                value={`₹ ${formatAmt(metrics.totalVariance)}`}
-                subtitle="Interest Recovered - Calculated"
-                highlight={metrics.totalVariance !== 0}
-                alertType={metrics.totalVariance < 0 ? 'warning' : 'info'}
-              />
-            </div>
-
+            ) : (<React.Fragment>
             {/* View Mode Selector Tabs */}
             <div className="flex border-b border-hairline shrink-0 gap-4">
               <button
@@ -736,26 +821,26 @@ export const InterestSummary: React.FC = () => {
             </div>
 
             {/* Table Area */}
-            <div className="bg-white rounded-xl border border-hairline shadow-sm overflow-hidden flex flex-col">
+            <div className="bg-white rounded-xl border border-black shadow-sm overflow-hidden flex flex-col">
               <div className="overflow-auto max-h-[350px] custom-scrollbar-horizontal custom-scrollbar-vertical">
                 
                 {viewMode === 'all' && (
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-slate-100 border-b border-hairline text-[10px] font-mono text-ink-mute uppercase">
-                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-left cursor-pointer select-none" onClick={() => handleSort('type')}>Type {renderSortIndicator('type')}</th>
-                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-left cursor-pointer select-none" onClick={() => handleSort('account')}>Account {renderSortIndicator('account')}</th>
-                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-left cursor-pointer select-none" onClick={() => handleSort('bank')}>Bank {renderSortIndicator('bank')}</th>
-                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-left cursor-pointer select-none" onClick={() => handleSort('fy')}>FY {renderSortIndicator('fy')}</th>
-                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-left cursor-pointer select-none" onClick={() => handleSort('monthKey')}>Month {renderSortIndicator('monthKey')}</th>
-                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('openingBal')}>Opening Bal {renderSortIndicator('openingBal')}</th>
-                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('closingBal')}>Closing Bal {renderSortIndicator('closingBal')}</th>
-                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('roi')}>ROI (%) {renderSortIndicator('roi')}</th>
-                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('intRecovered')}>Int Recovered {renderSortIndicator('intRecovered')}</th>
-                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('intCalculated')}>Int Calculated {renderSortIndicator('intCalculated')}</th>
-                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('variance')}>Variance {renderSortIndicator('variance')}</th>
-                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('variancePct')}>Var % {renderSortIndicator('variancePct')}</th>
-                        <th className="sticky top-0 bg-slate-100 z-10 p-2 font-bold text-center">Data</th>
+                      <tr className="bg-canvas-soft border-b border-hairline text-[10px] font-mono text-ink-mute uppercase">
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-left cursor-pointer select-none" onClick={() => handleSort('type')}>Type {renderSortIndicator('type')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-left cursor-pointer select-none" onClick={() => handleSort('account')}>Account {renderSortIndicator('account')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-left cursor-pointer select-none" onClick={() => handleSort('bank')}>Bank {renderSortIndicator('bank')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-left cursor-pointer select-none" onClick={() => handleSort('fy')}>FY {renderSortIndicator('fy')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-left cursor-pointer select-none" onClick={() => handleSort('monthKey')}>Month {renderSortIndicator('monthKey')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('openingBal')}>Opening Bal {renderSortIndicator('openingBal')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('closingBal')}>Closing Bal {renderSortIndicator('closingBal')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('roi')}>ROI (%) {renderSortIndicator('roi')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('intRecovered')}>Int Recovered {renderSortIndicator('intRecovered')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('intCalculated')}>Int Calculated {renderSortIndicator('intCalculated')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('variance')}>Variance {renderSortIndicator('variance')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('variancePct')}>Var % {renderSortIndicator('variancePct')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-center">Data</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-hairline text-xs">
@@ -768,8 +853,10 @@ export const InterestSummary: React.FC = () => {
                               setDrilldownMonth(r.monthKey)
                             }
                           }}
-                          className={`hover:bg-canvas-soft/40 transition-colors ${
-                            r.tableFound ? 'cursor-pointer' : 'opacity-60'
+                          className={`transition-colors ${
+                            r.tableFound 
+                              ? 'cursor-pointer hover:bg-canvas-soft/40' 
+                              : 'opacity-40 text-ink-faint pointer-events-none'
                           } ${drilldownAccount === r.account ? 'bg-emerald-500/5' : ''}`}
                         >
                           <td className="p-2 text-ink-mute">{r.type}</td>
@@ -815,21 +902,21 @@ export const InterestSummary: React.FC = () => {
                 {viewMode === 'summary' && (
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-slate-100 border-b border-hairline text-[10px] font-mono text-ink-mute uppercase">
-                        <th rowSpan={2} className="sticky top-0 bg-slate-100 z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('type')}>Type {renderSortIndicator('type')}</th>
-                        <th rowSpan={2} className="sticky top-0 bg-slate-100 z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('account')}>Account {renderSortIndicator('account')}</th>
-                        <th rowSpan={2} className="sticky top-0 bg-slate-100 z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('bank')}>Bank {renderSortIndicator('bank')}</th>
+                      <tr className="bg-canvas-soft border-b border-hairline text-[10px] font-mono text-ink-mute uppercase">
+                        <th rowSpan={2} className="sticky top-0 bg-canvas-soft z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('type')}>Type {renderSortIndicator('type')}</th>
+                        <th rowSpan={2} className="sticky top-0 bg-canvas-soft z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('account')}>Account {renderSortIndicator('account')}</th>
+                        <th rowSpan={2} className="sticky top-0 bg-canvas-soft z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('bank')}>Bank {renderSortIndicator('bank')}</th>
                         {activeMonthsList.map(m => (
-                          <th key={m} colSpan={2} className="sticky top-0 bg-sky-50 z-10 p-1.5 font-bold text-ink border-l border-hairline text-center">
+                          <th key={m} colSpan={2} className="sticky top-0 bg-canvas-soft z-10 p-1.5 font-bold text-ink border-l border-hairline text-center">
                             {data?.monthLabels[m]}
                           </th>
                         ))}
                       </tr>
-                      <tr className="bg-slate-50 border-b border-hairline text-[9px] font-mono text-ink-mute uppercase">
+                      <tr className="bg-canvas border-b border-hairline text-[9px] font-mono text-ink-mute uppercase">
                         {activeMonthsList.map(m => (
                           <React.Fragment key={m}>
-                            <th className="sticky top-[28px] bg-slate-50 z-10 p-1 border-l border-hairline text-right">Open</th>
-                            <th className="sticky top-[28px] bg-slate-50 z-10 p-1 text-right">Close</th>
+                            <th className="sticky top-[28px] bg-canvas z-10 p-1 border-l border-hairline text-right">Open</th>
+                            <th className="sticky top-[28px] bg-canvas z-10 p-1 text-right">Close</th>
                           </React.Fragment>
                         ))}
                       </tr>
@@ -860,25 +947,25 @@ export const InterestSummary: React.FC = () => {
                 {viewMode === 'pivot' && (
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-slate-100 border-b border-hairline text-[10px] font-mono text-ink-mute uppercase">
-                        <th rowSpan={2} className="sticky top-0 bg-slate-100 z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('type')}>Type {renderSortIndicator('type')}</th>
-                        <th rowSpan={2} className="sticky top-0 bg-slate-100 z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('account')}>Account {renderSortIndicator('account')}</th>
-                        <th rowSpan={2} className="sticky top-0 bg-slate-100 z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('bank')}>Bank {renderSortIndicator('bank')}</th>
+                      <tr className="bg-canvas-soft border-b border-hairline text-[10px] font-mono text-ink-mute uppercase">
+                        <th rowSpan={2} className="sticky top-0 bg-canvas-soft z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('type')}>Type {renderSortIndicator('type')}</th>
+                        <th rowSpan={2} className="sticky top-0 bg-canvas-soft z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('account')}>Account {renderSortIndicator('account')}</th>
+                        <th rowSpan={2} className="sticky top-0 bg-canvas-soft z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('bank')}>Bank {renderSortIndicator('bank')}</th>
                         {activeMonthsList.map(m => (
-                          <th key={m} colSpan={6} className="sticky top-0 bg-emerald-50 z-10 p-1.5 font-bold text-ink border-l border-hairline text-center">
+                          <th key={m} colSpan={6} className="sticky top-0 bg-canvas-soft z-10 p-1.5 font-bold text-ink border-l border-hairline text-center">
                             {data?.monthLabels[m]}
                           </th>
                         ))}
                       </tr>
-                      <tr className="bg-slate-50 border-b border-hairline text-[9px] font-mono text-ink-mute uppercase">
+                      <tr className="bg-canvas border-b border-hairline text-[9px] font-mono text-ink-mute uppercase">
                         {activeMonthsList.map(m => (
                           <React.Fragment key={m}>
-                            <th className="sticky top-[28px] bg-slate-50 z-10 p-1 border-l border-hairline text-right">ROI</th>
-                            <th className="sticky top-[28px] bg-slate-50 z-10 p-1 text-right">Open</th>
-                            <th className="sticky top-[28px] bg-slate-50 z-10 p-1 text-right">Close</th>
-                            <th className="sticky top-[28px] bg-slate-50 z-10 p-1 text-right">Recov.</th>
-                            <th className="sticky top-[28px] bg-slate-50 z-10 p-1 text-right">Calc.</th>
-                            <th className="sticky top-[28px] bg-slate-50 z-10 p-1 text-right">Var</th>
+                            <th className="sticky top-[28px] bg-canvas z-10 p-1 border-l border-hairline text-right">ROI</th>
+                            <th className="sticky top-[28px] bg-canvas z-10 p-1 text-right">Open</th>
+                            <th className="sticky top-[28px] bg-canvas z-10 p-1 text-right">Close</th>
+                            <th className="sticky top-[28px] bg-canvas z-10 p-1 text-right">Recov.</th>
+                            <th className="sticky top-[28px] bg-canvas z-10 p-1 text-right">Calc.</th>
+                            <th className="sticky top-[28px] bg-canvas z-10 p-1 text-right">Var</th>
                           </React.Fragment>
                         ))}
                       </tr>
@@ -922,46 +1009,63 @@ export const InterestSummary: React.FC = () => {
 
             {/* Drilldown Section */}
             {drilldownAccount && (
-              <div className="bg-white rounded-xl border border-hairline shadow-sm overflow-hidden flex flex-col xl:flex-row gap-3 p-3">
+              <div className="bg-white rounded-xl border border-black shadow-sm overflow-hidden flex flex-col xl:flex-row gap-3 p-3">
                 
                 {/* Account Details Box — compact left panel */}
-                <div className="w-full xl:w-[280px] shrink-0 space-y-2">
+                <div className="w-full xl:w-[336px] shrink-0 space-y-2">
                   <div className="flex items-center gap-1.5">
                     <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
                     <h3 className="text-[10px] font-bold text-ink tracking-wide uppercase font-mono">Account Interest Analysis</h3>
                   </div>
 
-                  {/* Account Search Combobox */}
-                  <div className="relative">
-                    <div
-                      className="flex items-center gap-1 border border-hairline bg-canvas rounded-lg px-2 py-1 cursor-text"
-                      onClick={() => { setAcctSearchOpen(true); setAcctSearch('') }}
-                    >
-                      <Search className="w-3 h-3 text-ink-mute shrink-0" />
-                      {acctSearchOpen ? (
-                        <input
-                          autoFocus
-                          value={acctSearch}
-                          onChange={e => setAcctSearch(e.target.value)}
-                          onBlur={() => setTimeout(() => setAcctSearchOpen(false), 150)}
-                          placeholder="Search account no..."
-                          className="flex-1 text-[10px] font-mono bg-transparent outline-none text-ink placeholder-ink-faint"
-                        />
-                      ) : (
-                        <span className="flex-1 text-[10px] font-mono font-semibold text-ink truncate" title={drilldownAccount}>
-                          {drilldownAccount}
-                        </span>
-                      )}
+                  {/* Account Search Combobox with Account Type Filter */}
+                  <div className="flex gap-1.5">
+                    <div className="w-[85px] shrink-0">
+                      <select
+                        value={drilldownTypeFilter}
+                        onChange={(e) => setDrilldownTypeFilter(e.target.value)}
+                        className="w-full text-[10px] font-mono bg-canvas border border-hairline rounded px-1 py-1 text-ink outline-none cursor-pointer focus:border-emerald-500 transition-colors"
+                      >
+                        <option value="All">All Types</option>
+                        {Array.from(new Set(data?.rows.map(r => r.type) ?? [])).sort().map(t => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                      </select>
                     </div>
+                    <div className="relative flex-1">
+                      <div
+                        className="flex items-center gap-1 border border-hairline bg-canvas rounded-lg px-2 py-1 cursor-text"
+                        onClick={() => { setAcctSearchOpen(true); setAcctSearch('') }}
+                      >
+                        <Search className="w-3 h-3 text-ink-mute shrink-0" />
+                        {acctSearchOpen ? (
+                          <input
+                            autoFocus
+                            value={acctSearch}
+                            onChange={e => setAcctSearch(e.target.value)}
+                            onBlur={() => setTimeout(() => setAcctSearchOpen(false), 150)}
+                            placeholder="Search acct..."
+                            className="flex-1 text-[10px] font-mono bg-transparent outline-none text-ink placeholder-ink-faint"
+                          />
+                        ) : (
+                          <span className="flex-1 text-[10px] font-mono font-semibold text-ink truncate" title={drilldownAccount}>
+                            {drilldownAccount}
+                          </span>
+                        )}
+                      </div>
 
-                    {/* Dropdown results */}
-                    {acctSearchOpen && (() => {
-                      const allAccts = Array.from(new Set(processedRows.map(r => r.account)))
-                      const filtered = acctSearch
-                        ? allAccts.filter(a => a.toLowerCase().includes(acctSearch.toLowerCase()))
-                        : allAccts
-                      return filtered.length > 0 ? (
-                        <div className="absolute z-30 top-full left-0 right-0 mt-0.5 bg-white border border-hairline rounded-lg shadow-lg overflow-y-auto max-h-40 custom-scrollbar-vertical">
+                      {/* Dropdown results */}
+                      {acctSearchOpen && (() => {
+                        const allAccts = Array.from(new Set(
+                          (processedRows.length > 0 ? processedRows : (data?.rows ?? []))
+                            .filter(r => drilldownTypeFilter === 'All' || r.type === drilldownTypeFilter)
+                            .map(r => r.account)
+                        ))
+                        const filtered = acctSearch
+                          ? allAccts.filter(a => a.toLowerCase().includes(acctSearch.toLowerCase()))
+                          : allAccts
+                        return filtered.length > 0 ? (
+                          <div className="absolute z-30 top-full left-0 right-0 mt-0.5 bg-white border border-hairline rounded-lg shadow-lg overflow-y-auto max-h-40 custom-scrollbar-vertical">
                           {filtered.map(acct => {
                             const info = processedRows.find(r => r.account === acct)
                             const isSelected = drilldownAccount === acct
@@ -986,24 +1090,9 @@ export const InterestSummary: React.FC = () => {
                             )
                           })}
                         </div>
-                      ) : null
-                    })()}
-                  </div>
-
-                  {/* Key facts */}
-                  <div className="bg-canvas rounded-lg px-2 py-1.5 text-[10px] divide-y divide-hairline/50 font-mono">
-                    {processedRows.filter(r => r.account === drilldownAccount).slice(0, 1).map((info, idx) => (
-                      <React.Fragment key={idx}>
-                        <div className="flex justify-between py-1">
-                          <span className="text-ink-mute">Type / Bank</span>
-                          <span className="font-semibold text-ink">{info.type} | {info.bank}</span>
-                        </div>
-                        <div className="flex justify-between py-1">
-                          <span className="text-ink-mute">ROI</span>
-                          <span className="font-bold text-sky-600">{info.roi !== null ? `${info.roi.toFixed(2)}%` : '—'}</span>
-                        </div>
-                      </React.Fragment>
-                    ))}
+                        ) : null
+                      })()}
+                    </div>
                   </div>
 
                   {/* Monthly splits — compact table style */}
@@ -1013,15 +1102,16 @@ export const InterestSummary: React.FC = () => {
                       <div className="overflow-y-auto max-h-[280px] custom-scrollbar-vertical">
                         <table className="w-full text-left border-collapse">
                           <thead>
-                            <tr className="bg-slate-100 text-[9px] font-mono text-ink-mute uppercase">
-                              <th className="sticky top-0 bg-slate-100 p-1.5 font-bold">Month</th>
-                              <th className="sticky top-0 bg-slate-100 p-1.5 font-bold text-right">ROI</th>
-                              <th className="sticky top-0 bg-slate-100 p-1.5 font-bold text-right text-emerald-700">Rec</th>
-                              <th className="sticky top-0 bg-slate-100 p-1.5 font-bold text-right">Calc</th>
+                            <tr className="bg-canvas-soft text-[9px] font-mono text-ink-mute uppercase">
+                              <th className="sticky top-0 bg-canvas-soft p-1.5 font-bold">Month</th>
+                              <th className="sticky top-0 bg-canvas-soft p-1.5 font-bold text-right">ROI</th>
+                              <th className="sticky top-0 bg-canvas-soft p-1.5 font-bold text-right text-emerald-700">Rec</th>
+                              <th className="sticky top-0 bg-canvas-soft p-1.5 font-bold text-right">Calc</th>
+                              <th className="sticky top-0 bg-canvas-soft p-1.5 font-bold text-right">Var</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-hairline text-[10px] font-mono">
-                            {processedRows.filter(r => r.account === drilldownAccount).map((r, idx) => {
+                            {drilldownAccountRows.map((r, idx) => {
                               const isActive = drilldownMonth === r.monthKey
                               return (
                                 <tr
@@ -1036,6 +1126,9 @@ export const InterestSummary: React.FC = () => {
                                   <td className="p-1.5 text-right text-sky-600">{r.roi !== null ? `${r.roi.toFixed(2)}%` : '-'}</td>
                                   <td className="p-1.5 text-right text-emerald-600 font-medium">{formatAmt(r.intRecovered)}</td>
                                   <td className="p-1.5 text-right text-ink-mute">{formatAmt(r.intCalculated)}</td>
+                                  <td className={`p-1.5 text-right font-semibold ${
+                                    r.variance < 0 ? 'text-amber-600' : r.variance > 0 ? 'text-emerald-700' : 'text-ink-mute'
+                                  }`}>{formatAmt(r.variance)}</td>
                                 </tr>
                               )
                             })}
@@ -1086,12 +1179,12 @@ export const InterestSummary: React.FC = () => {
                       <div className="overflow-auto max-h-[420px] custom-scrollbar-vertical custom-scrollbar-horizontal">
                         <table className="w-full text-left border-collapse">
                           <thead>
-                            <tr className="bg-slate-100 border-b border-hairline text-[9px] font-bold text-ink-mute uppercase font-mono">
-                              <th className="sticky top-0 bg-slate-100 z-10 p-1.5">Date</th>
-                              <th className="sticky top-0 bg-slate-100 z-10 p-1.5">Description</th>
-                              <th className="sticky top-0 bg-slate-100 z-10 p-1.5 text-right">Debit</th>
-                              <th className="sticky top-0 bg-slate-100 z-10 p-1.5 text-right">Credit</th>
-                              <th className="sticky top-0 bg-slate-100 z-10 p-1.5 text-right">Balance</th>
+                            <tr className="bg-canvas-soft border-b border-hairline text-[9px] font-bold text-ink-mute uppercase font-mono">
+                              <th className="sticky top-0 bg-canvas-soft z-10 p-1.5">Date</th>
+                              <th className="sticky top-0 bg-canvas-soft z-10 p-1.5">Description</th>
+                              <th className="sticky top-0 bg-canvas-soft z-10 p-1.5 text-right">Debit</th>
+                              <th className="sticky top-0 bg-canvas-soft z-10 p-1.5 text-right">Credit</th>
+                              <th className="sticky top-0 bg-canvas-soft z-10 p-1.5 text-right">Balance</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-hairline text-[10px] font-mono bg-white">
@@ -1121,7 +1214,7 @@ export const InterestSummary: React.FC = () => {
             )}
 
             {/* About Box */}
-            <div className="bg-white rounded-xl border border-hairline p-4 shadow-sm text-xs space-y-2">
+            <div className="bg-white rounded-xl border border-black p-4 shadow-sm text-xs space-y-2">
               <div className="flex items-center gap-1.5 text-ink font-semibold">
                 <HelpCircle className="w-4 h-4 text-emerald-600" />
                 <span>How interest summary calculations work:</span>
@@ -1134,46 +1227,12 @@ export const InterestSummary: React.FC = () => {
                 <li><strong>Variance</strong>: Interest Recovered minus Calculated Interest. Highlights over- or under-recovery.</li>
               </ul>
             </div>
-          </>
+          </React.Fragment>
         )}
+      </>
+    )}
 
       </div>
-    </div>
-  )
-}
-
-// ─── Subcomponents ───────────────────────────────────────────────────────────
-
-interface MetricCardProps {
-  title: string;
-  icon: React.ReactNode;
-  value: string;
-  subtitle: string;
-  highlight?: boolean;
-  alertType?: 'info' | 'warning';
-}
-
-const MetricCard: React.FC<MetricCardProps> = ({ title, icon, value, subtitle, highlight = false, alertType = 'info' }) => {
-  return (
-    <div className={`p-2.5 px-3 bg-white rounded-xl border shadow-sm transition-all flex items-center justify-between h-16 ${
-      highlight
-        ? alertType === 'warning'
-          ? 'border-amber-500/20 bg-amber-50/10'
-          : 'border-emerald-500/20 bg-emerald-50/10'
-        : 'border-hairline'
-    }`}>
-      <div className="min-w-0 flex-1">
-        <span className="text-[9px] font-bold text-ink-mute uppercase tracking-wide font-mono block leading-none mb-1">{title}</span>
-        <div className={`text-xs font-bold font-mono tracking-tight ${
-          highlight
-            ? alertType === 'warning'
-              ? 'text-amber-600'
-              : 'text-emerald-700'
-            : 'text-ink'
-        }`}>{value}</div>
-        <span className="text-[8px] text-ink-faint block truncate mt-0.5" title={subtitle}>{subtitle}</span>
-      </div>
-      <div className="p-1.5 bg-canvas rounded-lg shrink-0 ml-2">{icon}</div>
     </div>
   )
 }

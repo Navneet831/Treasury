@@ -55,7 +55,7 @@ const FacilityCard: React.FC<{
     style={{ 
       boxShadow: isActive ? `0 4px 12px -2px ${color}20` : undefined,
       borderColor: isActive ? color : undefined,
-      background: isActive ? `linear-gradient(135deg, #ffffff 0%, ${color}05 100%)` : '#ffffff'
+      background: isActive ? `linear-gradient(135deg, var(--color-canvas) 0%, ${color}05 100%)` : 'var(--color-canvas)'
     }}
   >
     {/* Active indicator bar */}
@@ -497,7 +497,7 @@ const LimitUtilization: React.FC = () => {
                               <td className="py-0.5 pl-4 font-medium text-[#64748b]">SBLC</td>
                               <td className="py-0.5 text-right font-medium text-[#94a3b8] px-1" title={tooltipSblcLimit}>{formatCurrencyCompact(totalSblcLimit, currency, amountUnit)}</td>
                               <td className="py-0.5 text-right font-medium text-[#94a3b8] px-1" title={tooltipSblcUsed}>{formatCurrencyCompact(totalSblcUsed, currency, amountUnit)}</td>
-                              <td className="py-0.5 text-right px-1 font-medium text-[#16a34a] bg-[#EDF9F7]" title={tooltipSblcBalance}>
+                              <td className="py-0.5 text-right px-1 font-medium text-[#16a34a]" title={tooltipSblcBalance}>
                                 {formatCurrencyCompact(Math.max(0, totalSblcLimit - totalSblcUsed), currency, amountUnit)}
                               </td>
                             </tr>
@@ -505,7 +505,7 @@ const LimitUtilization: React.FC = () => {
                               <td className="py-0.5 pl-4 font-medium text-[#64748b]">Cash</td>
                               <td className="py-0.5 text-right font-medium text-[#94a3b8] px-1" title={tooltipCashLimit}>{formatCurrencyCompact(totalCashLimit, currency, amountUnit)}</td>
                               <td className="py-0.5 text-right font-medium text-[#94a3b8] px-1" title={tooltipCashUsed}>{formatCurrencyCompact(totalCashUsed, currency, amountUnit)}</td>
-                              <td className="py-0.5 text-right px-1 font-medium text-[#475569] bg-[#EDF9F7]" title={tooltipCashBalance}>
+                              <td className="py-0.5 text-right px-1 font-medium text-[#475569]" title={tooltipCashBalance}>
                                 {formatCurrencyCompact(Math.max(0, totalCashLimit - totalCashUsed), currency, amountUnit)}
                               </td>
                             </tr>
@@ -652,7 +652,7 @@ const LimitUtilization: React.FC = () => {
                                       {effectiveSblcLimit ? formatCurrencyCompact(effectiveSblcLimit, currency, amountUnit) : '—'}
                                     </td>
                                     <td className="py-0.5 text-right font-medium text-[#94a3b8] px-1" title={`Used = Sum of (${colSblc} where SBLC.BANK = '${bank.bank}' and (SBLC.Payment Status != 'Paid' OR SBLC.Payment Status IS NULL))`}>{formatCurrencyCompact(bank.sblc_utilization || 0, currency, amountUnit)}</td>
-                                    <td className="py-0.5 text-right px-1 font-medium text-[#16a34a] bg-[#EDF9F7]" title="Balance = SBLC Limit - SBLC Used">
+                                    <td className="py-0.5 text-right px-1 font-medium text-[#16a34a]" title="Balance = SBLC Limit - SBLC Used">
                                       {formatCurrencyCompact(Math.max(0, (effectiveSblcLimit || 0) - (bank.sblc_utilization || 0)), currency, amountUnit)}
                                     </td>
                                   </tr>
@@ -662,7 +662,7 @@ const LimitUtilization: React.FC = () => {
                                       {bank.cash_limit ? formatCurrencyCompact(bank.cash_limit, currency, amountUnit) : '—'}
                                     </td>
                                     <td className="py-0.5 text-right font-medium text-[#94a3b8] px-1" title={`Used = Sum of cash-specific exposures derived from ${colCash} where LC.Bank Name = '${bank.bank}' and (Product Name or Type contains 'CASH')`}>{formatCurrencyCompact(bank.cash_utilization || 0, currency, amountUnit)}</td>
-                                    <td className="py-0.5 text-right px-1 font-medium text-[#475569] bg-[#EDF9F7]" title="Balance = Cash Limit - Cash Used">
+                                    <td className="py-0.5 text-right px-1 font-medium text-[#475569]" title="Balance = Cash Limit - Cash Used">
                                       {formatCurrencyCompact(Math.max(0, (bank.cash_limit || 0) - (bank.cash_utilization || 0)), currency, amountUnit)}
                                     </td>
                                   </tr>
@@ -755,11 +755,11 @@ const LimitUtilization: React.FC = () => {
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-[10px]">
-                <thead className="bg-[#f8fafc]">
+                <thead className="bg-white">
                   <tr>
-                    <th className="px-3 py-2 text-left font-bold text-[#64748b] bg-[#f8fafc] z-10">Payment</th>
-                    <th className="px-3 py-2 text-left font-bold text-[#64748b] border-r border-[#e2e8f0] bg-[#f8fafc] z-10">BOE Status</th>
-                    <th className="px-3 py-2 text-right font-bold text-[#0f172a] bg-slate-100">Total</th>
+                    <th className="px-3 py-2 text-left font-bold text-[#64748b] bg-white z-10">Payment</th>
+                    <th className="px-3 py-2 text-left font-bold text-[#64748b] border-r border-[#e2e8f0] bg-white z-10">BOE Status</th>
+                    <th className="px-3 py-2 text-right font-bold text-[#0f172a] bg-white">Total</th>
                     {sortedCmdBanksList.map((bank: string) => (
                       <th key={bank} className="px-3 py-2 text-right font-bold text-[#64748b] min-w-[80px]">{bank}</th>
                     ))}
@@ -784,19 +784,19 @@ const LimitUtilization: React.FC = () => {
                     return (
                       <React.Fragment key={paymentStatusGroup}>
                         <tr 
-                          className="bg-slate-50/50 hover:bg-slate-100 transition-colors cursor-pointer group"
+                          className="bg-white hover:bg-slate-50/40 transition-colors cursor-pointer group"
                           onClick={() => toggleBoeStatus(paymentStatusGroup)}
                         >
-                          <td className="px-3 py-2 font-black text-[#0f172a] bg-slate-50 group-hover:bg-slate-100 z-10 whitespace-nowrap">
+                          <td className="px-3 py-2 font-black text-[#0f172a] bg-white group-hover:bg-slate-50/40 z-10 whitespace-nowrap">
                             <div className="flex items-center gap-1.5">
                               <ChevronRight className={`w-3 h-3 text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                               {toProperCase(paymentStatusGroup)}
                             </div>
                           </td>
-                          <td className="px-3 py-2 border-r border-[#e2e8f0] bg-slate-50 group-hover:bg-slate-100 z-10 text-[9px] text-[#64748b] font-bold uppercase tracking-wider">
+                          <td className="px-3 py-2 border-r border-[#e2e8f0] bg-white group-hover:bg-slate-50/40 z-10 text-[9px] text-[#64748b] font-bold uppercase tracking-wider">
                             
                           </td>
-                          <td className={`px-3 py-2 text-right font-black ${amountColorClass} bg-slate-100/50`}>
+                          <td className={`px-3 py-2 text-right font-black ${amountColorClass} bg-white group-hover:bg-slate-50/40`}>
                             {formatCurrencyCompact(groupTotal, currency, amountUnit)}
                           </td>
                           {sortedCmdBanksList.map((bank: string) => {
@@ -813,16 +813,16 @@ const LimitUtilization: React.FC = () => {
                           const rowTotal = sortedCmdBanksList.reduce((acc: number, b: string) => acc + (row[b] || 0), 0)
                           const statusKey = `${row.boe_status} & ${row.payment_status}`
                           return (
-                            <tr key={i} className="hover:bg-[#f8fafc] transition-colors group">
-                              <td className="px-6 py-2 font-medium text-[#475569] bg-white group-hover:bg-[#f8fafc] z-10 whitespace-nowrap">
+                            <tr key={i} className="hover:bg-slate-50/40 transition-colors group">
+                              <td className="px-6 py-2 font-medium text-[#475569] bg-white group-hover:bg-slate-50/40 z-10 whitespace-nowrap">
                                 {toProperCase(row.payment_status)}
                               </td>
-                              <td className="px-3 py-2 flex items-center gap-1.5 border-r border-[#e2e8f0] bg-white group-hover:bg-[#f8fafc] z-10 whitespace-nowrap">
+                              <td className="px-3 py-2 flex items-center gap-1.5 border-r border-[#e2e8f0] bg-white group-hover:bg-slate-50/40 z-10 whitespace-nowrap">
                                 <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BOE_COLOR_MAP[statusKey] || '#6b7280' }} />
                                 <span className="font-medium text-[#0f172a]">{toProperCase(row.boe_status)}</span>
                               </td>
                               <td
-                                className={`px-3 py-2 text-right font-bold ${amountColorClass} bg-slate-50 ${rowTotal > 0 ? 'cursor-pointer hover:underline' : ''}`}
+                                className={`px-3 py-2 text-right font-bold ${amountColorClass} bg-white group-hover:bg-slate-50/40 ${rowTotal > 0 ? 'cursor-pointer hover:underline' : ''}`}
                                 onClick={() => { if (rowTotal > 0) handleBoeClick(row.boe_status, row.payment_status, 'Total') }}
                               >
                                 {formatCurrencyCompact(rowTotal, currency, amountUnit)}
@@ -844,8 +844,8 @@ const LimitUtilization: React.FC = () => {
                   })}
                 </tbody>
                 <tfoot>
-                  <tr className="bg-slate-100 font-bold border-t-2 border-[#e2e8f0]">
-                    <td colSpan={2} className="px-3 py-2 text-left text-[#0f172a] border-r border-[#e2e8f0] sticky left-0 bg-slate-100 z-10 uppercase text-[9px]">Total</td>
+                  <tr className="bg-white font-bold border-t-2 border-[#e2e8f0]">
+                    <td colSpan={2} className="px-3 py-2 text-left text-[#0f172a] border-r border-[#e2e8f0] sticky left-0 bg-white z-10 uppercase text-[9px]">Total</td>
                     <td className={`px-3 py-2 text-right ${amountColorClass} text-[11px]`}>
                       {formatCurrencyCompact((boe_status_bank_pivot || []).reduce((acc: number, row: any) => acc + sortedCmdBanksList.reduce((acc2: number, b: string) => acc2 + (row[b] || 0), 0), 0), currency, amountUnit)}
                     </td>
@@ -872,6 +872,9 @@ const LimitUtilization: React.FC = () => {
             <div className="px-4 py-2 border-b flex items-center justify-between">
               <div>
                 <h3 className="text-[13px] font-bold text-[#0f172a]">Product-wise BOE</h3>
+                <p className="text-[10px] text-[#64748b] mt-0.5">
+                  Bifurcation of outstanding Bill of Entry compliance value by product categories across banks.
+                </p>
               </div>
               <div className="flex items-center gap-0.5 bg-white border border-[#e2e8f0] rounded-lg p-0.5 shadow-sm">
                 {(['Unpaid', 'Paid', 'All'] as const).map((s) => (
@@ -891,10 +894,10 @@ const LimitUtilization: React.FC = () => {
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-[10.5px]">
-                <thead className="bg-[#f8fafc]">
+                <thead className="bg-white">
                   <tr>
-                    <th className="px-4 py-2 text-left font-bold text-[#64748b] border-r border-[#e2e8f0] sticky left-0 bg-[#f8fafc] z-10">Product Type</th>
-                    <th className="px-4 py-2 text-right font-bold text-[#0f172a] bg-slate-100">Total</th>
+                    <th className="px-4 py-2 text-left font-bold text-[#64748b] border-r border-[#e2e8f0] sticky left-0 bg-white z-10">Product Type</th>
+                    <th className="px-4 py-2 text-right font-bold text-[#0f172a] bg-white">Total</th>
                     {sortedCmdBanksList.map((bank: string) => (
                       <th key={bank} className="px-4 py-2 text-right font-bold text-[#64748b] min-w-[80px]">{bank}</th>
                     ))}
@@ -909,16 +912,16 @@ const LimitUtilization: React.FC = () => {
                       <React.Fragment key={type}>
                         {/* Type Summary Row */}
                         <tr 
-                          className="bg-slate-50/50 hover:bg-slate-100 transition-colors cursor-pointer group"
+                          className="bg-white hover:bg-slate-50/40 transition-colors cursor-pointer group"
                           onClick={() => toggleType(type)}
                         >
-                          <td className="px-4 py-2 border-r border-[#e2e8f0] sticky left-0 bg-slate-50 group-hover:bg-slate-100 z-10">
+                          <td className="px-4 py-2 border-r border-[#e2e8f0] sticky left-0 bg-white group-hover:bg-slate-50/40 z-10">
                             <div className="flex items-center gap-1.5">
                               <ChevronRight className={`w-3 h-3 text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                               <span className="font-black text-[#0f172a] tracking-wide">{type}</span>
                             </div>
                           </td>
-                          <td className={`px-4 py-2 text-right font-black ${amountColorClass} bg-slate-100/50`}>
+                          <td className={`px-4 py-2 text-right font-black ${amountColorClass} bg-white group-hover:bg-slate-50/40`}>
                             {formatCurrencyCompact(typeTotal, currency, amountUnit)}
                           </td>
                           {sortedCmdBanksList.map((bank: string) => {
@@ -935,11 +938,11 @@ const LimitUtilization: React.FC = () => {
                         {isExpanded && products.map((row: any, i: number) => {
                           const rowTotal = sortedCmdBanksList.reduce((acc: number, b: string) => acc + (row[b] || 0), 0)
                           return (
-                            <tr key={`${type}-${i}`} className="hover:bg-[#f8fafc] transition-colors group">
-                              <td className="px-6 py-1.5 font-medium text-[#475569] border-r border-[#e2e8f0] sticky left-0 bg-white group-hover:bg-[#f8fafc] z-10 truncate max-w-[180px]" title={row.product}>
+                            <tr key={`${type}-${i}`} className="hover:bg-slate-50/40 transition-colors group">
+                              <td className="px-6 py-1.5 font-medium text-[#475569] border-r border-[#e2e8f0] sticky left-0 bg-white group-hover:bg-slate-50/40 z-10 truncate max-w-[180px]" title={row.product}>
                                 {row.product}
                               </td>
-                              <td className="px-4 py-1.5 text-right font-bold text-[#64748b] bg-slate-50/30">
+                              <td className="px-4 py-1.5 text-right font-bold text-[#64748b] bg-white group-hover:bg-slate-50/40">
                                 {formatCurrencyCompact(rowTotal, currency, amountUnit)}
                               </td>
                               {sortedCmdBanksList.map((bank: string) => (
@@ -960,7 +963,7 @@ const LimitUtilization: React.FC = () => {
 
           {/* Margin-wise Pivot Table */}
           <div className="bg-white border border-[#e2e8f0] rounded-[10px] shadow-sm overflow-hidden flex flex-col">
-            <div className="px-4 py-1.5 border-b flex items-center justify-between bg-slate-50">
+            <div className="px-4 py-1.5 border-b flex items-center justify-between bg-white">
               <div>
                 <h3 className="text-[12px] font-bold text-[#0f172a]">Margin-wise Exposure</h3>
                 <p className="text-[9px] text-[#64748b]">Open · Sum of Amount · all margin bands</p>
@@ -969,9 +972,9 @@ const LimitUtilization: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-[10px] border-collapse">
                 <thead>
-                  <tr className="bg-[#f8fafc]">
-                    <th className="px-3 py-1.5 text-left font-bold text-[#64748b] border-r border-[#e2e8f0] sticky left-0 bg-[#f8fafc] z-10">Margin</th>
-                    <th className="px-3 py-1.5 text-right font-bold text-[#0f172a] bg-slate-100">Total</th>
+                  <tr className="bg-white">
+                    <th className="px-3 py-1.5 text-left font-bold text-[#64748b] border-r border-[#e2e8f0] sticky left-0 bg-white z-10">Margin</th>
+                    <th className="px-3 py-1.5 text-right font-bold text-[#0f172a] bg-white">Total</th>
                     {sortedBanksList.map((bank: string) => (
                       <th key={bank} className="px-3 py-1.5 text-right font-bold text-[#64748b] min-w-[100px]">{bank}</th>
                     ))}
@@ -983,12 +986,12 @@ const LimitUtilization: React.FC = () => {
                     const marginPct = +(marginFraction * 100).toFixed(2)
                     const rowTotal = sortedBanksList.reduce((acc: number, b: string) => acc + (row[b] || 0), 0)
                     return (
-                      <tr key={i} className="hover:bg-[#f8fafc] transition-colors group">
-                        <td className="px-3 py-1.5 font-bold text-[#0f172a] border-r border-[#e2e8f0] sticky left-0 bg-white group-hover:bg-[#f8fafc] z-10">
+                      <tr key={i} className="hover:bg-slate-50/40 transition-colors group">
+                        <td className="px-3 py-1.5 font-bold text-[#0f172a] border-r border-[#e2e8f0] sticky left-0 bg-white group-hover:bg-slate-50/40 z-10">
                           {marginPct}%
                         </td>
                         <td
-                          className={`px-3 py-1.5 text-right font-bold ${amountColorClass} cursor-pointer hover:underline bg-slate-50`}
+                          className={`px-3 py-1.5 text-right font-bold ${amountColorClass} cursor-pointer hover:underline bg-white group-hover:bg-slate-50/40`}
                           onClick={() => handleMarginClick(marginFraction, 'Total')}
                         >
                           {formatCurrencyCompact(rowTotal, currency, amountUnit)}

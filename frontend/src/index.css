@@ -149,3 +149,192 @@
 .ag-theme-alpine .ag-header-cell-filter-button {
   opacity: 1 !important;
 }
+
+.dark {
+  --color-canvas: #09090b;
+  --color-parchment: #09090b;
+  --color-ink: #f4f4f5;
+  --color-ink-2: #e4e4e7;
+  --color-ink-mute: #a1a1aa;
+  --color-ink-mute-2: #71717a;
+  --color-ink-faint: #52525b;
+  --color-hairline: #27272a;
+  --color-hairline-cool: #18181b;
+  --color-hairline-strong: #3f3f46;
+  background-color: #09090b !important;
+  color: #f4f4f5 !important;
+}
+.dark .bg-white {
+  background-color: #18181b !important;
+}
+.dark .bg-slate-100 {
+  background-color: #27272a !important;
+}
+.dark .bg-slate-50 {
+  background-color: #18181b !important;
+}
+.dark .bg-sky-50 {
+  background-color: #1e293b !important;
+}
+.dark .bg-emerald-50 {
+  background-color: #064e3b !important;
+}
+.dark .border-black {
+  border-color: #27272a !important;
+}
+.dark .text-ink {
+  color: #f4f4f5 !important;
+}
+.dark .text-ink-mute {
+  color: #a1a1aa !important;
+}
+.dark .text-ink-faint {
+  color: #52525b !important;
+}
+.dark .border-hairline {
+  border-color: #27272a !important;
+}
+
+/* Command Center (LimitUtilization) Dark Mode overrides */
+.dark .bg-\[\#f8fafc\] {
+  background-color: #09090b !important;
+}
+.dark .bg-\[\#e2e8f0\] {
+  background-color: #27272a !important;
+}
+.dark .bg-\[\#EDF9F7\] {
+  background-color: #0d3a35 !important;
+}
+.dark .bg-\[\#FEF2F2\] {
+  background-color: #4c0519 !important;
+}
+.dark .bg-\[\#f1f5f9\] {
+  background-color: #18181b !important;
+}
+.dark .bg-\[\#FFFBEB\] {
+  background-color: #451a03 !important;
+}
+.dark .text-\[\#0f172a\] {
+  color: #f4f4f5 !important;
+}
+.dark .text-\[\#64748b\] {
+  color: #a1a1aa !important;
+}
+.dark .text-\[\#475569\] {
+  color: #d4d4d8 !important;
+}
+.dark .text-\[\#334155\] {
+  color: #e4e4e7 !important;
+}
+.dark .text-\[\#1e293b\] {
+  color: #e4e4e7 !important;
+}
+.dark .text-\[\#0f766e\] {
+  color: #2dd4bf !important;
+}
+.dark .text-\[\#15803d\] {
+  color: #4ade80 !important;
+}
+.dark .text-\[\#1d4ed8\] {
+  color: #60a5fa !important;
+}
+.dark .border-\[\#e2e8f0\] {
+  border-color: #27272a !important;
+}
+.dark .border-\[\#f1f5f9\] {
+  border-color: #27272a !important;
+}
+.dark .divide-\[\#e2e8f0\] > * + * {
+  border-color: #27272a !important;
+}
+.dark .border-slate-100 {
+  border-color: #27272a !important;
+}
+.dark .border-slate-200 {
+  border-color: #27272a !important;
+}
+.dark .text-slate-700 {
+  color: #d4d4d8 !important;
+}
+.dark .text-slate-800 {
+  color: #e4e4e7 !important;
+}
+.dark .text-slate-500 {
+  color: #a1a1aa !important;
+}
+.dark .text-slate-600 {
+  color: #a1a1aa !important;
+}
+.dark .text-slate-900 {
+  color: #f4f4f5 !important;
+}
+.dark .bg-slate-50\/30 {
+  background-color: rgba(39, 39, 42, 0.3) !important;
+}
+.dark .bg-slate-50\/50 {
+  background-color: rgba(39, 39, 42, 0.5) !important;
+}
+.dark .bg-slate-100\/50 {
+  background-color: rgba(39, 39, 42, 0.5) !important;
+}
+
+.dark .text-\[\#16a34a\] {
+  color: #4ade80 !important;
+}
+
+/* Blue badge overrides */
+.dark .bg-blue-50 {
+  background-color: rgba(30, 58, 138, 0.3) !important;
+}
+.dark .text-blue-700 {
+  color: #60a5fa !important;
+}
+.dark .border-blue-100 {
+  border-color: rgba(30, 58, 138, 0.6) !important;
+}
+
+/* Green badge overrides */
+.dark .bg-green-50 {
+  background-color: rgba(6, 78, 59, 0.4) !important;
+}
+.dark .text-green-700 {
+  color: #4ade80 !important;
+}
+.dark .border-green-100 {
+  border-color: rgba(6, 78, 59, 0.6) !important;
+}
+
+/* Red status overrides */
+.dark .bg-red-50 {
+  background-color: rgba(76, 5, 25, 0.4) !important;
+}
+.dark .text-red-700 {
+  color: #fda4af !important;
+}
+.dark .border-red-200 {
+  border-color: rgba(76, 5, 25, 0.6) !important;
+}
+
+/* Orange status overrides */
+.dark .bg-orange-50 {
+  background-color: rgba(67, 20, 7, 0.4) !important;
+}
+.dark .text-orange-700 {
+  color: #fed7aa !important;
+}
+.dark .border-orange-200 {
+  border-color: rgba(67, 20, 7, 0.6) !important;
+}
+
+/* Yellow status overrides */
+.dark .bg-yellow-50 {
+  background-color: rgba(66, 32, 6, 0.4) !important;
+}
+.dark .text-yellow-700 {
+  color: #fef08a !important;
+}
+.dark .border-yellow-100 {
+  border-color: rgba(66, 32, 6, 0.6) !important;
+}
+
+

@@ -375,5 +375,7 @@ async def get_table_data(table_name: str):
         # Double quote table name to handle spaces like "LC BG in Process"
         data = fetch_dict(f'SELECT * FROM "{table_name}"')
         return data
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

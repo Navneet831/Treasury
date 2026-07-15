@@ -43,7 +43,7 @@ def get_hedge_coverage_data(currency: str = "INR", fy: str = "All") -> Dict[str,
         SELECT COALESCE(TRIM("Product Name"), 'Unknown') AS product, COALESCE("Type", 'Unknown') AS type,
             CASE WHEN COALESCE("Type",'') = 'CAPEX' THEN 'Hedged' ELSE 'Unhedged' END AS hedge_status,
             COUNT(*) AS lc_count, SUM({amt_inr}) AS unpaid_inr, SUM({amt_fc}) AS unpaid_fc, MAX(COALESCE("Currency", 'USD')) AS currency
-        FROM LC WHERE {ps} = 'Unpaid' {fy_filter} GROUP BY 1, 2, 3 HAVING SUM({amt_inr}) > 0 OR SUM({amt_fc}) > 0 ORDER BY SUM({amt_inr}) DESC
+        FROM LC WHERE ({ps} = 'Unpaid' OR {ps} IS NULL) {fy_filter} GROUP BY 1, 2, 3 HAVING SUM({amt_inr}) > 0 OR SUM({amt_fc}) > 0 ORDER BY SUM({amt_inr}) DESC
     """)
     products = [{'product': r['product'], 'type': r['type'], 'hedge_status': r['hedge_status'], 'lc_count': int(r['lc_count'] or 0),
                 'unpaid_inr': round(float(r['unpaid_inr'] or 0), 2), 'unpaid_fc': round(float(r['unpaid_fc'] or 0), 2),

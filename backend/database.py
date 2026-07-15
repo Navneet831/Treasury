@@ -24,9 +24,9 @@ class PostgreSQLRepository(IRepository):
     """IRepository implementation backed by PostgreSQL (psycopg2).
 
     All Treasury services execute queries via this PostgreSQL repository.
-    This class runs every query through ``postgres_compat.translate_sql``
-    before execution so that standard compatibility constructs (date_diff,
-    INTERVAL N DAY, TRY_CAST, SHOW TABLES, DESCRIBE …) work transparently.
+    Queries are run through a SQL translation layer so that standard
+    compatibility constructs (date_diff, INTERVAL N DAY, TRY_CAST,
+    SHOW TABLES, DESCRIBE …) work transparently.
     """
 
     def __init__(self, dsn: str):
@@ -40,16 +40,54 @@ class PostgreSQLRepository(IRepository):
         logger.info("Treasury: PostgreSQL repository connected (%s)", dsn.split("@")[-1])
 
     # -- internal helpers
-    def _cursor(self):
-        """Return a dict cursor, reconnecting once if the connection dropped."""
+    def _ensure_connection(self):
+        """Ensure the connection is usable by checking local state only (no network ping)."""
+        import psycopg2.extensions as _ext
+        needs_reconnect = False
         try:
             if self._con.closed:
-                raise Exception("connection closed")
-            return self._con.cursor(cursor_factory=self._extras.RealDictCursor)
+                needs_reconnect = True
+            elif self._con.status == _ext.STATUS_IN_TRANSACTION:
+                # Aborted transaction — try rollback, fall back to reconnect
+                try:
+                    self._con.rollback()
+                except Exception:
+                    needs_reconnect = True
         except Exception:
-            self._con = self._psycopg2.connect(self._dsn)
-            self._con.autocommit = True
-            return self._con.cursor(cursor_factory=self._extras.RealDictCursor)
+            needs_reconnect = True
+
+        if needs_reconnect:
+            self._reconnect()
+
+    def _reconnect(self, max_attempts: int = 3, base_delay: float = 1.0):
+        """Reconnect with exponential back-off. Raises OperationalError after all retries."""
+        import time
+        last_err: Exception = RuntimeError("no attempts")
+        for attempt in range(max_attempts):
+            try:
+                try:
+                    self._con.close()
+                except Exception:
+                    pass
+                self._con = self._psycopg2.connect(self._dsn)
+                self._con.autocommit = True
+                logger.info("Treasury: DB reconnected (attempt %d/%d)", attempt + 1, max_attempts)
+                return
+            except self._psycopg2.OperationalError as e:
+                last_err = e
+                if attempt < max_attempts - 1:
+                    delay = base_delay * (2 ** attempt)
+                    logger.warning(
+                        "Treasury: Reconnect attempt %d/%d failed (%s) -- retrying in %.1fs...",
+                        attempt + 1, max_attempts, e, delay
+                    )
+                    time.sleep(delay)
+        raise last_err
+
+    def _cursor(self):
+        """Return a dict cursor, reconnecting if the connection is in a bad state."""
+        self._ensure_connection()
+        return self._con.cursor(cursor_factory=self._extras.RealDictCursor)
 
     def _translate(self, query: str) -> str:
         from apps.Treasury.backend.postgres_compat import translate_sql
@@ -58,14 +96,27 @@ class PostgreSQLRepository(IRepository):
     # -- IRepository interface
     def execute(self, query: str, params: Optional[Any] = None) -> Any:
         q = self._translate(query)
-        cur = self._cursor()
-        if params:
-            cur.execute(q, list(params) if not isinstance(params, (list, tuple)) else params)
-        else:
-            # psycopg2 interprets % as a param marker even with no params.
-            # Escape any literal % so the query executes cleanly.
-            cur.execute(q.replace("%", "%%"))
-        return cur
+        try:
+            cur = self._cursor()
+            if params:
+                cur.execute(q, list(params) if not isinstance(params, (list, tuple)) else params)
+            else:
+                cur.execute(q.replace("%", "%%"))
+            return cur
+        except (self._psycopg2.OperationalError, self._psycopg2.InternalError) as e:
+            # Connection died mid-query -- reconnect with back-off and retry once
+            logger.warning("Treasury: Query failed (%s), reconnecting and retrying...", e)
+            try:
+                self._reconnect()
+                cur = self._con.cursor(cursor_factory=self._extras.RealDictCursor)
+                if params:
+                    cur.execute(q, list(params) if not isinstance(params, (list, tuple)) else params)
+                else:
+                    cur.execute(q.replace("%", "%%"))
+                return cur
+            except Exception as retry_err:
+                logger.error("Treasury: Retry after reconnect also failed: %s", retry_err)
+                raise
 
     def fetch_all(self, query: str, params: Optional[Any] = None) -> List[Dict[str, Any]]:
         cur = self.execute(query, params)
