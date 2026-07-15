@@ -89,8 +89,8 @@ export const InterestSummary: React.FC = () => {
   const [sortColumn, setSortColumn] = useState<string>('')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
-  // UI View Modes: 'all' | 'summary' | 'pivot'
-  const [viewMode, setViewMode] = useState<'all' | 'summary' | 'pivot'>('all')
+  // UI View Modes: 'pivot' | 'summary' | 'all'
+  const [viewMode, setViewMode] = useState<'all' | 'summary' | 'pivot'>('pivot')
 
   // Selected Account for Bottom Drilldown
   const [drilldownAccount, setDrilldownAccount] = useState<string>('')
@@ -325,8 +325,20 @@ export const InterestSummary: React.FC = () => {
       acctMap[r.account][`close_${r.monthKey}`] = r.closingBal
     })
 
-    return Object.values(acctMap).sort((a, b) => a.account.localeCompare(b.account))
-  }, [processedRows])
+    let list = Object.values(acctMap)
+    
+    // Sort
+    if (sortColumn && (sortColumn === 'type' || sortColumn === 'account' || sortColumn === 'bank')) {
+      list.sort((a, b) => {
+        let valA = (a as any)[sortColumn] || ''
+        let valB = (b as any)[sortColumn] || ''
+        return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA)
+      })
+    } else {
+      list.sort((a, b) => a.account.localeCompare(b.account))
+    }
+    return list
+  }, [processedRows, sortColumn, sortDirection])
 
   // 2. Wide Account Pivot Rows
   const widePivotRows = useMemo(() => {
@@ -344,8 +356,20 @@ export const InterestSummary: React.FC = () => {
       acctMap[r.account][`variance_${r.monthKey}`] = r.variance
     })
 
-    return Object.values(acctMap).sort((a, b) => a.account.localeCompare(b.account))
-  }, [processedRows])
+    let list = Object.values(acctMap)
+    
+    // Sort
+    if (sortColumn && (sortColumn === 'type' || sortColumn === 'account' || sortColumn === 'bank')) {
+      list.sort((a, b) => {
+        let valA = (a as any)[sortColumn] || ''
+        let valB = (b as any)[sortColumn] || ''
+        return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA)
+      })
+    } else {
+      list.sort((a, b) => a.account.localeCompare(b.account))
+    }
+    return list
+  }, [processedRows, sortColumn, sortDirection])
 
   // Load drilldown transactions
   const fetchTransactions = useCallback(async (accountNo: string) => {
@@ -540,19 +564,36 @@ export const InterestSummary: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">Month</label>
-                <select
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="w-full text-xs bg-canvas border border-hairline rounded-lg px-2 py-1 text-ink outline-none focus:border-emerald-500 transition-colors"
-                >
-                  <option value="All">All Months</option>
-                  {monthsForSelectedFy.map(mKey => (
-                    <option key={mKey} value={mKey}>
-                      {data?.monthLabels[mKey] || mKey}
-                    </option>
-                  ))}
-                </select>
+                <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">Month Slicer</label>
+                <div className="border border-hairline bg-canvas rounded-lg p-1 h-[100px] overflow-y-auto flex flex-col gap-1 custom-scrollbar-vertical">
+                  <button
+                    onClick={() => setSelectedMonth('All')}
+                    className={`w-full text-left text-[10px] px-2 py-1 rounded font-mono font-semibold transition-all border ${
+                      selectedMonth === 'All'
+                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 font-bold'
+                        : 'bg-white border-hairline text-ink-mute hover:bg-canvas'
+                    }`}
+                  >
+                    All Months
+                  </button>
+                  {monthsForSelectedFy.map(mKey => {
+                    const label = data?.monthLabels[mKey] || mKey
+                    const isSelected = selectedMonth === mKey
+                    return (
+                      <button
+                        key={mKey}
+                        onClick={() => setSelectedMonth(mKey)}
+                        className={`w-full text-left text-[10px] px-2 py-0.5 rounded font-mono font-semibold transition-all border ${
+                          isSelected
+                            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 font-bold'
+                            : 'bg-white border-hairline text-ink-mute hover:bg-canvas'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
               <div className="flex items-center h-8 pb-1">
@@ -601,15 +642,15 @@ export const InterestSummary: React.FC = () => {
             {/* View Mode Selector Tabs */}
             <div className="flex border-b border-hairline shrink-0 gap-4">
               <button
-                onClick={() => setViewMode('all')}
+                onClick={() => setViewMode('pivot')}
                 className={`py-2 px-1 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition-colors ${
-                  viewMode === 'all'
+                  viewMode === 'pivot'
                     ? 'border-emerald-500 text-emerald-600'
                     : 'border-transparent text-ink-mute hover:text-ink'
                 }`}
               >
-                <Table className="w-3.5 h-3.5" />
-                All Rows (Month-wise)
+                <Grid className="w-3.5 h-3.5" />
+                Pivot by Account (Wide)
               </button>
               <button
                 onClick={() => setViewMode('summary')}
@@ -623,15 +664,15 @@ export const InterestSummary: React.FC = () => {
                 Opening/Closing Summary
               </button>
               <button
-                onClick={() => setViewMode('pivot')}
+                onClick={() => setViewMode('all')}
                 className={`py-2 px-1 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition-colors ${
-                  viewMode === 'pivot'
+                  viewMode === 'all'
                     ? 'border-emerald-500 text-emerald-600'
                     : 'border-transparent text-ink-mute hover:text-ink'
                 }`}
               >
-                <Grid className="w-3.5 h-3.5" />
-                Pivot by Account (Wide)
+                <Table className="w-3.5 h-3.5" />
+                All Rows (Month-wise)
               </button>
             </div>
 
