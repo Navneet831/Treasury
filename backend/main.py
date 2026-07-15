@@ -147,9 +147,9 @@ async def get_db_config():
                 '"Margin"': "margin (number)",
                 '"Supplier Name"': "supplier (string)",
                 '"Currency"': "currency (string)",
-                '"LC Amt \\n(in INR)"': "lcAmt (number)",
-                '"Pending BOE Amt\\n(in INR)"': "pendingBoeAmt (number)",
-                '"BOE Bill Amt\\n(in INR)"': "boeBillAmt (number)",
+                '"LC Amt (in INR)"': "lcAmt (number)",
+                '"Pending BOE Amt (in INR)"': "pendingBoeAmt (number)",
+                '"BOE Bill Amt (in INR)"': "boeBillAmt (number)",
                 '"Payment Status"': "paymentStatus (string)",
                 '"BOE Status"': "boeStatus (string)",
                 '"LC Status"': "lcStatus (string)"
