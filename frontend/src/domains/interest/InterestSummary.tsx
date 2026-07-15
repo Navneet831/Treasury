@@ -318,40 +318,40 @@ export const InterestSummary: React.FC = () => {
     <div className="flex-1 flex flex-col bg-canvas overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
       
       {/* Header */}
-      <div className="px-6 py-4 border-b border-hairline flex items-center justify-between shrink-0 bg-white">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
-            <Percent className="w-5 h-5 text-emerald-600" />
+      <div className="px-4 py-2 border-b border-hairline flex items-center justify-between shrink-0 bg-white">
+        <div className="flex items-center gap-2">
+          <div className="p-1 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+            <Percent className="w-4 h-4 text-emerald-600" />
           </div>
           <div>
-            <h1 className="text-sm font-semibold text-ink">interest</h1>
-            <p className="text-xs text-ink-mute mt-0.5">
+            <h1 className="text-xs font-semibold text-ink leading-none">interest</h1>
+            <p className="text-[10px] text-ink-mute mt-0.5">
               Reconciliation between interest charged vs calculated simple interest on daily statement balances.
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={fetchData}
             disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-hairline text-xs font-medium text-ink hover:bg-canvas transition-colors disabled:opacity-40 shadow-sm font-mono"
+            className="flex items-center gap-1 px-2 py-1 rounded-md bg-white border border-hairline text-[11px] font-medium text-ink hover:bg-canvas transition-colors disabled:opacity-40 shadow-sm font-mono"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </button>
           <button
             onClick={handleDownloadCsv}
             disabled={processedRows.length === 0}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 border border-emerald-700 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors disabled:opacity-40 shadow-sm"
+            className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-600 border border-emerald-700 text-[11px] font-semibold text-white hover:bg-emerald-700 transition-colors disabled:opacity-40 shadow-sm"
           >
-            <ArrowDownToLine className="w-3.5 h-3.5" />
+            <ArrowDownToLine className="w-3 h-3" />
             Download CSV
           </button>
         </div>
       </div>
 
       {/* Main Content Pane */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar-vertical">
+      <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar-vertical">
 
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -366,46 +366,46 @@ export const InterestSummary: React.FC = () => {
         ) : (
           <>
             {/* Filters Bar */}
-            <div className="bg-white rounded-xl border border-hairline p-4 shadow-sm grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3.5 items-end">
+            <div className="bg-white rounded-xl border border-hairline p-2 px-3 shadow-sm grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-2 items-end">
               <div>
-                <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-1.5 font-mono">Account Type</label>
+                <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">Account Type</label>
                 <select
                   value={selectedType}
                   onChange={(e) => setSelectedType(e.target.value)}
-                  className="w-full text-xs bg-canvas border border-hairline rounded-lg px-2.5 py-1.5 text-ink outline-none focus:border-emerald-500 transition-colors"
+                  className="w-full text-xs bg-canvas border border-hairline rounded-lg px-2 py-1 text-ink outline-none focus:border-emerald-500 transition-colors"
                 >
                   {accountTypes.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-1.5 font-mono">Bank</label>
+                <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">Bank</label>
                 <select
                   value={selectedBank}
                   onChange={(e) => setSelectedBank(e.target.value)}
-                  className="w-full text-xs bg-canvas border border-hairline rounded-lg px-2.5 py-1.5 text-ink outline-none focus:border-emerald-500 transition-colors"
+                  className="w-full text-xs bg-canvas border border-hairline rounded-lg px-2 py-1 text-ink outline-none focus:border-emerald-500 transition-colors"
                 >
                   {banks.map(b => <option key={b} value={b}>{b}</option>)}
                 </select>
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-1.5 font-mono">Filter by Account No.</label>
+                <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">Filter by Account No.</label>
                 <select
                   value={selectedAccount}
                   onChange={(e) => setSelectedAccount(e.target.value)}
-                  className="w-full text-xs bg-canvas border border-hairline rounded-lg px-2.5 py-1.5 text-ink outline-none focus:border-emerald-500 transition-colors"
+                  className="w-full text-xs bg-canvas border border-hairline rounded-lg px-2 py-1 text-ink outline-none focus:border-emerald-500 transition-colors"
                 >
                   {filteredAccountsForSelect.map(a => <option key={a} value={a}>{a}</option>)}
                 </select>
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-1.5 font-mono">Fiscal Year</label>
+                <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">Fiscal Year</label>
                 <select
                   value={selectedFy}
                   onChange={(e) => setSelectedFy(e.target.value)}
-                  className="w-full text-xs bg-canvas border border-hairline rounded-lg px-2.5 py-1.5 text-ink outline-none focus:border-emerald-500 transition-colors"
+                  className="w-full text-xs bg-canvas border border-hairline rounded-lg px-2 py-1 text-ink outline-none focus:border-emerald-500 transition-colors"
                 >
                   <option value="All FYs">All FYs</option>
                   {data?.fyList.map(fy => <option key={fy} value={fy}>{fy}</option>)}
@@ -425,8 +425,8 @@ export const InterestSummary: React.FC = () => {
                 
                 {/* Month Picker dropdown wrapper */}
                 <div className="relative">
-                  <div className="text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-1 font-mono">Months Filter</div>
-                  <div className="flex flex-wrap gap-1 border border-hairline bg-canvas rounded-lg px-2 py-1.5 text-xs text-ink max-h-24 overflow-y-auto">
+                  <div className="text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">Months Filter</div>
+                  <div className="flex flex-wrap gap-1 border border-hairline bg-canvas rounded-lg px-2 py-1 text-[11px] text-ink max-h-16 overflow-y-auto">
                     {monthsForSelectedFy.map(mKey => {
                       const label = data?.monthLabels[mKey] || mKey
                       const isSelected = selectedMonths.includes(mKey)
@@ -457,7 +457,7 @@ export const InterestSummary: React.FC = () => {
             </div>
 
             {/* Metrics cards row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
               <MetricCard
                 title="Accounts Selected"
                 icon={<Building className="w-4 h-4 text-sky-600" />}
@@ -531,18 +531,18 @@ export const InterestSummary: React.FC = () => {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-canvas-soft border-b border-hairline">
-                        <th className="p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Account</th>
-                        <th className="p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Type</th>
-                        <th className="p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Bank</th>
-                        <th className="p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Month</th>
-                        <th className="p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Opening Bal</th>
-                        <th className="p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Closing Bal</th>
-                        <th className="p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">ROI (%)</th>
-                        <th className="p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Int Recovered</th>
-                        <th className="p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Int Calculated</th>
-                        <th className="p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Variance</th>
-                        <th className="p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Var %</th>
-                        <th className="p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-center">Data</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Account</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Type</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Bank</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Month</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Opening Bal</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Closing Bal</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">ROI (%)</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Int Recovered</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Int Calculated</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Variance</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Var %</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-center">Data</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-hairline text-xs">
@@ -560,7 +560,7 @@ export const InterestSummary: React.FC = () => {
                           <td className="p-3 text-ink font-mono">{r.month}</td>
                           <td className="p-3 text-right font-mono text-ink-mute">{formatAmt(r.openingBal)}</td>
                           <td className="p-3 text-right font-mono text-ink-mute">{formatAmt(r.closingBal)}</td>
-                          <td className="p-3 text-right font-mono font-semibold text-sky-600">{r.roi ? `${r.roi.toFixed(2)}%` : '-'}</td>
+                          <td className="p-3 text-right font-mono font-semibold text-sky-600">{r.roi !== null ? `${r.roi.toFixed(2)}%` : '-'}</td>
                           <td className="p-3 text-right font-mono font-medium text-emerald-600">{formatAmt(r.intRecovered)}</td>
                           <td className="p-3 text-right font-mono text-ink">{formatAmt(r.intCalculated)}</td>
                           <td className={`p-3 text-right font-mono font-semibold ${
@@ -568,7 +568,7 @@ export const InterestSummary: React.FC = () => {
                           }`}>
                             {formatAmt(r.variance)}
                           </td>
-                          <td className="p-3 text-right font-mono text-ink-mute">{r.roi && r.openingBal ? `${r.variancePct.toFixed(1)}%` : '-'}</td>
+                          <td className="p-3 text-right font-mono text-ink-mute">{r.roi !== null && r.openingBal !== null ? `${r.variancePct.toFixed(1)}%` : '-'}</td>
                           <td className="p-3 text-center">
                             {r.tableFound ? (
                               <span className="inline-flex items-center justify-center p-1 bg-emerald-500/10 rounded-full">
@@ -597,13 +597,13 @@ export const InterestSummary: React.FC = () => {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-canvas-soft border-b border-hairline">
-                        <th className="p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Account</th>
-                        <th className="p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Type</th>
-                        <th className="p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Bank</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Account</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Type</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Bank</th>
                         {activeMonthsList.map(m => (
                           <React.Fragment key={m}>
-                            <th className="p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right bg-sky-500/5">Open ({data?.monthLabels[m]})</th>
-                            <th className="p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right bg-amber-500/5">Close ({data?.monthLabels[m]})</th>
+                            <th className="sticky top-0 bg-sky-100 z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Open ({data?.monthLabels[m]})</th>
+                            <th className="sticky top-0 bg-amber-100 z-10 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono text-right">Close ({data?.monthLabels[m]})</th>
                           </React.Fragment>
                         ))}
                       </tr>
@@ -636,25 +636,25 @@ export const InterestSummary: React.FC = () => {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-canvas-soft border-b border-hairline">
-                        <th className="p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Account</th>
-                        <th className="p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Type</th>
-                        <th className="p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Bank</th>
+                        <th className="sticky top-0 bg-canvas-soft z-20 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Account</th>
+                        <th className="sticky top-0 bg-canvas-soft z-20 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Type</th>
+                        <th className="sticky top-0 bg-canvas-soft z-20 p-3 text-[10px] font-bold text-ink-mute uppercase font-mono">Bank</th>
                         {activeMonthsList.map(m => (
-                          <th key={m} colSpan={6} className="p-3 text-[10px] font-bold text-ink border-l border-hairline text-center bg-emerald-500/5">
+                          <th key={m} colSpan={6} className="sticky top-0 bg-emerald-100 z-10 p-3 text-[10px] font-bold text-ink border-l border-hairline text-center">
                             {data?.monthLabels[m]}
                           </th>
                         ))}
                       </tr>
                       <tr className="bg-canvas-soft/70 border-b border-hairline text-[9px] font-mono text-ink-mute uppercase">
-                        <th colSpan={3}></th>
+                        <th colSpan={3} className="sticky top-[38px] bg-canvas-soft z-20"></th>
                         {activeMonthsList.map(m => (
                           <React.Fragment key={m}>
-                            <th className="p-2 border-l border-hairline text-right">ROI</th>
-                            <th className="p-2 text-right">Open</th>
-                            <th className="p-2 text-right">Close</th>
-                            <th className="p-2 text-right">Recov.</th>
-                            <th className="p-2 text-right">Calc.</th>
-                            <th className="p-2 text-right">Var</th>
+                            <th className="sticky top-[38px] bg-canvas-soft z-10 p-2 border-l border-hairline text-right">ROI</th>
+                            <th className="sticky top-[38px] bg-canvas-soft z-10 p-2 text-right">Open</th>
+                            <th className="sticky top-[38px] bg-canvas-soft z-10 p-2 text-right">Close</th>
+                            <th className="sticky top-[38px] bg-canvas-soft z-10 p-2 text-right">Recov.</th>
+                            <th className="sticky top-[38px] bg-canvas-soft z-10 p-2 text-right">Calc.</th>
+                            <th className="sticky top-[38px] bg-canvas-soft z-10 p-2 text-right">Var</th>
                           </React.Fragment>
                         ))}
                       </tr>
@@ -676,7 +676,7 @@ export const InterestSummary: React.FC = () => {
                             return (
                               <React.Fragment key={m}>
                                 <td className="p-2 border-l border-hairline text-right text-sky-600 font-semibold">
-                                  {acctRow[`roi_${m}`] ? `${acctRow[`roi_${m}`].toFixed(1)}%` : '-'}
+                                  {acctRow[`roi_${m}`] !== null ? `${acctRow[`roi_${m}`].toFixed(1)}%` : '-'}
                                 </td>
                                 <td className="p-2 text-right text-ink-mute">{formatAmt(acctRow[`open_${m}`])}</td>
                                 <td className="p-2 text-right text-ink-mute">{formatAmt(acctRow[`close_${m}`])}</td>
@@ -721,7 +721,7 @@ export const InterestSummary: React.FC = () => {
                         </div>
                         <div className="flex justify-between py-1.5 border-b border-hairline/60">
                           <span className="text-ink-mute font-medium">ROI rate</span>
-                          <span className="font-mono font-bold text-sky-600">{info.roi ? `${info.roi.toFixed(2)}%` : 'No ROI configured'}</span>
+                          <span className="font-mono font-bold text-sky-600">{info.roi !== null ? `${info.roi.toFixed(2)}%` : 'No ROI configured'}</span>
                         </div>
                       </React.Fragment>
                     ))}
@@ -734,7 +734,7 @@ export const InterestSummary: React.FC = () => {
                       <div key={idx} className="flex justify-between items-center p-3 rounded-lg border border-hairline/60 hover:bg-canvas transition-colors">
                         <div>
                           <div className="text-xs font-bold text-ink font-mono">{r.month}</div>
-                          <div className="text-[10px] text-ink-mute">ROI: {r.roi ? `${r.roi.toFixed(2)}%` : '-'}</div>
+                          <div className="text-[10px] text-ink-mute">ROI: {r.roi !== null ? `${r.roi.toFixed(2)}%` : '-'}</div>
                         </div>
                         <div className="text-right">
                           <div className="text-xs font-bold text-emerald-600 font-mono">₹ {formatAmt(r.intRecovered)} <span className="text-[9px] text-ink-mute font-normal">Rec</span></div>
@@ -774,11 +774,11 @@ export const InterestSummary: React.FC = () => {
                         <table className="w-full text-left border-collapse">
                           <thead>
                             <tr className="bg-white border-b border-hairline text-[9px] font-bold text-ink-mute uppercase font-mono">
-                              <th className="p-2.5">Date</th>
-                              <th className="p-2.5">Description</th>
-                              <th className="p-2.5 text-right">Debit</th>
-                              <th className="p-2.5 text-right">Credit</th>
-                              <th className="p-2.5 text-right">Balance</th>
+                              <th className="sticky top-0 bg-white z-10 p-2.5">Date</th>
+                              <th className="sticky top-0 bg-white z-10 p-2.5">Description</th>
+                              <th className="sticky top-0 bg-white z-10 p-2.5 text-right">Debit</th>
+                              <th className="sticky top-0 bg-white z-10 p-2.5 text-right">Credit</th>
+                              <th className="sticky top-0 bg-white z-10 p-2.5 text-right">Balance</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-hairline text-[11px] font-mono bg-white">
@@ -840,27 +840,25 @@ interface MetricCardProps {
 
 const MetricCard: React.FC<MetricCardProps> = ({ title, icon, value, subtitle, highlight = false, alertType = 'info' }) => {
   return (
-    <div className={`p-4 bg-white rounded-xl border shadow-sm transition-all flex flex-col justify-between h-28 ${
+    <div className={`p-2.5 px-3 bg-white rounded-xl border shadow-sm transition-all flex items-center justify-between h-16 ${
       highlight
         ? alertType === 'warning'
           ? 'border-amber-500/20 bg-amber-50/10'
           : 'border-emerald-500/20 bg-emerald-50/10'
         : 'border-hairline'
     }`}>
-      <div className="flex justify-between items-start">
-        <span className="text-[10px] font-bold text-ink-mute uppercase tracking-wide font-mono">{title}</span>
-        <div className="p-1.5 bg-canvas rounded-lg">{icon}</div>
-      </div>
-      <div>
-        <div className={`text-sm font-bold font-mono tracking-tight ${
+      <div className="min-w-0 flex-1">
+        <span className="text-[9px] font-bold text-ink-mute uppercase tracking-wide font-mono block leading-none mb-1">{title}</span>
+        <div className={`text-xs font-bold font-mono tracking-tight ${
           highlight
             ? alertType === 'warning'
               ? 'text-amber-600'
               : 'text-emerald-700'
             : 'text-ink'
         }`}>{value}</div>
-        <span className="text-[10px] text-ink-faint mt-0.5 block">{subtitle}</span>
+        <span className="text-[8px] text-ink-faint block truncate mt-0.5" title={subtitle}>{subtitle}</span>
       </div>
+      <div className="p-1.5 bg-canvas rounded-lg shrink-0 ml-2">{icon}</div>
     </div>
   )
 }
