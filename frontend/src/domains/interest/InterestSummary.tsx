@@ -990,29 +990,19 @@ export const InterestSummary: React.FC = () => {
                 {/* Transactions list Box — wider, taller */}
                 <div className="flex-1 flex flex-col gap-2 min-w-0">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1.5">
-                        <Table className="w-3.5 h-3.5 text-emerald-600" />
-                        <h3 className="text-[10px] font-bold text-ink tracking-wide uppercase font-mono">Statement Transactions</h3>
-                        {drilldownAccount && <span className="text-[9px] font-mono text-ink-mute bg-canvas border border-hairline rounded px-1.5 py-0.5">{drilldownAccount}</span>}
-                      </div>
-                      
-                      {/* Month filter select */}
-                      <div className="flex items-center gap-1 bg-canvas border border-hairline rounded px-1.5 py-0.5">
-                        <span className="text-[9px] font-bold text-ink-mute uppercase font-mono">Month:</span>
-                        <select
-                          value={drilldownMonth}
-                          onChange={(e) => setDrilldownMonth(e.target.value)}
-                          className="text-[9px] bg-transparent text-ink font-mono outline-none border-none cursor-pointer"
-                        >
-                          <option value="all">All</option>
-                          {data?.months.map(m => (
-                            <option key={m} value={m}>
-                              {data?.monthLabels[m]}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <Table className="w-3.5 h-3.5 text-emerald-600" />
+                      <h3 className="text-[10px] font-bold text-ink tracking-wide uppercase font-mono">Statement Transactions</h3>
+                      {drilldownAccount && (
+                        <span className="text-[9px] font-mono text-ink-mute bg-canvas border border-hairline rounded px-1.5 py-0.5">
+                          {drilldownAccount}
+                        </span>
+                      )}
+                      {drilldownMonth !== 'all' && data?.monthLabels[drilldownMonth] && (
+                        <span className="text-[9px] font-mono text-emerald-700 bg-emerald-500/10 border border-emerald-500/20 rounded px-1.5 py-0.5">
+                          {data.monthLabels[drilldownMonth]}
+                        </span>
+                      )}
                     </div>
                     {filteredTxns.length > 0 && (
                       <span className="text-[9px] font-semibold bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded-full font-mono">

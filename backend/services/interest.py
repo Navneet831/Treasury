@@ -1,3 +1,4 @@
+import bisect
 import calendar
 import logging
 import math
@@ -128,23 +129,25 @@ def get_daily_balances_for_month(stmt_rows: List[Dict[str, Any]], year: int, mon
             d_key = parsed_d.date()
             date_balances[d_key] = float(r["balance"]) if r["balance"] is not None else None
 
-    # Sort all unique transaction dates
+    # Sort all unique transaction dates once, outside the day loop
     sorted_tx_dates = sorted(date_balances.keys())
-    
+
     daily_balances = []
     for d in range(1, days_in_month + 1):
         day_date = date(year, month, d)
-        
+
         last_bal = 0.0
         if day_date in date_balances and date_balances[day_date] is not None:
             last_bal = date_balances[day_date]
         else:
-            # Find the most recent transaction date before day_date
-            candidates = [td for td in sorted_tx_dates if td < day_date]
-            if candidates:
-                last_bal = date_balances[candidates[-1]] if date_balances[candidates[-1]] is not None else 0.0
+            # Binary search: find the insertion point for day_date, then step back one
+            # to get the most recent transaction date strictly before day_date — O(log n)
+            idx = bisect.bisect_left(sorted_tx_dates, day_date) - 1
+            if idx >= 0:
+                pred_date = sorted_tx_dates[idx]
+                last_bal = date_balances[pred_date] if date_balances[pred_date] is not None else 0.0
             else:
-                # Fallback to the first transaction balance if no transaction has occurred yet
+                # No transaction has occurred yet; fall back to the earliest known balance
                 if sorted_tx_dates:
                     last_bal = date_balances[sorted_tx_dates[0]] if date_balances[sorted_tx_dates[0]] is not None else 0.0
                 else:
@@ -152,7 +155,7 @@ def get_daily_balances_for_month(stmt_rows: List[Dict[str, Any]], year: int, mon
         daily_balances.append(last_bal)
     return daily_balances
 
-@ttl_cache(seconds=300)
+@ttl_cache(seconds=600)
 def get_interest_summary_data() -> Dict[str, Any]:
     # 1. Load Bank_summary
     accounts_res = fetch_dict("""
