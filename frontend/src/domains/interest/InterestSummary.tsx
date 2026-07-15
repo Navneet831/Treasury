@@ -40,6 +40,38 @@ interface StatementTxn {
   balance: number | null;
 }
 
+const matchTxnMonth = (txnDateStr: string, monthKey: string) => {
+  if (!txnDateStr || !monthKey) return false
+  const parts = monthKey.split('_')
+  if (parts.length !== 2) return false
+  const mStr = parts[0].toLowerCase()
+  const yStr = parts[1]
+
+  let dateObj: Date | null = null
+  if (txnDateStr.includes('T')) {
+    dateObj = new Date(txnDateStr)
+  } else {
+    const cleanDate = txnDateStr.replace(/\//g, '-').replace(/\s+/g, '')
+    const sub = cleanDate.split('-')
+    if (sub.length === 3) {
+      if (sub[0].length === 4) {
+        dateObj = new Date(Number(sub[0]), Number(sub[1]) - 1, Number(sub[2]))
+      } else {
+        const yr = sub[2].length === 2 ? 2000 + Number(sub[2]) : Number(sub[2])
+        dateObj = new Date(yr, Number(sub[1]) - 1, Number(sub[0]))
+      }
+    }
+  }
+
+  if (!dateObj || isNaN(dateObj.getTime())) return false
+
+  const shortMonths = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+  const txnMonth = shortMonths[dateObj.getMonth()]
+  const txnYear = String(dateObj.getFullYear()).slice(-2)
+
+  return txnMonth === mStr && txnYear === yStr
+}
+
 export const InterestSummary: React.FC = () => {
   const [data, setData] = useState<InterestSummaryData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -58,6 +90,7 @@ export const InterestSummary: React.FC = () => {
 
   // Selected Account for Bottom Drilldown
   const [drilldownAccount, setDrilldownAccount] = useState<string>('')
+  const [drilldownMonth, setDrilldownMonth] = useState<string>('all')
   const [txnList, setTxnList] = useState<StatementTxn[]>([])
   const [loadingTxns, setLoadingTxns] = useState(false)
   const [txnError, setTxnError] = useState<string | null>(null)
@@ -273,6 +306,12 @@ export const InterestSummary: React.FC = () => {
       fetchTransactions(drilldownAccount)
     }
   }, [drilldownAccount, fetchTransactions])
+
+  // Filter transactions by selected drilldown month
+  const filteredTxns = useMemo(() => {
+    if (drilldownMonth === 'all') return txnList
+    return txnList.filter(t => matchTxnMonth(t.txn_date, drilldownMonth))
+  }, [txnList, drilldownMonth])
 
   // CSV Exporter
   const handleDownloadCsv = () => {
@@ -549,7 +588,12 @@ export const InterestSummary: React.FC = () => {
                       {processedRows.map((r, idx) => (
                         <tr
                           key={idx}
-                          onClick={() => r.tableFound && setDrilldownAccount(r.account)}
+                          onClick={() => {
+                            if (r.tableFound) {
+                              setDrilldownAccount(r.account)
+                              setDrilldownMonth(r.monthKey)
+                            }
+                          }}
                           className={`hover:bg-canvas-soft/40 transition-colors ${
                             r.tableFound ? 'cursor-pointer' : 'opacity-60'
                           } ${drilldownAccount === r.account ? 'bg-emerald-500/5' : ''}`}
@@ -612,18 +656,17 @@ export const InterestSummary: React.FC = () => {
                       {openingClosingSummary.map((acctRow, idx) => (
                         <tr
                           key={idx}
-                          onClick={() => setDrilldownAccount(acctRow.account)}
                           className={`hover:bg-canvas-soft/40 cursor-pointer transition-colors ${
                             drilldownAccount === acctRow.account ? 'bg-emerald-500/5' : ''
                           }`}
                         >
-                          <td className="p-3 font-semibold text-ink">{acctRow.account}</td>
-                          <td className="p-3 text-ink-mute font-sans">{acctRow.type}</td>
-                          <td className="p-3 text-ink-mute font-sans">{acctRow.bank}</td>
+                          <td className="p-3 font-semibold text-ink" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.account}</td>
+                          <td className="p-3 text-ink-mute font-sans" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.type}</td>
+                          <td className="p-3 text-ink-mute font-sans" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.bank}</td>
                           {activeMonthsList.map(m => (
                             <React.Fragment key={m}>
-                              <td className="p-3 text-right text-ink-mute bg-sky-500/5">{formatAmt(acctRow[`open_${m}`])}</td>
-                              <td className="p-3 text-right text-ink-mute bg-amber-500/5">{formatAmt(acctRow[`close_${m}`])}</td>
+                              <td className="p-3 text-right text-ink-mute hover:bg-sky-500/10 transition-colors" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth(m); }}>{formatAmt(acctRow[`open_${m}`])}</td>
+                              <td className="p-3 text-right text-ink-mute hover:bg-amber-500/10 transition-colors" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth(m); }}>{formatAmt(acctRow[`close_${m}`])}</td>
                             </React.Fragment>
                           ))}
                         </tr>
@@ -663,26 +706,25 @@ export const InterestSummary: React.FC = () => {
                       {widePivotRows.map((acctRow, idx) => (
                         <tr
                           key={idx}
-                          onClick={() => setDrilldownAccount(acctRow.account)}
                           className={`hover:bg-canvas-soft/40 cursor-pointer transition-colors ${
                             drilldownAccount === acctRow.account ? 'bg-emerald-500/5' : ''
                           }`}
                         >
-                          <td className="p-3 font-semibold text-ink">{acctRow.account}</td>
-                          <td className="p-3 text-ink-mute font-sans">{acctRow.type}</td>
-                          <td className="p-3 text-ink-mute font-sans">{acctRow.bank}</td>
+                          <td className="p-3 font-semibold text-ink" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.account}</td>
+                          <td className="p-3 text-ink-mute font-sans" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.type}</td>
+                          <td className="p-3 text-ink-mute font-sans" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.bank}</td>
                           {activeMonthsList.map(m => {
                             const v = acctRow[`variance_${m}`]
                             return (
                               <React.Fragment key={m}>
-                                <td className="p-2 border-l border-hairline text-right text-sky-600 font-semibold">
+                                <td className="p-2 border-l border-hairline text-right text-sky-600 font-semibold hover:bg-emerald-500/10 transition-colors" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth(m); }}>
                                   {acctRow[`roi_${m}`] !== null ? `${acctRow[`roi_${m}`].toFixed(1)}%` : '-'}
                                 </td>
-                                <td className="p-2 text-right text-ink-mute">{formatAmt(acctRow[`open_${m}`])}</td>
-                                <td className="p-2 text-right text-ink-mute">{formatAmt(acctRow[`close_${m}`])}</td>
-                                <td className="p-2 text-right text-emerald-600 font-medium">{formatAmt(acctRow[`recovered_${m}`])}</td>
-                                <td className="p-2 text-right text-ink">{formatAmt(acctRow[`calculated_${m}`])}</td>
-                                <td className={`p-2 text-right font-semibold ${v < 0 ? 'text-amber-600' : v > 0 ? 'text-emerald-700' : 'text-ink-mute'}`}>
+                                <td className="p-2 text-right text-ink-mute hover:bg-emerald-500/10 transition-colors" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth(m); }}>{formatAmt(acctRow[`open_${m}`])}</td>
+                                <td className="p-2 text-right text-ink-mute hover:bg-emerald-500/10 transition-colors" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth(m); }}>{formatAmt(acctRow[`close_${m}`])}</td>
+                                <td className="p-2 text-right text-emerald-600 font-medium hover:bg-emerald-500/10 transition-colors" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth(m); }}>{formatAmt(acctRow[`recovered_${m}`])}</td>
+                                <td className="p-2 text-right text-ink hover:bg-emerald-500/10 transition-colors" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth(m); }}>{formatAmt(acctRow[`calculated_${m}`])}</td>
+                                <td className={`p-2 text-right font-semibold hover:bg-emerald-500/10 transition-colors ${v < 0 ? 'text-amber-600' : v > 0 ? 'text-emerald-700' : 'text-ink-mute'}`} onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth(m); }}>
                                   {formatAmt(v)}
                                 </td>
                               </React.Fragment>
@@ -748,13 +790,34 @@ export const InterestSummary: React.FC = () => {
                 {/* Transactions list Box */}
                 <div className="flex-1 space-y-4">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Table className="w-4 h-4 text-emerald-600" />
-                      <h3 className="text-xs font-bold text-ink tracking-wide uppercase font-mono">Statement Transactions</h3>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <Table className="w-4 h-4 text-emerald-600" />
+                        <h3 className="text-xs font-bold text-ink tracking-wide uppercase font-mono">Statement Transactions</h3>
+                      </div>
+                      
+                      {/* Month filter select */}
+                      <div className="flex items-center gap-1.5 bg-canvas border border-hairline rounded px-1.5 py-0.5">
+                        <span className="text-[9px] font-bold text-ink-mute uppercase font-mono">Month:</span>
+                        <select
+                          value={drilldownMonth}
+                          onChange={(e) => setDrilldownMonth(e.target.value)}
+                          className="text-[10px] bg-transparent text-ink font-mono outline-none border-none cursor-pointer"
+                        >
+                          <option value="all">All Months</option>
+                          {data?.months.map(m => (
+                            <option key={m} value={m}>
+                              {data?.monthLabels[m]}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                    {txnList.length > 0 && (
+                    {filteredTxns.length > 0 && (
                       <span className="text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded-full font-mono">
-                        {txnList.length} rows
+                        {filteredTxns.length === txnList.length 
+                          ? `${txnList.length} rows` 
+                          : `${filteredTxns.length} / ${txnList.length} rows`}
                       </span>
                     )}
                   </div>
@@ -782,7 +845,7 @@ export const InterestSummary: React.FC = () => {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-hairline text-[11px] font-mono bg-white">
-                            {txnList.map((t, idx) => (
+                            {filteredTxns.map((t, idx) => (
                               <tr key={idx} className="hover:bg-canvas-soft/35 transition-colors">
                                 <td className="p-2.5 text-ink-mute truncate max-w-[80px]" title={t.txn_date}>{t.txn_date}</td>
                                 <td className="p-2.5 text-ink max-w-[200px] truncate" title={t.description}>{t.description}</td>
@@ -796,8 +859,8 @@ export const InterestSummary: React.FC = () => {
                       </div>
                     </div>
                   ) : (
-                    <div className="p-12 text-center text-xs text-ink-mute italic bg-canvas rounded-xl border border-hairline border-dashed">
-                      No transaction statements found for this account.
+                    <div className="p-12 text-center text-xs text-ink-mute italic bg-canvas rounded-xl border border-hairline border-dashed font-mono">
+                      No transactions match the selected month filter ({data?.monthLabels[drilldownMonth] || drilldownMonth}).
                     </div>
                   )}
 

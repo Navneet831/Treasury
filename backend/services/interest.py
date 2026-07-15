@@ -124,7 +124,7 @@ def get_interest_summary_data() -> Dict[str, Any]:
     # 1. Load Bank_summary
     accounts_res = fetch_dict("""
         SELECT account_no, table_type, bank_name, description, name, roi
-        FROM Bank_summary
+        FROM bank_summary
         ORDER BY table_type, account_no
     """)
 
