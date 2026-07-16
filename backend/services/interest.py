@@ -405,11 +405,6 @@ def get_interest_summary_data(fy: str = None) -> Dict[str, Any]:
                     opening = month_data.iloc[0]["balance"]
                     closing = month_data.iloc[-1]["balance"]
 
-                    actual_charged = month_data[month_data["is_interest_charged"]]["debit"].sum()
-                    actual_recovered = month_data[month_data["is_interest_recovered"]]["credit"].sum()
-                    if closing is not None:
-                        closing = closing + actual_charged - actual_recovered
-
                     metrics[mk] = {
                         "opening": float(opening) if opening is not None else None,
                         "closing": float(closing) if closing is not None else None,
