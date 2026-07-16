@@ -397,10 +397,8 @@ def get_interest_summary_data(fy: str = None) -> Dict[str, Any]:
                         }
                         continue
 
-                    int_recovered = df[
-                        (df["is_interest_recovered"]) &
-                        (df["interest_month"] == mk)
-                    ]["credit"].sum()
+                    recovered_df = df[(df["is_interest_recovered"]) & (df["interest_month"] == mk)]
+                    int_recovered = (recovered_df["credit"] + recovered_df["debit"]).sum()
 
                     opening = month_data.iloc[0]["balance"]
                     closing = month_data.iloc[-1]["balance"]

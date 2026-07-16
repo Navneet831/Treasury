@@ -825,7 +825,7 @@ export const InterestSummary: React.FC = () => {
               <div className="overflow-auto max-h-[350px] custom-scrollbar-horizontal custom-scrollbar-vertical">
                 
                 {viewMode === 'all' && (
-                  <table className="w-full text-left border-collapse table-auto whitespace-nowrap">
+                  <table className="min-w-full w-max text-left border-collapse table-auto whitespace-nowrap">
                     <thead>
                       <tr className="bg-canvas-soft border-b border-hairline text-[10px] font-mono text-ink-mute uppercase">
                         <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-left cursor-pointer select-none" onClick={() => handleSort('type')}>Type {renderSortIndicator('type')}</th>
@@ -900,7 +900,7 @@ export const InterestSummary: React.FC = () => {
                 )}
 
                 {viewMode === 'summary' && (
-                  <table className="w-full text-left border-collapse table-auto whitespace-nowrap">
+                  <table className="min-w-full w-max text-left border-collapse table-auto whitespace-nowrap">
                     <thead>
                       <tr className="bg-canvas-soft border-b border-hairline text-[10px] font-mono text-ink-mute uppercase">
                         <th rowSpan={2} className="sticky top-0 bg-canvas-soft z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('type')}>Type {renderSortIndicator('type')}</th>
@@ -945,7 +945,7 @@ export const InterestSummary: React.FC = () => {
                 )}
 
                 {viewMode === 'pivot' && (
-                  <table className="w-full text-left border-collapse table-auto whitespace-nowrap">
+                  <table className="min-w-full w-max text-left border-collapse table-auto whitespace-nowrap">
                     <thead>
                       <tr className="bg-canvas-soft border-b border-hairline text-[10px] font-mono text-ink-mute uppercase">
                         <th rowSpan={2} className="sticky top-0 bg-canvas-soft z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('type')}>Type {renderSortIndicator('type')}</th>
@@ -1100,7 +1100,7 @@ export const InterestSummary: React.FC = () => {
                     <div className="text-[9px] font-bold text-ink-mute uppercase tracking-wide font-mono mb-1">Monthly Splits <span className="font-normal normal-case">(click row to load statements)</span></div>
                     <div className="border border-hairline rounded-lg overflow-hidden">
                       <div className="overflow-y-auto max-h-[280px] custom-scrollbar-vertical">
-                        <table className="w-full text-left border-collapse table-auto whitespace-nowrap">
+                        <table className="min-w-full w-max text-left border-collapse table-auto whitespace-nowrap">
                           <thead>
                             <tr className="bg-canvas-soft text-[9px] font-mono text-ink-mute uppercase">
                               <th className="sticky top-0 bg-canvas-soft p-1.5 font-bold">Month</th>
@@ -1177,7 +1177,7 @@ export const InterestSummary: React.FC = () => {
                   ) : txnList.length > 0 ? (
                     <div className="border border-hairline rounded-xl overflow-hidden bg-canvas flex-1">
                       <div className="overflow-auto max-h-[420px] custom-scrollbar-vertical custom-scrollbar-horizontal">
-                        <table className="w-full text-left border-collapse table-auto whitespace-nowrap">
+                        <table className="min-w-full w-max text-left border-collapse table-auto whitespace-nowrap">
                           <thead>
                             <tr className="bg-canvas-soft border-b border-hairline text-[9px] font-bold text-ink-mute uppercase font-mono">
                               <th className="sticky top-0 bg-canvas-soft z-10 p-1.5">Date</th>
