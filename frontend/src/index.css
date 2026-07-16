@@ -38,6 +38,7 @@
   --color-canvas: #ffffff;
   --color-parchment: #fafafa;
   --color-night: #1c1c1c;
+  --color-canvas-soft: #f4f4f5;
 
   /* Hairline ladder */
   --color-hairline: #dfdfdf;
@@ -153,6 +154,7 @@
 .dark {
   --color-canvas: #09090b;
   --color-parchment: #09090b;
+  --color-canvas-soft: #18181b;
   --color-ink: #f4f4f5;
   --color-ink-2: #e4e4e7;
   --color-ink-mute: #a1a1aa;

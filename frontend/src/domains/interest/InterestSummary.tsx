@@ -912,11 +912,11 @@ export const InterestSummary: React.FC = () => {
                           </th>
                         ))}
                       </tr>
-                      <tr className="bg-canvas border-b border-hairline text-[9px] font-mono text-ink-mute uppercase">
+                      <tr className="bg-canvas-soft border-b border-hairline text-[9px] font-mono text-ink-mute uppercase">
                         {activeMonthsList.map(m => (
                           <React.Fragment key={m}>
-                            <th className="sticky top-[28px] bg-canvas z-10 p-1 border-l border-hairline text-right">Open</th>
-                            <th className="sticky top-[28px] bg-canvas z-10 p-1 text-right">Close</th>
+                            <th className="sticky top-[28px] bg-canvas-soft z-10 p-1 border-l border-hairline text-right">Open</th>
+                            <th className="sticky top-[28px] bg-canvas-soft z-10 p-1 text-right">Close</th>
                           </React.Fragment>
                         ))}
                       </tr>
@@ -957,15 +957,15 @@ export const InterestSummary: React.FC = () => {
                           </th>
                         ))}
                       </tr>
-                      <tr className="bg-canvas border-b border-hairline text-[9px] font-mono text-ink-mute uppercase">
+                      <tr className="bg-canvas-soft border-b border-hairline text-[9px] font-mono text-ink-mute uppercase">
                         {activeMonthsList.map(m => (
                           <React.Fragment key={m}>
-                            <th className="sticky top-[28px] bg-canvas z-10 p-1 border-l border-hairline text-right">ROI</th>
-                            <th className="sticky top-[28px] bg-canvas z-10 p-1 text-right">Open</th>
-                            <th className="sticky top-[28px] bg-canvas z-10 p-1 text-right">Close</th>
-                            <th className="sticky top-[28px] bg-canvas z-10 p-1 text-right">Recov.</th>
-                            <th className="sticky top-[28px] bg-canvas z-10 p-1 text-right">Calc.</th>
-                            <th className="sticky top-[28px] bg-canvas z-10 p-1 text-right">Var</th>
+                            <th className="sticky top-[28px] bg-canvas-soft z-10 p-1 border-l border-hairline text-right">ROI</th>
+                            <th className="sticky top-[28px] bg-canvas-soft z-10 p-1 text-right">Open</th>
+                            <th className="sticky top-[28px] bg-canvas-soft z-10 p-1 text-right">Close</th>
+                            <th className="sticky top-[28px] bg-canvas-soft z-10 p-1 text-right">Recov.</th>
+                            <th className="sticky top-[28px] bg-canvas-soft z-10 p-1 text-right">Calc.</th>
+                            <th className="sticky top-[28px] bg-canvas-soft z-10 p-1 text-right">Var</th>
                           </React.Fragment>
                         ))}
                       </tr>
