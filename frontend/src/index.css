@@ -196,9 +196,6 @@
 }
 
 /* Command Center (LimitUtilization) Dark Mode overrides */
-.dark .bg-\[\#f8fafc\] {
-  background-color: #09090b !important;
-}
 .dark .bg-\[\#e2e8f0\] {
   background-color: #27272a !important;
 }

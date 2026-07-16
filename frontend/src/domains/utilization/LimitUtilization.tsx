@@ -215,7 +215,7 @@ const LimitUtilization: React.FC = () => {
 
   if (loading && !utilData) {
     return (
-      <div className="p-8 space-y-6 animate-pulse bg-[#f8fafc] min-h-screen">
+      <div className="p-8 space-y-6 animate-pulse bg-parchment min-h-screen">
         <div className="h-8 w-64 bg-[#e2e8f0] rounded" />
         <div className="grid grid-cols-6 gap-3">
           {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="h-20 bg-[#e2e8f0] rounded-lg" />)}
@@ -228,7 +228,7 @@ const LimitUtilization: React.FC = () => {
 
   if (!utilData || !cmdData) {
     return (
-      <div className="p-12 text-center text-[#64748b] bg-[#f8fafc] min-h-screen">
+      <div className="p-12 text-center text-[#64748b] bg-parchment min-h-screen">
         No data available. Verify the backend connection.
       </div>
     )
@@ -349,7 +349,7 @@ const LimitUtilization: React.FC = () => {
   }
 
   return (
-    <div className="bg-[#f8fafc] min-h-screen p-3 md:p-4 font-sans">
+    <div className="bg-parchment min-h-screen p-3 md:p-4 font-sans">
       <div className="max-w-[1600px] mx-auto space-y-2.5">
         
         {/* ── Page Header ── */}
@@ -430,7 +430,7 @@ const LimitUtilization: React.FC = () => {
                     </span>
                   </div>
                 ) : (
-                  <div className="bg-[#f8fafc] rounded-lg border border-[#f1f5f9] p-1.5 mb-0.5">
+                  <div className="bg-parchment rounded-lg border border-[#f1f5f9] p-1.5 mb-0.5">
                     <table className="w-full text-[9.5px]">
                       <thead>
                         <tr className="text-[#64748b] border-b border-[#e2e8f0]">
@@ -573,7 +573,7 @@ const LimitUtilization: React.FC = () => {
                   </div>
                 ) : (
                   /* Expanded card: full 3x3 facility grid (Total, LC, SBLC) */
-                  <div className="bg-[#f8fafc] rounded-lg border border-[#f1f5f9] p-1.5 mb-0.5">
+                  <div className="bg-parchment rounded-lg border border-[#f1f5f9] p-1.5 mb-0.5">
                       {(() => {
                         return (
                           <table className="w-full text-[9.5px]">
