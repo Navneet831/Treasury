@@ -188,123 +188,160 @@ async def get_db_config():
 # Domain Isolation Endpoints
 # ══════════════════════════════════════════════════════════
 
+def _db_endpoint(fn):
+    """Decorator: wrap a route handler so any DB exception becomes a clean 500."""
+    import functools
+    @functools.wraps(fn)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await fn(*args, **kwargs)
+        except HTTPException:
+            raise
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=str(e))
+    return wrapper
+
 @router.get("/executive-overview")
+@_db_endpoint
 async def get_executive_overview(currency: str = Query("INR"), fy: str = Query("All")):
     return datalogic.get_executive_overview_data(currency, fy)
 
 @router.get("/command-data")
+@_db_endpoint
 async def get_command_data(currency: str = Query("INR"), fy: str = Query("All"), payment_status: str = Query("Unpaid"), facility_type: str = Query("LC"), lc_status: str = Query("Open")):
     return datalogic.get_command_data(currency, fy, payment_status, facility_type, lc_status)
 
 @router.get("/lc-exposure")
+@_db_endpoint
 async def get_lc_exposure(currency: str = Query("INR"), fy: str = Query("All")):
     return datalogic.get_lc_exposure_data(currency, fy)
 
 @router.get("/sblc-module")
+@_db_endpoint
 async def get_sblc_module(currency: str = Query("INR"), fy: str = Query("All")):
     return datalogic.get_sblc_module_data(currency, fy)
 
 @router.get("/boe-analytics")
+@_db_endpoint
 async def get_boe_analytics(currency: str = Query("INR"), fy: str = Query("All")):
     return datalogic.get_boe_analytics_data(currency, fy)
 
 @router.get("/payables-risk")
+@_db_endpoint
 async def get_payables_risk(currency: str = Query("INR"), fy: str = Query("All")):
     return datalogic.get_payables_risk_data(currency, fy)
 
 @router.get("/fx-risk")
+@_db_endpoint
 async def get_fx_risk(fy: str = Query("All")):
     return datalogic.get_fx_risk_data(fy)
 
 @router.get("/calendar")
+@_db_endpoint
 async def get_calendar(month: int, year: int, bank: Optional[str] = None, instrument: Optional[str] = None, currency: str = Query("INR"), supplier: Optional[str] = None, status: Optional[str] = None, fy: str = Query("All"), payment_status: Optional[str] = None):
     events = datalogic.get_calendar_events(month, year, bank, instrument, currency, supplier, status, fy, payment_status)
     return events
 
 @router.get("/banks")
+@_db_endpoint
 async def get_banks():
     return datalogic.get_banks_list()
 
 @router.get("/fy-list")
+@_db_endpoint
 async def get_fy_list():
     return datalogic.get_fy_list()
 
 @router.get("/audit-catalog")
+@_db_endpoint
 async def get_audit_catalog():
     return datalogic.get_audit_catalog()
 
 @router.get("/insights")
+@_db_endpoint
 async def get_insights(page: str, currency: str = Query("INR"), fy: str = Query("All")):
-    try:
-        return datalogic.get_page_insights(page, currency, fy)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    return datalogic.get_page_insights(page, currency, fy)
 
 @router.get("/payment-statuses")
+@_db_endpoint
 async def get_payment_statuses():
     return datalogic.get_payment_statuses()
 
 @router.get("/hedge-coverage")
+@_db_endpoint
 async def get_hedge_coverage(currency: str = Query("INR"), fy: str = Query("All")):
     return datalogic.get_hedge_coverage_data(currency, fy)
 
 @router.get("/cash-flow-forecast")
+@_db_endpoint
 async def get_cash_flow_forecast(currency: str = Query("INR"), fy: str = Query("All")):
     return datalogic.get_cash_flow_forecast_data(currency, fy)
 
 @router.get("/trend-analysis")
+@_db_endpoint
 async def get_trend_analysis(currency: str = Query("INR"), fy: str = Query("All")):
     return datalogic.get_trend_analysis_data(currency, fy)
 
 @router.get("/cohort-analysis")
+@_db_endpoint
 async def get_cohort_analysis(currency: str = Query("INR"), fy: str = Query("All")):
     return datalogic.get_cohort_analysis_data(currency, fy)
 
 @router.get("/daily-reco")
+@_db_endpoint
 async def get_daily_reco(date: str):
-    try:
-        datetime.strptime(date, "%Y-%m-%d")
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
+    datetime.strptime(date, "%Y-%m-%d")
     return datalogic.get_daily_reco(date)
 
 @router.get("/fd-module")
+@_db_endpoint
 async def get_fd_module():
     return datalogic.get_fd_module_data()
 
 @router.get("/bg-module")
+@_db_endpoint
 async def get_bg_module():
     return datalogic.get_bg_module_data()
 
 @router.get("/limit-utilisation")
+@_db_endpoint
 async def get_limit_utilisation(currency: str = Query("INR"), fy: str = Query("All"), payment_status: str = Query("Unpaid"), facility_type: str = Query("LC"), lc_status: str = Query("Open")):
     return datalogic.get_limit_utilisation_data(currency, fy, payment_status, facility_type, lc_status)
 
 @router.get("/treasury-actions")
+@_db_endpoint
 async def get_treasury_actions():
     return datalogic.get_treasury_actions()
 
 @router.get("/trend-cohort")
+@_db_endpoint
 async def get_trend_cohort(currency: str = Query("INR")):
     return datalogic.get_trend_cohort_data(currency)
 
 @router.get("/lifecycle-tracker")
+@_db_endpoint
 async def get_lifecycle_tracker(fy: str = Query("All")):
     return datalogic.get_lifecycle_tracker_data(fy)
 
 @router.get("/strategic-intelligence")
+@_db_endpoint
 async def get_strategic_intelligence(currency: str = Query("INR"), fy: str = Query("All")):
     return datalogic.get_strategic_intelligence_data(currency, fy)
 
 @router.get("/advanced-quant")
+@_db_endpoint
 async def get_advanced_quant(currency: str = Query("INR"), fy: str = Query("All")):
     return datalogic.get_advanced_quant_data(currency, fy)
 
 @router.get("/shipment-tracking")
+@_db_endpoint
 async def get_shipment_tracking(fy: str = Query("All")):
     return datalogic.get_shipment_tracking_data(fy)
 
 @router.get("/treasury-radar")
+@_db_endpoint
 async def get_treasury_radar(currency: str = Query("INR"), fy: str = Query("All")):
     return datalogic.get_treasury_radar_data(currency, fy)
 
@@ -345,15 +382,20 @@ async def get_drill_down(
         payment_status=payment_status
     )
 
-from apps.Treasury.backend.database import fetch_dict
+from apps.Treasury.backend.database import fetch_dict, get_repo
 
 @router.post("/ai-copilot")
 async def ai_copilot(query: str = Body(..., embed=True)):
     return datalogic.process_ai_query(query)
 
 @router.get("/interest-summary")
-async def get_interest_summary():
-    return datalogic.get_interest_summary_data()
+async def get_interest_summary(fy: Optional[str] = Query(None)):
+    try:
+        return datalogic.get_interest_summary_data(fy=fy if fy else None)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/tables")
 async def get_tables():

@@ -35,7 +35,15 @@ class PostgreSQLRepository(IRepository):
         self._psycopg2 = psycopg2
         self._extras = psycopg2.extras
         self._dsn = dsn
-        self._con = psycopg2.connect(dsn)
+        # Add connection timeout (30s) and keepalive to prevent hanging
+        self._con = psycopg2.connect(
+            dsn,
+            connect_timeout=30,
+            keepalives=1,
+            keepalives_idle=60,
+            keepalives_interval=30,
+            keepalives_count=5,
+        )
         self._con.autocommit = True   # read-only workload; no transactions needed
         logger.info("Treasury: PostgreSQL repository connected (%s)", dsn.split("@")[-1])
 

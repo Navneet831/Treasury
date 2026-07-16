@@ -1,9 +1,11 @@
 import axios from 'axios'
 
-// Single URL in every mode: same-origin /api. Standalone dev (:8000) tunnels
+// Single URL in every mode: same-origin /api. Standalone dev tunnels
 // /api to the backend via the Vite proxy (see vite.config.ts); in the platform
 // shell it's the /api/treasury module gateway.
-const isStandaloneDev = window.location.port === (import.meta.env.VITE_FRONTEND_PORT || '8000');
+const STANDALONE_DEV_PORTS = ['8000', '8001'];
+const isStandaloneDev = STANDALONE_DEV_PORTS.includes(window.location.port) ||
+  window.location.port === (import.meta.env.VITE_FRONTEND_PORT || '8001');
 const API_BASE_URL = isStandaloneDev ? '/api' : '/api/treasury';
 
 

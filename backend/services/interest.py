@@ -68,7 +68,10 @@ def is_interest_charged(description):
 
 def is_interest_recovered(description):
     desc = str(description).upper()
-    return "INTEREST" in desc
+    return any(kw in desc for kw in ["O.S. INTEREST REP", "INT TRF FRM",
+                                      "TL INT FOR", "TL INT ", "INT REP",
+                                      "INTEREST RECOVERY"])
+
 
 def _disk_cache(seconds: float = 3600, cache_dir: str = None):
     """File-backed cache decorator. Uses pickle, keyed by fn name + args.
@@ -295,120 +298,141 @@ def get_interest_summary_data(fy: str = None) -> Dict[str, Any]:
     for acct_row in unique_accounts:
         acct = acct_row["account_no"]
         
-        # Check matching table
-        tbl_name = None
-        candidates = [acct]
-        if acct.startswith("000000"):
-            stripped = acct.lstrip("0")
-            if stripped:
-                candidates.append(stripped)
-        else:
-            padded = acct.zfill(15)
-            candidates.append(padded)
+        try:
+            # Check matching table
+            tbl_name = None
+            candidates = [acct]
+            if acct.startswith("000000"):
+                stripped = acct.lstrip("0")
+                if stripped:
+                    candidates.append(stripped)
+            else:
+                padded = acct.zfill(15)
+                candidates.append(padded)
 
-        for c in candidates:
-            if c in existing_tables:
-                tbl_name = c
-                break
+            for c in candidates:
+                if c in existing_tables:
+                    tbl_name = c
+                    break
 
-        # Load statement data
-        stmt_rows = []
-        if tbl_name:
-            try:
-                stmt_rows = fetch_dict(f"""
-                    SELECT txn_date, value_date, description,
-                           COALESCE(debit, 0) as debit,
-                           COALESCE(credit, 0) as credit,
-                           balance
-                    FROM "{tbl_name}"
-                """)
-            except Exception as e:
-                logger.warning(f"Failed to query statement table '{tbl_name}': {e}")
-                # Brief pause so the remote server can recover before the next table query
-                import time as _time
-                _time.sleep(0.5)
+            # Load statement data
+            stmt_rows = []
+            if tbl_name:
+                try:
+                    stmt_rows = fetch_dict(f"""
+                        SELECT txn_date, value_date, description,
+                               COALESCE(debit, 0) as debit,
+                               COALESCE(credit, 0) as credit,
+                               balance
+                        FROM "{tbl_name}"
+                    """)
+                except Exception as e:
+                    logger.warning(f"Failed to query statement table '{tbl_name}': {e}")
+                    # Brief pause so the remote server can recover before the next table query
+                    import time as _time
+                    _time.sleep(0.5)
 
-        # Compute metrics per month
-        metrics = {}
-        if stmt_rows:
-            # Parse statement rows
-            df_list = []
-            for r in stmt_rows:
-                parsed_d = parse_date_flexible(r["txn_date"])
-                if parsed_d:
-                    m_key = make_month_key(parsed_d)
-                    df_list.append({
-                        "parsed_date": parsed_d,
-                        "month_key": m_key,
-                        "description": r["description"],
-                        "debit": float(r["debit"] or 0),
-                        "credit": float(r["credit"] or 0),
-                        "balance": float(r["balance"]) if r["balance"] is not None else None
-                    })
-            
-            if df_list:
-                df = pd.DataFrame(df_list)
-                df = df.sort_values("parsed_date").reset_index(drop=True)
-                df["is_interest"] = df["description"].apply(is_interest_entry)
-                df["is_interest_charged"] = df["description"].apply(is_interest_charged)
-                df["is_interest_recovered"] = df["description"].apply(is_interest_recovered)
+            # Compute metrics per month
+            metrics = {}
+            if stmt_rows:
+                # Parse statement rows
+                df_list = []
+                for idx, r in enumerate(stmt_rows):
+                    try:
+                        parsed_d = parse_date_flexible(r["txn_date"])
+                        if parsed_d:
+                            m_key = make_month_key(parsed_d)
+                            df_list.append({
+                                "original_index": idx,
+                                "parsed_date": parsed_d,
+                                "month_key": m_key,
+                                "description": str(r.get("description", "")),
+                                "debit": float(r.get("debit", 0) or 0),
+                                "credit": float(r.get("credit", 0) or 0),
+                                "balance": float(r["balance"]) if r.get("balance") is not None else None
+                            })
+                    except Exception:
+                        continue  # skip malformed row
+                
+                if df_list:
+                    df = pd.DataFrame(df_list)
+                    df = df.sort_values(["parsed_date", "original_index"]).reset_index(drop=True)
+                    df["is_interest"] = df["description"].apply(is_interest_entry)
+                    df["is_interest_charged"] = df["description"].apply(is_interest_charged)
+                    df["is_interest_recovered"] = df["description"].apply(is_interest_recovered)
 
-                def get_interest_month(row):
-                    date_obj = row["parsed_date"]
-                    day = date_obj.day
-                    if day == 1 and row.get("is_interest", False):
-                        prev_month = date_obj.replace(day=1) - timedelta(days=1)
-                        return make_month_key(prev_month)
-                    return row["month_key"]
+                    def get_interest_month(row):
+                        date_obj = row["parsed_date"]
+                        day = date_obj.day
+                        if day == 1 and row.get("is_interest", False):
+                            prev_month = date_obj.replace(day=1) - timedelta(days=1)
+                            return make_month_key(prev_month)
+                        return row["month_key"]
 
-                df["interest_month"] = df.apply(get_interest_month, axis=1)
+                    df["interest_month"] = df.apply(get_interest_month, axis=1)
 
-                # Pre-compute daily balance mapping for carrying forward balances when no transactions occur
-                parsed_rows = []
-                for r in stmt_rows:
-                    parsed_d = parse_date_flexible(r["txn_date"])
-                    if parsed_d:
-                        parsed_rows.append((parsed_d, r))
-                parsed_rows.sort(key=lambda x: x[0])
-                date_balances = {}
-                for parsed_d, r in parsed_rows:
-                    d_key = parsed_d.date()
-                    date_balances[d_key] = float(r["balance"]) if r["balance"] is not None else None
-                sorted_tx_dates = sorted(date_balances.keys())
+                    # Pre-compute daily balance mapping for carrying forward balances when no transactions occur
+                    parsed_rows = []
+                    for r in stmt_rows:
+                        parsed_d = parse_date_flexible(r["txn_date"])
+                        if parsed_d:
+                            parsed_rows.append((parsed_d, r))
+                    parsed_rows.sort(key=lambda x: x[0])
+                    date_balances = {}
+                    for parsed_d, r in parsed_rows:
+                        d_key = parsed_d.date()
+                        date_balances[d_key] = float(r["balance"]) if r.get("balance") is not None else None
+                    sorted_tx_dates = sorted(date_balances.keys())
 
-                # Only compute metrics for active (requested) months
-                for mk in active_months:
-                    month_data = df[df["month_key"] == mk]
-                    if len(month_data) == 0:
-                        # Carry forward the last known balance before this month
-                        dt_start = datetime.strptime(mk, "%b_%y")
-                        start_date = dt_start.date()
-                        idx = bisect.bisect_left(sorted_tx_dates, start_date) - 1
-                        carried_bal = 0.0
-                        if idx >= 0:
-                            carried_bal = date_balances[sorted_tx_dates[idx]] or 0.0
-                        elif sorted_tx_dates:
-                            carried_bal = date_balances[sorted_tx_dates[0]] or 0.0
-                        metrics[mk] = {
-                            "opening": carried_bal,
-                            "closing": carried_bal,
-                            "int_recovered": 0.0,
-                            "has_data": False
-                        }
-                        continue
+                    # Only compute metrics for active (requested) months
+                    for mk in active_months:
+                        try:
+                            month_data = df[df["month_key"] == mk]
+                            if len(month_data) == 0:
+                                # Carry forward the last known balance before this month
+                                dt_start = datetime.strptime(mk, "%b_%y")
+                                start_date = dt_start.date()
+                                idx = bisect.bisect_left(sorted_tx_dates, start_date) - 1
+                                carried_bal = 0.0
+                                if idx >= 0:
+                                    carried_bal = date_balances[sorted_tx_dates[idx]] or 0.0
+                                elif sorted_tx_dates:
+                                    carried_bal = date_balances[sorted_tx_dates[0]] or 0.0
+                                metrics[mk] = {
+                                    "opening": carried_bal,
+                                    "closing": carried_bal,
+                                    "int_recovered": 0.0,
+                                    "has_data": False
+                                }
+                                continue
 
-                    recovered_df = df[(df["is_interest_recovered"]) & (df["interest_month"] == mk)]
-                    int_recovered = (recovered_df["credit"] + recovered_df["debit"]).sum()
+                            recovered_df = df[(df["is_interest_recovered"]) & (df["interest_month"] == mk)]
+                            int_recovered = (recovered_df["credit"] + recovered_df["debit"]).sum()
 
-                    opening = month_data.iloc[0]["balance"]
-                    closing = month_data.iloc[-1]["balance"]
+                            opening = month_data.iloc[0]["balance"]
+                            raw_closing = month_data.iloc[-1]["balance"]
 
-                    metrics[mk] = {
-                        "opening": float(opening) if opening is not None else None,
-                        "closing": float(closing) if closing is not None else None,
-                        "int_recovered": round(float(int_recovered), 2),
-                        "has_data": True
-                    }
+                            # Adjust closing balance to exclude interest amount effect
+                            actual_charged = month_data[month_data["is_interest_charged"]]["debit"].sum()
+                            actual_recovered = month_data[month_data["is_interest_recovered"]]["credit"].sum()
+                            adjusted_closing = raw_closing
+                            if raw_closing is not None:
+                                adjusted_closing = raw_closing + actual_charged - actual_recovered
+
+                            metrics[mk] = {
+                                "opening": float(opening) if opening is not None else None,
+                                "closing": float(adjusted_closing) if adjusted_closing is not None else None,
+                                "int_recovered": round(float(int_recovered), 2),
+                                "actual_charged": round(float(actual_charged), 2),
+                                "actual_recovered": round(float(actual_recovered), 2),
+                                "raw_closing": float(raw_closing) if raw_closing is not None else None,
+                                "has_data": True
+                            }
+                        except Exception:
+                            continue  # skip month on error
+        except Exception as e:
+            logger.warning(f"Failed to process account '{acct}': {e}")
+            continue  # skip account on error
 
         # Generate rows (only for active months = filtered by FY)
         for mk in active_months:
@@ -430,6 +454,7 @@ def get_interest_summary_data(fy: str = None) -> Dict[str, Any]:
 
             # Interest calculation: Daily balance method
             int_calculated = None
+            daily_bals = []
             if roi_val is not None:
                 rate = float(roi_val)
                 if stmt_rows:
@@ -456,6 +481,24 @@ def get_interest_summary_data(fy: str = None) -> Dict[str, Any]:
                 variance = int_recovered
                 variance_pct = 100.0 if int_recovered != 0 else 0.0
 
+            # Build calc breakdown
+            actual_charged = m_metric.get("actual_charged", 0)
+            actual_recovered = m_metric.get("actual_recovered", 0)
+            raw_closing = m_metric.get("raw_closing")
+            daily_bal_count = len(daily_bals)
+            avg_daily_bal = clean_float(sum(daily_bals) / len(daily_bals)) if daily_bals else None
+            calc_breakdown = {
+                "daysInMonth": days_in_month,
+                "actualCharged": clean_float(actual_charged),
+                "actualRecovered": clean_float(actual_recovered),
+                "rawClosingBal": clean_float(raw_closing),
+                "adjustedClosingBal": clean_float(closing_bal),
+                "dailyBalCount": daily_bal_count,
+                "avgDailyBalance": avg_daily_bal,
+                "openingBalUsed": clean_float(opening_bal),
+                "roiUsed": clean_float(roi_val)
+            }
+
             all_rows.append({
                 "account": acct,
                 "type": acct_row["table_type"],
@@ -464,14 +507,15 @@ def get_interest_summary_data(fy: str = None) -> Dict[str, Any]:
                 "monthKey": mk,
                 "fy": get_fy_label(dt),
                 "openingBal": clean_float(opening_bal),
-                "closingBal": clean_float(closing_bal),
+                "closingBal": clean_float(raw_closing) if raw_closing is not None else clean_float(closing_bal),
                 "roi": clean_float(roi_val),
                 "intRecovered": clean_float(int_recovered),
                 "intCalculated": clean_float(int_calculated),
                 "variance": clean_float(variance),
                 "variancePct": clean_float(variance_pct),
                 "tableFound": True if tbl_name else False,
-                "tableName": tbl_name
+                "tableName": tbl_name,
+                "calcBreakdown": calc_breakdown
             })
 
     logger.info("get_interest_summary_data(fy=%s) DONE: %d rows in %.2fs",

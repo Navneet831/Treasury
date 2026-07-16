@@ -7,6 +7,18 @@ import api from '../../api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+interface CalcBreakdown {
+  daysInMonth: number;
+  actualCharged: number | null;
+  actualRecovered: number | null;
+  rawClosingBal: number | null;
+  adjustedClosingBal: number | null;
+  dailyBalCount: number;
+  avgDailyBalance: number | null;
+  openingBalUsed: number | null;
+  roiUsed: number | null;
+}
+
 interface InterestRow {
   account: string;
   type: string;
@@ -23,6 +35,7 @@ interface InterestRow {
   variancePct: number;
   tableFound: boolean;
   tableName: string | null;
+  calcBreakdown?: CalcBreakdown;
 }
 
 interface InterestSummaryData {
@@ -30,6 +43,69 @@ interface InterestSummaryData {
   months: string[];
   monthLabels: Record<string, string>;
   fyList: string[];
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// Format currency in Lakhs/Crores (module-level so tooltip builder can use it)
+const formatAmt = (val: number | null) => {
+  if (val === null || isNaN(val)) return '-'
+  if (val === 0) return '0.00'
+  return val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+// ─── Data Cell — display with hover tooltip showing calculation formula ──────
+const dataCell = (value: number | null, className: string, fmt?: (v: number | null) => string, tooltip?: string) => {
+  const disp = fmt ? fmt(value) : (value !== null && value !== undefined ? String(value) : '-')
+  return (
+    <td className={className} title={tooltip || ''}>
+      <span className="px-0.5">{disp}</span>
+    </td>
+  )
+}
+
+// ─── Tooltip Builder ──────────────────────────────────────────────────────────
+
+const buildCalcTooltip = (r: InterestRow, field: string): string => {
+  const c = r.calcBreakdown
+  const lines: string[] = []
+  switch (field) {
+    case 'closingBal': {
+      if (c && c.rawClosingBal !== null) {
+        lines.push(`Closing Balance (raw): ${formatAmt(c.rawClosingBal)}`)
+      } else {
+        lines.push('Closing Balance')
+      }
+      break
+    }
+    case 'intCalculated': {
+      lines.push('Interest = |Opening| x ROI% / 100 x Days/365')
+      if (c) {
+        const ob = c.openingBalUsed ?? r.openingBal ?? 0
+        const roi = c.roiUsed ?? r.roi ?? 0
+        const dim = c.daysInMonth
+        lines.push(`|${formatAmt(ob)}| x ${roi}% / 100 x ${dim}/365`)
+        lines.push(`= ${formatAmt(r.intCalculated ?? 0)}`)
+        lines.push(`Daily balances used: ${c.dailyBalCount} days`)
+        if (c.avgDailyBalance !== null) lines.push(`Avg daily balance: ${formatAmt(c.avgDailyBalance)}`)
+      }
+      break
+    }
+    case 'variance': {
+      lines.push('Variance = Recovered - Calculated')
+      lines.push(`Recovered: ${formatAmt(r.intRecovered)}`)
+      lines.push(`Calculated: ${formatAmt(r.intCalculated ?? 0)}`)
+      lines.push(`= ${formatAmt(r.variance)}`)
+      break
+    }
+    case 'variancePct': {
+      lines.push(`Var% = (Variance / Calculated) x 100`)
+      lines.push(`= (${formatAmt(r.variance)} / ${formatAmt(r.intCalculated ?? 0)}) x 100`)
+      lines.push(`= ${r.variancePct.toFixed(1)}%`)
+      break
+    }
+  }
+  return lines.join(' | ')
 }
 
 interface StatementTxn {
@@ -145,6 +221,8 @@ export const InterestSummary: React.FC = () => {
   const [txnError, setTxnError] = useState<string | null>(null)
   const [fyList, setFyList] = useState<string[]>([])
 
+  // (no editable cell state — removed per user feedback)
+
   // Load data for a specific FY (or All FYs)
   const loadFyData = useCallback(async (fyToLoad?: string) => {
     setLoading(true)
@@ -198,9 +276,9 @@ export const InterestSummary: React.FC = () => {
     }
   }, [])
 
-  // On mount: load all data on mount
+  // On mount: load latest FY only (lazy — user clicks other FYs to load them)
   useEffect(() => {
-    loadFyData('All FYs')
+    loadFyData(getCurrentFy())
   }, [loadFyData])
 
   // Unique options for filters
@@ -543,13 +621,6 @@ export const InterestSummary: React.FC = () => {
     document.body.removeChild(link)
   }
 
-  // Format currency in Lakhs/Crores
-  const formatAmt = (val: number | null) => {
-    if (val === null || isNaN(val)) return '-'
-    if (val === 0) return '0.00'
-    return val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  }
-
   return (
     <div className="flex-1 flex flex-col bg-canvas overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
       
@@ -602,95 +673,41 @@ export const InterestSummary: React.FC = () => {
         ) : (
           <>
             {/* Filters Bar */}
-            <div className="bg-white rounded-xl border border-black p-2 px-3 shadow-sm flex gap-3 items-start">
-              {/* Left: filters and KPI cards */}
-              <div className="flex-1 flex flex-col gap-2">
-                {/* Selects Row */}
-                <div className="flex gap-2 flex-wrap">
-                  <div className="min-w-[130px]">
-                    <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">Account Type</label>
-                    <select
-                      value={selectedType}
-                      onChange={(e) => setSelectedType(e.target.value)}
-                      className="w-full text-xs bg-canvas border border-hairline rounded-lg px-2 py-1 text-ink outline-none focus:border-emerald-500 transition-colors"
-                    >
-                      {accountTypes.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </div>
-
-                  <div className="min-w-[130px]">
-                    <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">Bank</label>
-                    <select
-                      value={selectedBank}
-                      onChange={(e) => setSelectedBank(e.target.value)}
-                      className="w-full text-xs bg-canvas border border-hairline rounded-lg px-2 py-1 text-ink outline-none focus:border-emerald-500 transition-colors"
-                    >
-                      {banks.map(b => <option key={b} value={b}>{b}</option>)}
-                    </select>
-                  </div>
-
-                  <div className="min-w-[160px]">
-                    <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">Filter by Account No.</label>
-                    <select
-                      value={selectedAccount}
-                      onChange={(e) => setSelectedAccount(e.target.value)}
-                      className="w-full text-xs bg-canvas border border-hairline rounded-lg px-2 py-1 text-ink outline-none focus:border-emerald-500 transition-colors"
-                    >
-                      {filteredAccountsForSelect.map(a => <option key={a} value={a}>{a}</option>)}
-                    </select>
-                  </div>
-
-                  <div className="flex items-center h-8 self-end mb-0.5 ml-2">
-                    <label className="flex items-center gap-1.5 select-none cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={showEmptyAccounts}
-                        onChange={(e) => setShowEmptyAccounts(e.target.checked)}
-                        className="accent-emerald-600 rounded"
-                      />
-                      <span className="text-[10px] font-semibold text-ink-mute">Show empty accounts</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* KPI Cards Row */}
-                <div className="grid grid-cols-3 gap-3 mt-1">
-                  <div className="flex items-center gap-2.5 bg-emerald-500/5 border border-emerald-500/15 rounded-xl px-3 py-2">
-                    <div className="p-1.5 bg-emerald-500/10 rounded-lg">
-                      <Percent className="w-3.5 h-3.5 text-emerald-600" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-[9px] font-bold text-ink-mute uppercase tracking-wide font-mono leading-none">Total Int Recovered</div>
-                      <div className="text-xs font-bold text-emerald-700 font-mono mt-1">₹ {formatAmt(metrics.totalRecovered)}</div>
+            <div className="bg-white rounded-xl border border-black py-1.5 px-3 shadow-sm flex gap-3 items-center">
+              {/* KPI Chips */}
+              <div className="flex gap-2 items-end flex-wrap flex-1">
+                <div className="flex gap-2 items-stretch flex-wrap w-full">
+                  <div className="flex-1 flex items-center gap-2 bg-emerald-500/5 border border-emerald-500/15 rounded-lg px-3 py-2 justify-center" 
+                    title={`Total Interest Recovered across ${metrics.accountCount} active accounts. Sum of intRecovered column: Rs ${formatAmt(metrics.totalRecovered)}`}>
+                    <Percent className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <div>
+                      <div className="text-[9px] font-bold text-ink-mute uppercase font-mono leading-none">Recovered</div>
+                      <div className="text-xs font-bold text-emerald-700 font-mono">Rs {formatAmt(metrics.totalRecovered)}</div>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-2.5 bg-violet-500/5 border border-violet-500/15 rounded-xl px-3 py-2">
-                    <div className="p-1.5 bg-violet-500/10 rounded-lg">
-                      <Layers className="w-3.5 h-3.5 text-violet-600" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-[9px] font-bold text-ink-mute uppercase tracking-wide font-mono leading-none">Total Int Calculated</div>
-                      <div className="text-xs font-bold text-violet-700 font-mono mt-1">₹ {formatAmt(metrics.totalCalculated)}</div>
+                  <div className="flex-1 flex items-center gap-2 bg-violet-500/5 border border-violet-500/15 rounded-lg px-3 py-2 justify-center"
+                    title={`Total Interest Calculated across ${metrics.accountCount} active accounts. Sum of intCalculated column: Rs ${formatAmt(metrics.totalCalculated)}`}>
+                    <Layers className="w-4 h-4 text-violet-600 shrink-0" />
+                    <div>
+                      <div className="text-[9px] font-bold text-ink-mute uppercase font-mono leading-none">Calculated</div>
+                      <div className="text-xs font-bold text-violet-700 font-mono">Rs {formatAmt(metrics.totalCalculated)}</div>
                     </div>
                   </div>
-
-                  <div className={`flex items-center gap-2.5 border rounded-xl px-3 py-2 ${metrics.totalVariance < 0 ? 'bg-amber-500/5 border-amber-500/15' : 'bg-sky-500/5 border-sky-500/15'}`}>
-                    <div className={`p-1.5 rounded-lg ${metrics.totalVariance < 0 ? 'bg-amber-500/10' : 'bg-sky-500/10'}`}>
-                      <ArrowDownToLine className={`w-3.5 h-3.5 ${metrics.totalVariance < 0 ? 'text-amber-600' : 'text-sky-600'}`} />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-[9px] font-bold text-ink-mute uppercase tracking-wide font-mono leading-none">Total Variance</div>
-                      <div className={`text-xs font-bold font-mono mt-1 ${metrics.totalVariance < 0 ? 'text-amber-700' : 'text-sky-700'}`}>₹ {formatAmt(metrics.totalVariance)}</div>
+                  <div className={`flex-1 flex items-center gap-2 border rounded-lg px-3 py-2 justify-center ${metrics.totalVariance < 0 ? 'bg-amber-500/5 border-amber-500/15' : 'bg-sky-500/5 border-sky-500/15'}`}
+                    title={`Variance = Recovered - Calculated = Rs ${formatAmt(metrics.totalRecovered)} - Rs ${formatAmt(metrics.totalCalculated)} = Rs ${formatAmt(metrics.totalVariance)}`}>
+                    <ArrowDownToLine className={`w-4 h-4 shrink-0 ${metrics.totalVariance < 0 ? 'text-amber-600' : 'text-sky-600'}`} />
+                    <div>
+                      <div className="text-[9px] font-bold text-ink-mute uppercase font-mono leading-none">Variance</div>
+                      <div className={`text-xs font-bold font-mono ${metrics.totalVariance < 0 ? 'text-amber-700' : 'text-sky-700'}`}>Rs {formatAmt(metrics.totalVariance)}</div>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Right: FY / Month drill-down */}
-              <div className="shrink-0 w-[160px]">
-                <label className="block text-[10px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">FY / Month</label>
-                <div className="border border-hairline bg-canvas rounded-lg p-1 h-[130px] overflow-y-auto flex flex-col gap-0.5 custom-scrollbar-vertical">
+              <div className="shrink-0 w-[150px]">
+                <label className="block text-[9px] font-bold text-ink-mute uppercase tracking-wide mb-0.5 font-mono">FY / Month</label>
+                <div className="border border-hairline bg-canvas rounded-lg p-1 h-[90px] overflow-y-auto flex flex-col gap-0.5 custom-scrollbar-vertical">
                   {/* All option */}
                   <button
                     onClick={() => {
@@ -729,12 +746,21 @@ export const InterestSummary: React.FC = () => {
                         {/* Level 1: FY row */}
                         <button
                           onClick={() => {
-                            const isFyAlreadyActive = selectedFy === fy && selectedMonth === 'All'
-                            const toggled = isFyAlreadyActive ? '' : fy
-                            setDrilldownFy(toggled ? fy : '')
-                            setSelectedFy(toggled ? fy : 'All FYs')
-                            setSelectedMonth('All')
-                            setDrilldownMonth('all')
+                            const isFyAlreadyActive = selectedFy === fy
+                            if (isFyAlreadyActive) {
+                              // Toggle — deselect
+                              setDrilldownFy('')
+                              setSelectedFy('')
+                              setSelectedMonth('All')
+                              setDrilldownMonth('all')
+                            } else {
+                              // Select this FY — load its data
+                              setDrilldownFy(fy)
+                              setSelectedFy(fy)
+                              setSelectedMonth('All')
+                              setDrilldownMonth('all')
+                              loadFyData(fy)
+                            }
                           }}
                           className={`w-full text-left text-[10px] px-2 py-0.5 rounded font-mono font-bold transition-all flex items-center justify-between border ${
                             isFySelected
@@ -822,25 +848,25 @@ export const InterestSummary: React.FC = () => {
 
             {/* Table Area */}
             <div className="bg-white rounded-xl border border-black shadow-sm overflow-hidden flex flex-col">
-              <div className="overflow-auto max-h-[350px] custom-scrollbar-horizontal custom-scrollbar-vertical">
+              <div className="overflow-auto max-h-[250px] custom-scrollbar-horizontal custom-scrollbar-vertical">
                 
                 {viewMode === 'all' && (
-                  <table className="min-w-full w-max text-left border-collapse table-auto whitespace-nowrap">
+                  <table className="min-w-full w-max text-left border-collapse whitespace-nowrap">
                     <thead>
-                      <tr className="bg-canvas-soft border-b border-hairline text-[10px] font-mono text-ink-mute uppercase">
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-left cursor-pointer select-none" onClick={() => handleSort('type')}>Type {renderSortIndicator('type')}</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-left cursor-pointer select-none" onClick={() => handleSort('account')}>Account {renderSortIndicator('account')}</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-left cursor-pointer select-none" onClick={() => handleSort('bank')}>Bank {renderSortIndicator('bank')}</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-left cursor-pointer select-none" onClick={() => handleSort('fy')}>FY {renderSortIndicator('fy')}</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-left cursor-pointer select-none" onClick={() => handleSort('monthKey')}>Month {renderSortIndicator('monthKey')}</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('openingBal')}>Opening Bal {renderSortIndicator('openingBal')}</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('closingBal')}>Closing Bal {renderSortIndicator('closingBal')}</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('roi')}>ROI (%) {renderSortIndicator('roi')}</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('intRecovered')}>Int Recovered {renderSortIndicator('intRecovered')}</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('intCalculated')}>Int Calculated {renderSortIndicator('intCalculated')}</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('variance')}>Variance {renderSortIndicator('variance')}</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-right cursor-pointer select-none" onClick={() => handleSort('variancePct')}>Var % {renderSortIndicator('variancePct')}</th>
-                        <th className="sticky top-0 bg-canvas-soft z-10 p-2 font-bold text-center">Data</th>
+                      <tr className="bg-canvas-soft border-b border-hairline text-[9px] font-mono text-ink-mute uppercase">
+                        <th className="sticky top-0 bg-canvas-soft z-10 px-2 py-1 font-bold text-left cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('type')}>Type {renderSortIndicator('type')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 px-2 py-1 font-bold text-left cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('account')}>Account {renderSortIndicator('account')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 px-2 py-1 font-bold text-left cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('bank')}>Bank {renderSortIndicator('bank')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 px-2 py-1 font-bold text-left cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('fy')}>FY {renderSortIndicator('fy')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 px-2 py-1 font-bold text-left cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('monthKey')}>Month {renderSortIndicator('monthKey')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 px-2 py-1 font-bold text-right cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('openingBal')}>Opening Bal {renderSortIndicator('openingBal')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 px-2 py-1 font-bold text-right cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('closingBal')}>Closing Bal {renderSortIndicator('closingBal')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 px-2 py-1 font-bold text-right cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('roi')}>ROI% {renderSortIndicator('roi')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 px-2 py-1 font-bold text-right cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('intRecovered')}>Int Rec. {renderSortIndicator('intRecovered')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 px-2 py-1 font-bold text-right cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('intCalculated')}>Int Calc. {renderSortIndicator('intCalculated')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 px-2 py-1 font-bold text-right cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('variance')}>Variance {renderSortIndicator('variance')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 px-2 py-1 font-bold text-right cursor-pointer select-none whitespace-nowrap" onClick={() => handleSort('variancePct')}>Var% {renderSortIndicator('variancePct')}</th>
+                        <th className="sticky top-0 bg-canvas-soft z-10 px-2 py-1 font-bold text-center whitespace-nowrap">Data</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-hairline text-xs">
@@ -859,23 +885,19 @@ export const InterestSummary: React.FC = () => {
                               : 'opacity-40 text-ink-faint pointer-events-none'
                           } ${drilldownAccount === r.account ? 'bg-emerald-500/5' : ''}`}
                         >
-                          <td className="p-2 text-ink-mute">{r.type}</td>
-                          <td className="p-2 font-mono font-medium text-ink">{r.account}</td>
-                          <td className="p-2 font-semibold text-ink-mute">{r.bank}</td>
-                          <td className="p-2 text-ink-mute font-mono">{r.fy}</td>
-                          <td className="p-2 text-ink font-mono">{r.month}</td>
-                          <td className="p-2 text-right font-mono text-ink-mute">{formatAmt(r.openingBal)}</td>
-                          <td className="p-2 text-right font-mono text-ink-mute">{formatAmt(r.closingBal)}</td>
-                          <td className="p-2 text-right font-mono font-semibold text-sky-600">{r.roi !== null ? `${r.roi.toFixed(2)}%` : '-'}</td>
-                          <td className="p-2 text-right font-mono font-medium text-emerald-600">{formatAmt(r.intRecovered)}</td>
-                          <td className="p-2 text-right font-mono text-ink">{formatAmt(r.intCalculated)}</td>
-                          <td className={`p-2 text-right font-mono font-semibold ${
-                            r.variance < 0 ? 'text-amber-600' : r.variance > 0 ? 'text-emerald-700' : 'text-ink-mute'
-                          }`}>
-                            {formatAmt(r.variance)}
-                          </td>
-                          <td className="p-2 text-right font-mono text-ink-mute">{r.roi !== null && r.openingBal !== null ? `${r.variancePct.toFixed(1)}%` : '-'}</td>
-                          <td className="p-2 text-center">
+                          <td className="px-2 py-1 text-ink-mute whitespace-nowrap">{r.type}</td>
+                          <td className="px-2 py-1 font-mono font-medium text-ink whitespace-nowrap">{r.account}</td>
+                          <td className="px-2 py-1 font-semibold text-ink-mute whitespace-nowrap">{r.bank}</td>
+                          <td className="px-2 py-1 text-ink-mute font-mono whitespace-nowrap">{r.fy}</td>
+                          <td className="px-2 py-1 text-ink font-mono whitespace-nowrap">{r.month}</td>
+                          {dataCell(r.openingBal, 'px-2 py-1 text-right font-mono text-ink-mute whitespace-nowrap', formatAmt)}
+                          {dataCell(r.closingBal, 'px-2 py-1 text-right font-mono text-ink-mute whitespace-nowrap', formatAmt, buildCalcTooltip(r, 'closingBal'))}
+                          {dataCell(r.roi, 'px-2 py-1 text-right font-mono font-semibold text-sky-600 whitespace-nowrap', v => v !== null ? `${v.toFixed(2)}%` : '-')}
+                          {dataCell(r.intRecovered, 'px-2 py-1 text-right font-mono font-medium text-emerald-600 whitespace-nowrap', formatAmt)}
+                          {dataCell(r.intCalculated, 'px-2 py-1 text-right font-mono text-ink whitespace-nowrap', formatAmt, buildCalcTooltip(r, 'intCalculated'))}
+                          {dataCell(r.variance, `px-2 py-1 text-right font-mono font-semibold whitespace-nowrap ${r.variance < 0 ? 'text-amber-600' : r.variance > 0 ? 'text-emerald-700' : 'text-ink-mute'}`, formatAmt, buildCalcTooltip(r, 'variance'))}
+                          {dataCell(r.roi !== null && r.openingBal !== null ? r.variancePct : null, 'px-2 py-1 text-right font-mono text-ink-mute whitespace-nowrap', v => v !== null ? `${v.toFixed(1)}%` : '-', buildCalcTooltip(r, 'variancePct'))}
+                          <td className="px-2 py-1 text-center">
                             {r.tableFound ? (
                               <span className="inline-flex items-center justify-center p-1 bg-emerald-500/10 rounded-full">
                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
@@ -932,12 +954,15 @@ export const InterestSummary: React.FC = () => {
                           <td className="p-2 text-ink-mute font-sans" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.type}</td>
                           <td className="p-2 font-semibold text-ink" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.account}</td>
                           <td className="p-2 text-ink-mute font-sans" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.bank}</td>
-                          {activeMonthsList.map(m => (
-                            <React.Fragment key={m}>
-                              <td className="p-2 text-right text-ink-mute hover:bg-sky-500/10 transition-colors" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth(m); }}>{formatAmt(acctRow[`open_${m}`])}</td>
-                              <td className="p-2 text-right text-ink-mute hover:bg-amber-500/10 transition-colors" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth(m); }}>{formatAmt(acctRow[`close_${m}`])}</td>
-                            </React.Fragment>
-                          ))}
+                          {activeMonthsList.map(m => {
+                            const origRow = processedRows.find(r => r.account === acctRow.account && r.monthKey === m)
+                            return (
+                              <React.Fragment key={m}>
+                                {dataCell(acctRow[`open_${m}`], 'p-2 text-right text-ink-mute whitespace-nowrap', formatAmt)}
+                                {dataCell(acctRow[`close_${m}`], 'p-2 text-right text-ink-mute whitespace-nowrap', formatAmt, origRow ? buildCalcTooltip(origRow, 'closingBal') : undefined)}
+                              </React.Fragment>
+                            )
+                          })}
                         </tr>
                       ))}
                     </tbody>
@@ -983,18 +1008,16 @@ export const InterestSummary: React.FC = () => {
                           <td className="p-2 text-ink-mute font-sans" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.bank}</td>
                           {activeMonthsList.map(m => {
                             const v = acctRow[`variance_${m}`]
+                            // Find original row for calc breakdown info
+                            const origRow = processedRows.find(r => r.account === acctRow.account && r.monthKey === m)
                             return (
                               <React.Fragment key={m}>
-                                <td className="p-2 border-l border-hairline text-right text-sky-600 font-semibold hover:bg-emerald-500/10 transition-colors" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth(m); }}>
-                                  {acctRow[`roi_${m}`] !== null ? `${acctRow[`roi_${m}`].toFixed(2)}%` : '-'}
-                                </td>
-                                <td className="p-2 text-right text-ink-mute hover:bg-emerald-500/10 transition-colors" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth(m); }}>{formatAmt(acctRow[`open_${m}`])}</td>
-                                <td className="p-2 text-right text-ink-mute hover:bg-emerald-500/10 transition-colors" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth(m); }}>{formatAmt(acctRow[`close_${m}`])}</td>
-                                <td className="p-2 text-right text-emerald-600 font-medium hover:bg-emerald-500/10 transition-colors" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth(m); }}>{formatAmt(acctRow[`recovered_${m}`])}</td>
-                                <td className="p-2 text-right text-ink hover:bg-emerald-500/10 transition-colors" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth(m); }}>{formatAmt(acctRow[`calculated_${m}`])}</td>
-                                <td className={`p-2 text-right font-semibold hover:bg-emerald-500/10 transition-colors ${v < 0 ? 'text-amber-600' : v > 0 ? 'text-emerald-700' : 'text-ink-mute'}`} onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth(m); }}>
-                                  {formatAmt(v)}
-                                </td>
+                                {dataCell(acctRow[`roi_${m}`], 'p-2 border-l border-hairline text-right text-sky-600 font-semibold whitespace-nowrap', v2 => v2 !== null ? `${v2.toFixed(2)}%` : '-')}
+                                {dataCell(acctRow[`open_${m}`], 'p-2 text-right text-ink-mute whitespace-nowrap', formatAmt)}
+                                {dataCell(acctRow[`close_${m}`], 'p-2 text-right text-ink-mute whitespace-nowrap', formatAmt, origRow ? buildCalcTooltip(origRow, 'closingBal') : undefined)}
+                                {dataCell(acctRow[`recovered_${m}`], 'p-2 text-right text-emerald-600 font-medium whitespace-nowrap', formatAmt)}
+                                {dataCell(acctRow[`calculated_${m}`], 'p-2 text-right text-ink whitespace-nowrap', formatAmt, origRow ? buildCalcTooltip(origRow, 'intCalculated') : undefined)}
+                                {dataCell(v, `p-2 text-right font-semibold whitespace-nowrap ${v < 0 ? 'text-amber-600' : v > 0 ? 'text-emerald-700' : 'text-ink-mute'}`, formatAmt, origRow ? buildCalcTooltip(origRow, 'variance') : undefined)}
                               </React.Fragment>
                             )
                           })}
@@ -1125,10 +1148,10 @@ export const InterestSummary: React.FC = () => {
                                   <td className="p-1.5 font-semibold text-ink">{r.month}</td>
                                   <td className="p-1.5 text-right text-sky-600">{r.roi !== null ? `${r.roi.toFixed(2)}%` : '-'}</td>
                                   <td className="p-1.5 text-right text-emerald-600 font-medium">{formatAmt(r.intRecovered)}</td>
-                                  <td className="p-1.5 text-right text-ink-mute">{formatAmt(r.intCalculated)}</td>
+                                  <td className="p-1.5 text-right text-ink-mute" title={buildCalcTooltip(r, 'intCalculated') || 'Int Calculated = |Opening| x ROI% / 100 x Days/365'}>{formatAmt(r.intCalculated)}</td>
                                   <td className={`p-1.5 text-right font-semibold ${
                                     r.variance < 0 ? 'text-amber-600' : r.variance > 0 ? 'text-emerald-700' : 'text-ink-mute'
-                                  }`}>{formatAmt(r.variance)}</td>
+                                  }`} title={buildCalcTooltip(r, 'variance') || 'Variance = Recovered - Calculated'}>{formatAmt(r.variance)}</td>
                                 </tr>
                               )
                             })}

@@ -294,7 +294,8 @@ def compute_monthly_metrics(account_no, statement_df, roi_map, months_order, mon
     df = statement_df.copy()
     df["parsed_date"] = df["txn_date"].apply(parse_date_flexible)
     df = df.dropna(subset=["parsed_date"])
-    df = df.sort_values("parsed_date").reset_index(drop=True)
+    df["original_index"] = df.index
+    df = df.sort_values(["parsed_date", "original_index"]).reset_index(drop=True)
     df["month_key"] = df["parsed_date"].apply(get_month_key)
 
     # Classify interest
