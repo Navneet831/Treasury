@@ -9,8 +9,26 @@ import { useStore } from '../../store'
 import { formatCurrency, formatDate } from '../../utils'
 import { FileSpreadsheet, RotateCcw } from 'lucide-react'
 
-// AG Grid v35 requires explicit module registration
+// AG Grid z35 requires explicit module registration
 ModuleRegistry.registerModules([AllEnterpriseModule])
+
+const getPrimaryDateColumn = (keys: string[]): string | null => {
+  const priorityPatterns = [
+    /op\.\s*date/i,
+    /issue\s*date/i,
+    /opening\s*date/i,
+    /date\s*of\s*opening/i,
+    /txn\s*date/i,
+    /transaction\s*date/i,
+    /created\s*at/i,
+    /date/i
+  ]
+  for (const pattern of priorityPatterns) {
+    const match = keys.find(k => pattern.test(k))
+    if (match) return match
+  }
+  return null
+}
 
 export const TransactionLedger: React.FC = () => {
   const { fy } = useStore()
@@ -43,7 +61,10 @@ export const TransactionLedger: React.FC = () => {
 
   // Auto-generate columns for arbitrary warehouse tables
   const generateColDefs = useCallback((firstRow: any) => {
-    return Object.keys(firstRow).map((key) => {
+    const keys = Object.keys(firstRow)
+    const primaryDateCol = getPrimaryDateColumn(keys)
+
+    return keys.map((key) => {
       const val = firstRow[key]
       const isNumber = typeof val === 'number'
       const isDate = key.toLowerCase().includes('date') || key.toLowerCase().includes('time') || (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}/.test(val))
@@ -65,10 +86,14 @@ export const TransactionLedger: React.FC = () => {
         }
       }
 
+      const isPrimaryDate = (key === primaryDateCol)
+
       return {
         field: key,
         headerName: key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
         filterParams,
+        sort: isPrimaryDate ? 'desc' : undefined,
+        sortIndex: isPrimaryDate ? 0 : undefined,
         valueFormatter: (p: any) => {
           if (p.value === null || p.value === undefined) return '—'
           if (isNumber) {
@@ -148,7 +173,6 @@ export const TransactionLedger: React.FC = () => {
   }, [fetchLedgerData])
 
   const defaultColDef = useMemo(() => ({
-    flex: 1,
     minWidth: 120,
     sortable: true,
     filter: 'agMultiColumnFilter', // Enterprise Multi Filter (Text/Number/Date + Set Filter checkboxes)
@@ -160,6 +184,11 @@ export const TransactionLedger: React.FC = () => {
     suppressHeaderMenuButton: false, // Ensure column menu is accessible
     wrapHeaderText: true, // Word wrap for header text
     autoHeaderHeight: true, // Auto height adjustment for header rows to fit wrapped text
+  }), [])
+
+  const autoSizeStrategy = useMemo(() => ({
+    type: 'fitCellContents' as const,
+    skipHeader: false,
   }), [])
 
   const sideBar = useMemo(() => ({
@@ -367,6 +396,7 @@ export const TransactionLedger: React.FC = () => {
                 rowData={rowData}
                 columnDefs={colDefs}
                 defaultColDef={defaultColDef}
+                autoSizeStrategy={autoSizeStrategy}
                 rowSelection="multiple"
                 onSelectionChanged={onSelectionChanged}
                 animateRows={true}
