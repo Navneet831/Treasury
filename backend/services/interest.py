@@ -68,9 +68,7 @@ def is_interest_charged(description):
 
 def is_interest_recovered(description):
     desc = str(description).upper()
-    return any(kw in desc for kw in ["O.S. INTEREST REP", "INT TRF FRM",
-                                      "TL INT FOR", "TL INT ", "INT REP",
-                                      "INTEREST RECOVERY"])
+    return "INTEREST" in desc
 
 def _disk_cache(seconds: float = 3600, cache_dir: str = None):
     """File-backed cache decorator. Uses pickle, keyed by fn name + args.
