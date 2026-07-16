@@ -986,7 +986,7 @@ export const InterestSummary: React.FC = () => {
                             return (
                               <React.Fragment key={m}>
                                 <td className="p-2 border-l border-hairline text-right text-sky-600 font-semibold hover:bg-emerald-500/10 transition-colors" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth(m); }}>
-                                  {acctRow[`roi_${m}`] !== null ? `${acctRow[`roi_${m}`].toFixed(1)}%` : '-'}
+                                  {acctRow[`roi_${m}`] !== null ? `${acctRow[`roi_${m}`].toFixed(2)}%` : '-'}
                                 </td>
                                 <td className="p-2 text-right text-ink-mute hover:bg-emerald-500/10 transition-colors" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth(m); }}>{formatAmt(acctRow[`open_${m}`])}</td>
                                 <td className="p-2 text-right text-ink-mute hover:bg-emerald-500/10 transition-colors" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth(m); }}>{formatAmt(acctRow[`close_${m}`])}</td>
