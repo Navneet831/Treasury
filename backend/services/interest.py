@@ -417,7 +417,7 @@ def get_interest_summary_data(fy: str = None) -> Dict[str, Any]:
                             actual_recovered = month_data[month_data["is_interest_recovered"]]["credit"].sum()
                             adjusted_closing = raw_closing
                             if raw_closing is not None:
-                                adjusted_closing = raw_closing + actual_charged - actual_recovered
+                                adjusted_closing = raw_closing + actual_charged
 
                             metrics[mk] = {
                                 "opening": float(opening) if opening is not None else None,
@@ -507,7 +507,7 @@ def get_interest_summary_data(fy: str = None) -> Dict[str, Any]:
                 "monthKey": mk,
                 "fy": get_fy_label(dt),
                 "openingBal": clean_float(opening_bal),
-                "closingBal": clean_float(raw_closing) if raw_closing is not None else clean_float(closing_bal),
+                "closingBal": clean_float(closing_bal),
                 "roi": clean_float(roi_val),
                 "intRecovered": clean_float(int_recovered),
                 "intCalculated": clean_float(int_calculated),

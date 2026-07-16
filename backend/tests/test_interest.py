@@ -63,19 +63,20 @@ def test_closing_balance_excludes_interest(datalogic):
         actual_charged = sum(float(r["debit"] or 0) for r in month_rows if is_interest_charged(r["description"]))
         actual_recovered = sum(float(r["credit"] or 0) for r in month_rows if is_interest_recovered(r["description"]))
         
-        assert abs(row["closingBal"] - raw_closing) < 1e-2
+        adjusted_closing = raw_closing + actual_charged
+        assert abs(row["closingBal"] - adjusted_closing) < 1e-2
 
 def test_closing_bal_matches_calc_breakdown(datalogic):
-    """Verify closingBal == rawClosingBal (raw statement balance, no adjustments)"""
+    """Verify closingBal == adjustedClosingBal (excludes interest effect)"""
     res = datalogic.get_interest_summary_data()
     mismatches = []
     for row in res["rows"]:
         cb = row.get("calcBreakdown")
-        if not cb or cb.get("rawClosingBal") is None:
+        if not cb or cb.get("adjustedClosingBal") is None:
             continue
-        expected = cb["rawClosingBal"]
+        expected = cb["adjustedClosingBal"]
         actual = row["closingBal"]
         if abs(actual - expected) > 1e-2:
-            mismatches.append(f"{row['account']} {row['monthKey']}: closingBal={actual} != rawClosingBal={expected}")
+            mismatches.append(f"{row['account']} {row['monthKey']}: closingBal={actual} != adjustedClosingBal={expected}")
     assert not mismatches, "\n".join(mismatches)
 
