@@ -2,7 +2,7 @@
 from typing import Any, Dict
 
 from apps.Treasury.backend.database import fetch_dict, fetch_one
-from apps.Treasury.backend.services.core import COL_MAP, get_current_date, get_fy_clause
+from apps.Treasury.backend.services.core import COL_MAP, get_current_date, get_fy_clause, _table_exists
 
 
 def get_sblc_module_data(currency: str = "INR", fy: str = "All") -> Dict[str, Any]:
@@ -10,7 +10,7 @@ def get_sblc_module_data(currency: str = "INR", fy: str = "All") -> Dict[str, An
     fy_filter = get_fy_clause(fy, COL_MAP['op_date'])
     cd = get_current_date()
 
-    sblc_count = fetch_one("SELECT COUNT(*) FROM SBLC")[0]
+    sblc_count = fetch_one("SELECT COUNT(*) FROM SBLC")[0] if _table_exists("SBLC") else 0
 
     if sblc_count > 0:
         metrics = fetch_dict(f"""

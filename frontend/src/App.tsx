@@ -8,6 +8,7 @@ import { Agentation } from 'agentation'
 import { supabase, verifyWhitelistAndSetUser, useAuthStore, Login } from '@grew/auth'
 import { AuditProvider } from './shared/AuditContext'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
+import { useStore } from './store'
 
 // Lazy load domain modules for true sandboxing
 const AICopilot = lazy(() => import('./components/AICopilot'))
@@ -55,6 +56,7 @@ const BootSpinner: React.FC = () => (
 // standalone dev renders Header/Sidebar/Footer. Never detect embedding via
 // iframe checks — sub-apps are compiled into the shell bundle, not iframed.
 const App: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
+  const { isDarkMode } = useStore()
   const [activePage, setActivePage] = useState(() => {
     const params = new URLSearchParams(window.location.search)
     const view = params.get('view') || 'limit'
@@ -168,7 +170,7 @@ const App: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
       case 'calendar':     return <DomainSandbox name="Calendar"><CalendarView /></DomainSandbox>
       case 'cashflow':     return <DomainSandbox name="Cash Flow"><CashFlowView /></DomainSandbox>
       case 'fx':           return <DomainSandbox name="FX & Hedging"><FXView /></DomainSandbox>
-      case 'interest':     return <DomainSandbox name="interest"><InterestSummary /></DomainSandbox>
+      case 'interest':     return <DomainSandbox name="Interest"><InterestSummary /></DomainSandbox>
       case 'ops':          return <DomainSandbox name="Operations"><OperationsView /></DomainSandbox>
       case 'lifecycle':    return <DomainSandbox name="LC Lifecycle"><LifecycleTracker /></DomainSandbox>
       case 'research':     return <DomainSandbox name="Intelligence"><IntelligenceView /></DomainSandbox>
@@ -196,7 +198,7 @@ const App: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
 
   return (
     <AuditProvider>
-      <div className="min-h-screen bg-[#fafafa] pb-8">
+      <div className={`min-h-screen bg-parchment pb-8 ${isDarkMode ? 'dark' : ''}`}>
         {!isEmbedded && <Header />}
         <div className="flex">
           {!isEmbedded && <Sidebar activePage={activePage} setActivePage={setActivePage} />}

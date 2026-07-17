@@ -343,37 +343,21 @@ export const Login: React.FC<LoginProps> = ({ skipIntro = false, redirectTo }) =
                                     </form>
                                 ) : (
                                     <form onSubmit={handleSubmit} className="space-y-6">
-                                        <div className="relative group/input">
-                                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within/input:text-emerald-500 transition-colors" />
-                                            <input
-                                                type="email"
-                                                placeholder="Email address"
-                                                required
-                                                autoFocus
-                                                value={email}
-                                                onChange={(e) => setEmail(e.target.value)}
-                                                className="w-full bg-[#05070A]/50 border border-slate-800 rounded-xl py-3 pl-11 pr-4 text-xs text-white outline-none transition-all placeholder:text-slate-600 shadow-inner focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                                            />
-                                        </div>
-
-                                        <button
-                                            type="submit"
-                                            disabled={isLoading}
-                                            className="w-full text-xs font-black py-3.5 rounded-xl flex items-center justify-center gap-2 uppercase tracking-widest bg-emerald-500 text-black hover:bg-emerald-400 transition-all active:scale-95 disabled:opacity-60"
-                                        >
-                                            {isLoading ? 'Sending...' : 'Send Verification Code'}
-                                        </button>
-
-                                        <div className="relative my-8">
-                                            <div className="absolute inset-0 flex items-center">
-                                                <span className="w-full border-t border-slate-800" />
-                                            </div>
-                                            <div className="relative flex justify-center text-[10px] uppercase">
-                                                <span className="bg-[#0A0C10] px-3 text-slate-600 font-medium tracking-widest">Enterprise Auth</span>
-                                            </div>
-                                        </div>
-
                                         <div className="space-y-3">
+                                            <button
+                                                type="button"
+                                                onClick={handleMicrosoftLogin}
+                                                className="w-full text-xs font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 bg-[#1F1F1F] text-white hover:bg-[#2A2A2A] border border-slate-800 transition-all active:scale-95"
+                                            >
+                                                <svg className="w-3.5 h-3.5 mr-0.5" viewBox="0 0 23 23">
+                                                    <rect x="0" y="0" width="11" height="11" fill="#F25022" />
+                                                    <rect x="12" y="0" width="11" height="11" fill="#7FBA00" />
+                                                    <rect x="0" y="12" width="11" height="11" fill="#00A4EF" />
+                                                    <rect x="12" y="12" width="11" height="11" fill="#FFB900" />
+                                                </svg>
+                                                Continue with Microsoft
+                                            </button>
+
                                             <button
                                                 type="button"
                                                 onClick={handleGoogleLogin}
@@ -387,19 +371,37 @@ export const Login: React.FC<LoginProps> = ({ skipIntro = false, redirectTo }) =
                                                 </svg>
                                                 Continue with Google
                                             </button>
+                                        </div>
+
+                                        <div className="relative my-8">
+                                            <div className="absolute inset-0 flex items-center">
+                                                <span className="w-full border-t border-slate-800" />
+                                            </div>
+                                            <div className="relative flex justify-center text-[10px] uppercase">
+                                                <span className="bg-[#0A0C10] px-3 text-slate-600 font-medium tracking-widest">Or login with email</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            <div className="relative group/input">
+                                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within/input:text-emerald-500 transition-colors" />
+                                                <input
+                                                    type="email"
+                                                    placeholder="Email address"
+                                                    required
+                                                    autoFocus
+                                                    value={email}
+                                                    onChange={(e) => setEmail(e.target.value)}
+                                                    className="w-full bg-[#05070A]/50 border border-slate-800 rounded-xl py-3 pl-11 pr-4 text-xs text-white outline-none transition-all placeholder:text-slate-600 shadow-inner focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                                                />
+                                            </div>
 
                                             <button
-                                                type="button"
-                                                onClick={handleMicrosoftLogin}
-                                                className="w-full text-xs font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 bg-[#1F1F1F] text-white hover:bg-[#2A2A2A] border border-slate-800 transition-all active:scale-95"
+                                                type="submit"
+                                                disabled={isLoading}
+                                                className="w-full text-xs font-black py-3.5 rounded-xl flex items-center justify-center gap-2 uppercase tracking-widest bg-emerald-500 text-black hover:bg-emerald-400 transition-all active:scale-95 disabled:opacity-60"
                                             >
-                                                <svg className="w-3.5 h-3.5 mr-0.5" viewBox="0 0 23 23">
-                                                    <rect x="0" y="0" width="11" height="11" fill="#F25022" />
-                                                    <rect x="12" y="0" width="11" height="11" fill="#7FBA00" />
-                                                    <rect x="0" y="12" width="11" height="11" fill="#00A4EF" />
-                                                    <rect x="12" y="12" width="11" height="11" fill="#FFB900" />
-                                                </svg>
-                                                Continue with Microsoft
+                                                {isLoading ? 'Sending...' : 'Send Verification Code'}
                                             </button>
                                         </div>
                                     </form>

@@ -107,7 +107,7 @@ def month_sort_key(mk):
 @st.cache_data(ttl=600)
 def discover_month_range():
     """
-    Query all bank statement tables, parse all dates in Python,
+    Query all bank statement tables using per-table MIN/MAX,
     then generate the full ordered list of month keys.
     """
     # Get list of bank statement tables (numeric names or starting with 4)
@@ -122,20 +122,21 @@ def discover_month_range():
     if not table_names:
         return [], {}, {}
 
-    # UNION ALL to get all dates across ALL tables
-    union_parts = []
-    for t in table_names:
-        union_parts.append(f'SELECT DISTINCT txn_date as d FROM "{t}"')
-    union_sql = " UNION ALL ".join(union_parts)
-    dates_query = f"SELECT DISTINCT d FROM ({union_sql}) all_dates"
-    dates_df = execute_query_with_retry(dates_query)
+    # Fast path: query MIN/MAX per table instead of UNION ALL over all rows
+    range_parts = [f'SELECT MIN(txn_date) as min_d, MAX(txn_date) as max_d FROM "{t}"' for t in table_names]
+    range_sql = " UNION ALL ".join(range_parts)
+    range_df = execute_query_with_retry(range_sql)
 
-    # Parse all dates in Python (handles mixed formats)
+    # Parse the min/max date pairs
     parsed_dates = []
-    for val in dates_df["d"].dropna():
-        dt = parse_date_any(val)
-        if dt is not None:
-            parsed_dates.append(dt)
+    for _, row in range_df.iterrows():
+        dmin, dmax = row["min_d"], row["max_d"]
+        dmin_dt = parse_date_any(dmin)
+        dmax_dt = parse_date_any(dmax)
+        if dmin_dt:
+            parsed_dates.append(dmin_dt)
+        if dmax_dt:
+            parsed_dates.append(dmax_dt)
 
     if not parsed_dates:
         return [], {}, {}
@@ -188,7 +189,7 @@ def parse_date_any(date_str):
 @st.cache_data(ttl=600)
 def load_bank_summary():
     query = """
-        SELECT account_no, table_type, bank_name, description, name, roi
+        SELECT account_no, table_type, bank_name, description, name, period, roi
         FROM Bank_summary
         ORDER BY table_type, account_no
     """
@@ -201,7 +202,7 @@ def load_bank_summary():
 
 
 @st.cache_data(ttl=600)
-def load_statement_data(account_no):
+def load_statement_data(account_no, fy_date_start=None, fy_date_end=None):
     table_candidates = [f'"{account_no}"']
     if account_no.startswith("000000"):
         stripped = account_no.lstrip("0")
@@ -219,9 +220,17 @@ def load_statement_data(account_no):
                        COALESCE(credit, 0) as credit,
                        balance
                 FROM {table_name}
-                ORDER BY txn_date, value_date
+                WHERE 1=1
             """
-            df = execute_query_with_retry(query)
+            params = []
+            if fy_date_start:
+                query += " AND txn_date >= %s"
+                params.append(fy_date_start)
+            if fy_date_end:
+                query += " AND txn_date <= %s"
+                params.append(fy_date_end)
+            query += " ORDER BY txn_date, value_date"
+            df = execute_query_with_retry(query, params if params else None)
             if len(df) > 0:
                 return df, table_name
         except ConnectionError:
@@ -269,7 +278,7 @@ def is_interest_recovered(description):
                                       "INTEREST RECOVERY"])
 
 
-def compute_monthly_metrics(account_no, statement_df, roi_value, months_order, month_ranges):
+def compute_monthly_metrics(account_no, statement_df, roi_map, months_order, month_ranges):
     """Compute opening, closing, interest metrics per month dynamically."""
     if statement_df is None or len(statement_df) == 0:
         return {}
@@ -281,9 +290,12 @@ def compute_monthly_metrics(account_no, statement_df, roi_value, months_order, m
         range_lookup[mk] = (datetime.strptime(start_str, "%Y-%m-%d"),
                             datetime.strptime(end_str, "%Y-%m-%d"))
 
-    # Parse dates
+    # Parse and stably sort by date in Python
     df = statement_df.copy()
     df["parsed_date"] = df["txn_date"].apply(parse_date_flexible)
+    df = df.dropna(subset=["parsed_date"])
+    df["original_index"] = df.index
+    df = df.sort_values(["parsed_date", "original_index"]).reset_index(drop=True)
     df["month_key"] = df["parsed_date"].apply(get_month_key)
 
     # Classify interest
@@ -303,13 +315,49 @@ def compute_monthly_metrics(account_no, statement_df, roi_value, months_order, m
 
     df["interest_month"] = df.apply(get_interest_month, axis=1)
 
+    # Group statement rows by transaction date (date -> last balance)
+    date_balances = {}
+    for _, r in df.iterrows():
+        d_key = r["parsed_date"].date()
+        date_balances[d_key] = float(r["balance"]) if pd.notna(r["balance"]) else None
+    sorted_tx_dates = sorted(date_balances.keys())
+
     results = {}
     for mk in months_order:
+        # Get monthly ROI from map
+        roi_value = roi_map.get((account_no, mk))
+        if roi_value is None:
+            fallback_rois = [v for k, v in roi_map.items() if k[0] == account_no]
+            roi_value = fallback_rois[0] if fallback_rois else 0.0
+
         month_data = df[df["month_key"] == mk]
+        dt = datetime.strptime(mk, "%b_%y")
+        days_in_month = calendar.monthrange(dt.year, dt.month)[1]
+
         if len(month_data) == 0:
+            # Carry forward the last known balance before this month
+            start_date = dt.date()
+            import bisect
+            idx = bisect.bisect_left(sorted_tx_dates, start_date) - 1
+            carried_bal = 0.0
+            if idx >= 0:
+                carried_bal = date_balances[sorted_tx_dates[idx]] or 0.0
+            elif sorted_tx_dates:
+                carried_bal = date_balances[sorted_tx_dates[0]] or 0.0
+
+            # Interest calculation for month with no transactions
+            int_calculated = 0.0
+            if roi_value is not None and pd.notna(roi_value):
+                rate = float(roi_value)
+                int_calculated = round((abs(carried_bal) * rate / 100) * (days_in_month / 365.0), 2)
+
             results[mk] = {
-                "opening": None, "closing": None, "int_recovered": 0,
-                "roi": roi_value if pd.notna(roi_value) else None, "has_data": False
+                "opening": carried_bal,
+                "closing": carried_bal,
+                "int_recovered": 0.0,
+                "int_calculated": int_calculated,
+                "roi": roi_value if pd.notna(roi_value) else None,
+                "has_data": False
             }
             continue
 
@@ -322,13 +370,41 @@ def compute_monthly_metrics(account_no, statement_df, roi_value, months_order, m
         closing = month_data.iloc[-1]["balance"]
 
         actual_charged = month_data[month_data["is_interest_charged"]]["debit"].sum()
-        if closing is not None and actual_charged > 0:
-            closing = closing + actual_charged
+        actual_recovered = month_data[month_data["is_interest_recovered"]]["credit"].sum()
+        if closing is not None:
+            closing = closing + actual_charged - actual_recovered
+
+        # Daily balance interest calculation matching interest.py
+        int_calculated = None
+        if roi_value is not None and pd.notna(roi_value):
+            rate = float(roi_value)
+            daily_balances = []
+            for d in range(1, days_in_month + 1):
+                day_date = date(dt.year, dt.month, d)
+                last_bal = 0.0
+                if day_date in date_balances and date_balances[day_date] is not None:
+                    last_bal = date_balances[day_date]
+                else:
+                    import bisect
+                    idx = bisect.bisect_left(sorted_tx_dates, day_date) - 1
+                    if idx >= 0:
+                        pred_date = sorted_tx_dates[idx]
+                        last_bal = date_balances[pred_date] if date_balances[pred_date] is not None else 0.0
+                    else:
+                        if sorted_tx_dates:
+                            last_bal = date_balances[sorted_tx_dates[0]] if date_balances[sorted_tx_dates[0]] is not None else 0.0
+                        else:
+                            last_bal = 0.0
+                daily_balances.append(last_bal)
+
+            daily_interests = [abs(bal) * (rate / 100.0) / 365.0 for bal in daily_balances]
+            int_calculated = round(sum(daily_interests), 2)
 
         results[mk] = {
             "opening": opening,
             "closing": closing,
             "int_recovered": round(int_recovered, 2),
+            "int_calculated": int_calculated,
             "roi": roi_value if pd.notna(roi_value) else None,
             "has_data": True
         }
@@ -389,15 +465,44 @@ if selected_account != "All":
 
 st.sidebar.markdown(f"**Accounts: {len(filtered)}**")
 
-# Sidebar: FY filter (derived from months_order)
-fy_list = sorted(set(get_fy_label(mk) for mk in months_order), reverse=True)
-fy_options = ["All FYs"] + fy_list
-selected_fy = st.sidebar.selectbox("Fiscal Year", fy_options, index=0)
+# ── FY Filter (default to current Indian FY) ──────────────────────────────────
+today = datetime.now()
+current_fy = (f"{today.year}-{today.year + 1 - 2000:02d}"
+              if today.month >= 4
+              else f"{today.year - 1}-{today.year - 2000:02d}")
 
-if selected_fy != "All FYs":
-    fy_months = [mk for mk in months_order if get_fy_label(mk) == selected_fy]
-else:
-    fy_months = months_order
+fy_list = sorted(set(get_fy_label(mk) for mk in months_order), reverse=True)
+default_fy_idx = fy_list.index(current_fy) if current_fy in fy_list else 0
+selected_fy = st.sidebar.selectbox("Fiscal Year", fy_list, index=default_fy_idx)
+
+# Optional: load additional FYs via expander
+with st.sidebar.expander("Load other FYs"):
+    other_fys = sorted([fy for fy in fy_list if fy != selected_fy], reverse=True)
+    extra_fys = st.multiselect("Select additional FYs", other_fys)
+
+# Combine selected FYs
+active_fys = [selected_fy] + extra_fys
+fy_months = []
+for fy in active_fys:
+    fy_months.extend([mk for mk in months_order if get_fy_label(mk) == fy])
+# Deduplicate while preserving order
+seen = set()
+fy_months = [mk for mk in fy_months if not (mk in seen or seen.add(mk))]
+
+# Compute date range for SQL WHERE clause from active FYs
+fy_date_start = None
+fy_date_end = None
+if active_fys:
+    # FYs are reverse-sorted; last element = earliest FY
+    first_fy = active_fys[-1]
+    last_fy = active_fys[0]
+    fy_start_parts = first_fy.split('-')
+    fy_end_parts = last_fy.split('-')
+    fy_start_year = int(fy_start_parts[0])
+    fy_end_short = fy_end_parts[1]
+    fy_end_year = 2000 + int(fy_end_short) if len(fy_end_short) == 2 else int(fy_end_short)
+    fy_date_start = f"{fy_start_year}-04-01"
+    fy_date_end = f"{fy_end_year}-03-31"
 
 # Sidebar: Month filter
 all_months_label = "All Months"
@@ -430,30 +535,52 @@ if st.button("Compute ROI Analysis", type="primary", use_container_width=True):
     all_rows = []
 
     try:
-        for idx, (_, row) in enumerate(filtered.iterrows()):
-            acct = row["account_no"]
-            progress_bar.progress((idx + 1) / len(filtered), text=f"Processing {acct}...")
+        # Build monthly ROI mapping
+        roi_map = {}
+        for _, r in filtered.iterrows():
+            acct_id = r["account_no"]
+            period_val = r["period"]
+            roi_val = float(r["roi"]) if pd.notna(r["roi"]) else 0.0
+            if period_val:
+                m_key = period_val.strftime("%b_%y").lower() if hasattr(period_val, "strftime") else str(period_val)
+                roi_map[(acct_id, m_key)] = roi_val
 
-            stmt_df, table_found = load_statement_data(acct)
+        # Get unique accounts in filtered dataframe
+        unique_filtered = filtered.drop_duplicates(subset=["account_no"])
+
+        for idx, (_, row) in enumerate(unique_filtered.iterrows()):
+            acct = row["account_no"]
+            progress_bar.progress((idx + 1) / len(unique_filtered), text=f"Processing {acct}...")
+
+            stmt_df, table_found = load_statement_data(acct, fy_date_start, fy_date_end)
 
             if stmt_df is None and not show_all:
                 continue
 
-            for mk in active_months:
-                roi_val = row.get("roi")
+            # Compute metrics once per account, not once per month
+            metrics = {}
+            if stmt_df is not None:
+                metrics = compute_monthly_metrics(acct, stmt_df, roi_map, months_order, month_ranges)
 
+            for mk in active_months:
                 if stmt_df is not None:
-                    metrics = compute_monthly_metrics(acct, stmt_df, roi_val, months_order, month_ranges)
                     m = metrics.get(mk, {})
                 else:
+                    roi_val = roi_map.get((acct, mk))
+                    if roi_val is None:
+                        fallback_rois = [v for k, v in roi_map.items() if k[0] == acct]
+                        roi_val = fallback_rois[0] if fallback_rois else 0.0
                     m = {"opening": None, "closing": None, "int_charged": 0,
                          "int_recovered": 0, "roi": roi_val, "has_data": False}
 
                 opening = m.get("opening")
                 roi_val_m = m.get("roi")
 
-                days = days_in_month_for_key(mk)
-                int_calculated = calculate_interest(opening, roi_val_m, days)
+                if "int_calculated" in m:
+                    int_calculated = m.get("int_calculated")
+                else:
+                    days = days_in_month_for_key(mk)
+                    int_calculated = calculate_interest(opening, roi_val_m, days)
 
                 if int_calculated is not None and int_calculated != 0:
                     variance = round(m.get("int_recovered", 0) - int_calculated, 2)

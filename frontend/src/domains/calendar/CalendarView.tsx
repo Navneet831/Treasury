@@ -255,7 +255,7 @@ const CalendarView: React.FC = () => {
   const legendTypes = [...visibleTypes].filter(t => VIEW_TYPES[viewMode].includes(t))
 
   return (
-    <div className="flex flex-col h-full bg-[#f8fafc]">
+    <div className="flex flex-col h-full bg-parchment">
       <div className="bg-white border-b border-[#e2e8f0] px-4 py-2 flex flex-wrap items-center gap-2 sticky top-0 z-30">
         <div className="flex items-center gap-0.5 bg-[#f1f5f9] rounded-lg p-0.5 flex-shrink-0">
           <button onClick={prevMonth} className="p-1.5 rounded-md hover:bg-white transition-colors text-[#64748b]"><ChevronLeft className="w-3.5 h-3.5" /></button>
@@ -326,7 +326,7 @@ const CalendarView: React.FC = () => {
 
       {viewMode === 'bank' ? (
         limitData && limitData.bank_utilization && (
-          <div className="bg-[#f8fafc] border-b border-[#e2e8f0] px-4 py-1.5 flex items-center gap-5 flex-wrap">
+          <div className="bg-parchment border-b border-[#e2e8f0] px-4 py-1.5 flex items-center gap-5 flex-wrap">
             {BANK_ORDER.map(bankName => {
               const bData = limitData.bank_utilization.find((b: any) => b.bank === bankName)
               if (!bData) return null
@@ -343,7 +343,7 @@ const CalendarView: React.FC = () => {
           </div>
         )
       ) : Object.keys(viewTotals).length > 0 && (
-        <div className="bg-[#f8fafc] border-b border-[#e2e8f0] px-4 py-1.5 flex items-center gap-5 flex-wrap">
+        <div className="bg-parchment border-b border-[#e2e8f0] px-4 py-1.5 flex items-center gap-5 flex-wrap">
           {legendTypes.map(type => {
             const val = viewTotals[type]; if (!val?.amount) return null; const style = EVENT_STYLE[type]
             return (
@@ -358,7 +358,7 @@ const CalendarView: React.FC = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-7 bg-[#f8fafc] border-b border-[#e2e8f0]">
+      <div className="grid grid-cols-7 bg-parchment border-b border-[#e2e8f0]">
         {DAY_NAMES.map(d => <div key={d} className="py-1.5 text-center text-[9px] font-black text-[#94a3b8] uppercase tracking-widest">{d}</div>)}
       </div>
 
@@ -370,7 +370,7 @@ const CalendarView: React.FC = () => {
             const dayEvents = day ? getDayEvents(day) : []
             const isToday = day === todayDay, isSelected = day === selectedDay, hasUrgent = dayEvents.some(e => e.color === 'Red')
             return (
-              <div key={i} onClick={() => day && setSelectedDay(prev => prev === day ? null : day)} className={`border-r border-b border-[#e2e8f0] p-1.5 overflow-hidden transition-colors ${!day ? 'bg-[#fafafa]' : isSelected ? 'bg-[#eff6ff] cursor-pointer' : 'hover:bg-[#f8fafc] cursor-pointer'}`}>
+              <div key={i} onClick={() => day && setSelectedDay(prev => prev === day ? null : day)} className={`border-r border-b border-[#e2e8f0] p-1.5 overflow-hidden transition-colors ${!day ? 'bg-parchment' : isSelected ? 'bg-[#eff6ff] cursor-pointer' : 'hover:bg-parchment cursor-pointer'}`}>
                 {day && (
                   <>
                     <div className="flex items-center justify-between mb-1">

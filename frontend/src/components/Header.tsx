@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { useStore } from '../store'
 import { getFYList } from '../api'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, Sun, Moon } from 'lucide-react'
 
 const Header: React.FC = () => {
-  const { currency, setCurrency, fy, setFy, asOnDate, setAsOnDate, setAmountUnit } = useStore()
+  const { currency, setCurrency, fy, setFy, asOnDate, setAsOnDate, setAmountUnit, isDarkMode, setIsDarkMode } = useStore()
   const [fyOptions, setFyOptions] = useState<string[]>([])
 
   useEffect(() => {
@@ -83,6 +83,15 @@ const Header: React.FC = () => {
               </button>
           ))}
         </div>
+
+        {/* Dark Mode Toggle */}
+        <button
+          onClick={() => setIsDarkMode(!isDarkMode)}
+          className="flex items-center justify-center p-1.5 rounded-lg border border-hairline bg-parchment text-ink-mute hover:bg-canvas transition-colors shadow-sm cursor-pointer"
+          title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+        >
+          {isDarkMode ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-violet-600" />}
+        </button>
       </div>
     </header>
   )

@@ -9,6 +9,8 @@ interface AppState {
   setAsOnDate: (date: string) => void
   amountUnit: 'Cr' | 'Absolute'
   setAmountUnit: (unit: 'Cr' | 'Absolute') => void
+  isDarkMode: boolean
+  setIsDarkMode: (dark: boolean) => void
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -20,4 +22,9 @@ export const useStore = create<AppState>((set) => ({
   setAsOnDate: (asOnDate) => set({ asOnDate }),
   amountUnit: 'Cr',
   setAmountUnit: (amountUnit) => set({ amountUnit }),
+  isDarkMode: localStorage.getItem('treasury.dark') === 'true',
+  setIsDarkMode: (isDarkMode) => {
+    localStorage.setItem('treasury.dark', String(isDarkMode))
+    set({ isDarkMode })
+  },
 }))
