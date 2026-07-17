@@ -2,6 +2,7 @@ import bisect
 import calendar
 import functools
 import hashlib
+import json
 import logging
 import math
 import os
@@ -10,7 +11,7 @@ import re
 import time
 from datetime import datetime, date, timedelta
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 import pandas as pd
 
 from apps.Treasury.backend.database import fetch_dict, fetch_one
@@ -20,6 +21,53 @@ logger = logging.getLogger(__name__)
 # Simple in-memory cache for interest summary data (5min TTL)
 _interest_cache: Dict[str, Dict[str, Any]] = {}
 _INTEREST_CACHE_TTL = 300  # seconds
+
+# DB-backed cache table name
+_CACHE_TABLE = "_cache_interest"
+
+
+def _ensure_cache_table():
+    """Create the DB-backed cache table if it doesn't exist (lazily)."""
+    try:
+        fetch_dict(f"""
+            CREATE TABLE IF NOT EXISTS {_CACHE_TABLE} (
+                cache_key TEXT PRIMARY KEY,
+                data JSONB NOT NULL,
+                expires_at TIMESTAMP NOT NULL
+            )
+        """)
+    except Exception as e:
+        logger.warning("Failed to create cache table (non-fatal): %s", e)
+
+
+def _get_db_cache(cache_key: str) -> Optional[Dict[str, Any]]:
+    """Check DB-backed cache (survives Vercel cold starts)."""
+    try:
+        row = fetch_one(f"""
+            SELECT data FROM {_CACHE_TABLE}
+            WHERE cache_key = %s AND expires_at > NOW()
+        """, (cache_key,))
+        if row and row.get("data"):
+            return json.loads(row["data"]) if isinstance(row["data"], str) else row["data"]
+    except Exception as e:
+        logger.debug("DB cache miss (non-fatal): %s", e)
+    return None
+
+
+def _set_db_cache(cache_key: str, data: Dict[str, Any], ttl: int = _INTEREST_CACHE_TTL):
+    """Store result in DB-backed cache."""
+    try:
+        _ensure_cache_table()
+        expires = datetime.utcnow() + timedelta(seconds=ttl)
+        data_json = json.dumps(data, default=str)
+        fetch_dict(f"""
+            INSERT INTO {_CACHE_TABLE} (cache_key, data, expires_at)
+            VALUES (%s, %s::jsonb, %s)
+            ON CONFLICT (cache_key)
+            DO UPDATE SET data = EXCLUDED.data, expires_at = EXCLUDED.expires_at
+        """, (cache_key, data_json, expires))
+    except Exception as e:
+        logger.debug("DB cache write skipped (non-fatal): %s", e)
 
 def _get_interest_cache_key(fy: str = None, month: str = None) -> str:
     return f"{fy or ''}|{month or ''}"
@@ -222,15 +270,22 @@ def get_daily_balances_for_month(stmt_rows: List[Dict[str, Any]], year: int, mon
     return daily_balances
 
 def get_interest_summary_data(fy: str = None, month: str = None) -> Dict[str, Any]:
-    # Check cache
+    # 1. Check in-memory cache (fastest, lost on cold start)
     cache_key = _get_interest_cache_key(fy, month)
     cached = _interest_cache.get(cache_key)
     if cached and (time.time() - cached["ts"]) < _INTEREST_CACHE_TTL:
-        logger.info("get_interest_summary_data(fy=%s, month=%s) CACHE HIT", fy, month)
+        logger.info("get_interest_summary_data(fy=%s, month=%s) MEMORY CACHE HIT", fy, month)
         return cached["data"]
 
+    # 2. Check DB cache (survives Vercel cold starts)
+    db_cached = _get_db_cache(cache_key)
+    if db_cached is not None:
+        logger.info("get_interest_summary_data(fy=%s, month=%s) DB CACHE HIT", fy, month)
+        _interest_cache[cache_key] = {"data": db_cached, "ts": time.time()}
+        return db_cached
+
     t_start = time.time()
-    logger.info("get_interest_summary_data(fy=%s, month=%s) START", fy, month)
+    logger.info("get_interest_summary_data(fy=%s, month=%s) COMPUTE START", fy, month)
 
     # 1. Load Bank_summary
     accounts_res = fetch_dict("""
@@ -559,6 +614,7 @@ def get_interest_summary_data(fy: str = None, month: str = None) -> Dict[str, An
         "monthLabels": month_labels,
         "fyList": fy_list
     }
-    # Store in cache
+    # Store in both caches (memory + DB for cold-start resilience)
     _interest_cache[cache_key] = {"data": result, "ts": time.time()}
+    _set_db_cache(cache_key, result)
     return result

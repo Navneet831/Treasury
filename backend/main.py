@@ -68,30 +68,45 @@ async def get_db_config():
     except Exception as e:
         connection_error = f"Failed to retrieve database configuration: {str(e)}"
 
+    # On Vercel, git info is injected via environment variables.
+    # Fall back to local subprocess for development.
     git_info = {"branch": None, "commits": [], "error": None}
     try:
-        branch = subprocess.check_output(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"], 
-            stderr=subprocess.DEVNULL
-        ).decode().strip()
-        
-        raw_log = subprocess.check_output(
-            ["git", "log", "-5", "--format=%H|%s|%ai|%an"], 
-            stderr=subprocess.DEVNULL
-        ).decode().strip()
-        
-        commits = []
-        for line in raw_log.split("\n"):
-            if not line:
-                continue
-            parts = line.split("|")
-            if len(parts) >= 4:
-                commits.append({
-                    "hash": parts[0][:7],
-                    "message": parts[1],
-                    "date": parts[2],
-                    "author": parts[3]
-                })
+        branch = (
+            os.environ.get("VERCEL_GIT_COMMIT_REF")
+            or subprocess.check_output(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                stderr=subprocess.DEVNULL
+            ).decode().strip()
+        )
+        # Build a single commit from Vercel env vars, or fall back to git log
+        vercel_sha = os.environ.get("VERCEL_GIT_COMMIT_SHA")
+        vercel_msg = os.environ.get("VERCEL_GIT_COMMIT_MESSAGE")
+        vercel_author = os.environ.get("VERCEL_GIT_COMMIT_AUTHOR_NAME")
+        if vercel_sha:
+            commits = [{
+                "hash": vercel_sha[:7],
+                "message": (vercel_msg or "").split("\n")[0],
+                "date": "",
+                "author": vercel_author or "",
+            }]
+        else:
+            raw_log = subprocess.check_output(
+                ["git", "log", "-5", "--format=%H|%s|%ai|%an"],
+                stderr=subprocess.DEVNULL
+            ).decode().strip()
+            commits = []
+            for line in raw_log.split("\n"):
+                if not line:
+                    continue
+                parts = line.split("|")
+                if len(parts) >= 4:
+                    commits.append({
+                        "hash": parts[0][:7],
+                        "message": parts[1],
+                        "date": parts[2],
+                        "author": parts[3]
+                    })
         git_info = {"branch": branch, "commits": commits, "error": None}
     except Exception as e:
         git_info = {
