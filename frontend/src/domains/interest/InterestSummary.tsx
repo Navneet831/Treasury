@@ -102,7 +102,7 @@ const buildCalcTooltip = (r: InterestRow, field: string): string => {
     case 'variancePct': {
       lines.push(`Var% = (Variance / Calculated) x 100`)
       lines.push(`= (${formatAmt(r.variance)} / ${formatAmt(r.intCalculated ?? 0)}) x 100`)
-      lines.push(`= ${r.variancePct.toFixed(1)}%`)
+      lines.push(`= ${r.variancePct != null ? r.variancePct.toFixed(1) + '%' : '-'}`)
       break
     }
   }
@@ -1174,7 +1174,7 @@ export const InterestSummary: React.FC = () => {
                                   className={`cursor-pointer transition-colors hover:bg-emerald-500/5 ${isActive ? 'bg-emerald-500/10' : ''}`}
                                 >
                                   <td className="p-1.5 font-semibold text-ink">{r.month}</td>
-                                  <td className="p-1.5 text-right text-sky-600">{r.roi !== null ? `${r.roi.toFixed(2)}%` : '-'}</td>
+                                  <td className="p-1.5 text-right text-sky-600">{r.roi != null ? `${r.roi.toFixed(2)}%` : '-'}</td>
                                   <td className="p-1.5 text-right text-emerald-600 font-medium">{formatAmt(r.intRecovered)}</td>
                                   <td className="p-1.5 text-right text-ink-mute" title={buildCalcTooltip(r, 'intCalculated') || 'Int Calculated = |Opening| x ROI% / 100 x Days/365'}>{formatAmt(r.intCalculated)}</td>
                                   <td className={`p-1.5 text-right font-semibold ${
