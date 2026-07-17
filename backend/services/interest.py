@@ -43,14 +43,16 @@ def _ensure_cache_table():
 def _get_db_cache(cache_key: str) -> Optional[Dict[str, Any]]:
     """Check DB-backed cache (survives Vercel cold starts)."""
     try:
-        row = fetch_one(f"""
+        rows = fetch_dict(f"""
             SELECT data FROM {_CACHE_TABLE}
             WHERE cache_key = %s AND expires_at > NOW()
         """, (cache_key,))
-        if row and row.get("data"):
-            return json.loads(row["data"]) if isinstance(row["data"], str) else row["data"]
+        if rows and len(rows) > 0:
+            raw = rows[0].get("data")
+            if raw is not None:
+                return json.loads(raw) if isinstance(raw, str) else raw
     except Exception as e:
-        logger.debug("DB cache miss (non-fatal): %s", e)
+        logger.debug("DB cache read failed (non-fatal): %s", e)
     return None
 
 
@@ -269,20 +271,23 @@ def get_daily_balances_for_month(stmt_rows: List[Dict[str, Any]], year: int, mon
         daily_balances.append(last_bal)
     return daily_balances
 
-def get_interest_summary_data(fy: str = None, month: str = None) -> Dict[str, Any]:
-    # 1. Check in-memory cache (fastest, lost on cold start)
+def get_interest_summary_data(fy: str = None, month: str = None, recompute: bool = False) -> Dict[str, Any]:
     cache_key = _get_interest_cache_key(fy, month)
-    cached = _interest_cache.get(cache_key)
-    if cached and (time.time() - cached["ts"]) < _INTEREST_CACHE_TTL:
-        logger.info("get_interest_summary_data(fy=%s, month=%s) MEMORY CACHE HIT", fy, month)
-        return cached["data"]
 
-    # 2. Check DB cache (survives Vercel cold starts)
-    db_cached = _get_db_cache(cache_key)
-    if db_cached is not None:
-        logger.info("get_interest_summary_data(fy=%s, month=%s) DB CACHE HIT", fy, month)
-        _interest_cache[cache_key] = {"data": db_cached, "ts": time.time()}
-        return db_cached
+    # Skip cache if explicitly recomputing
+    if not recompute:
+        # 1. Check in-memory cache (fastest, lost on cold start)
+        cached = _interest_cache.get(cache_key)
+        if cached and (time.time() - cached["ts"]) < _INTEREST_CACHE_TTL:
+            logger.info("get_interest_summary_data(fy=%s, month=%s) MEMORY CACHE HIT", fy, month)
+            return cached["data"]
+
+        # 2. Check DB cache (survives Vercel cold starts)
+        db_cached = _get_db_cache(cache_key)
+        if db_cached is not None:
+            logger.info("get_interest_summary_data(fy=%s, month=%s) DB CACHE HIT", fy, month)
+            _interest_cache[cache_key] = {"data": db_cached, "ts": time.time()}
+            return db_cached
 
     t_start = time.time()
     logger.info("get_interest_summary_data(fy=%s, month=%s) COMPUTE START", fy, month)
