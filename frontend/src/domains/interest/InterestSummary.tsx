@@ -165,14 +165,6 @@ const getCurrentFy = (): string => {
   }
 }
 
-const getCurrentMonthKey = (): string => {
-  const now = new Date()
-  const shortMonths = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
-  const month = shortMonths[now.getMonth()]
-  const year = String(now.getFullYear()).slice(-2)
-  return `${month}_${year}`
-}
-
 const parseMk = (mk: string) => {
   if (!mk) return 0
   const parts = mk.split('_')
@@ -233,24 +225,17 @@ export const InterestSummary: React.FC = () => {
   const [loadingTxns, setLoadingTxns] = useState(false)
   const [txnError, setTxnError] = useState<string | null>(null)
   const [fyList, setFyList] = useState<string[]>([])
-  const [backgroundLoading, setBackgroundLoading] = useState(false)
 
   // (no editable cell state — removed per user feedback)
 
-  // Load data for a specific FY (or All FYs), optionally filtered to a single month
-  const loadFyData = useCallback(async (fyToLoad?: string, monthFilter?: string) => {
-    const isPriority = !!monthFilter
-    if (!isPriority) {
-      setLoading(true)
-    }
+  // Load data for a specific FY (or All FYs)
+  const loadFyData = useCallback(async (fyToLoad?: string) => {
+    setLoading(true)
     setError(null)
     try {
       const params: Record<string, string> = {}
       if (fyToLoad && fyToLoad !== 'All FYs') {
         params.fy = fyToLoad
-      }
-      if (monthFilter) {
-        params.month = monthFilter
       }
       const res = await api.get('/interest-summary', { params })
       const payload: InterestSummaryData = res.data
@@ -287,42 +272,15 @@ export const InterestSummary: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Error fetching interest summary:', err)
-      if (!isPriority) {
-        setError(err.message || 'Failed to load interest summary data.')
-      }
+      setError(err.message || 'Failed to load interest summary data.')
     } finally {
-      if (!isPriority) {
-        setLoading(false)
-      }
+      setLoading(false)
     }
   }, [])
 
-  // On mount: load current month first (fast), then full FY in background
+  // On mount: load latest FY only (lazy — user clicks other FYs to load them)
   useEffect(() => {
-    const fy = getCurrentFy()
-    const currentMonth = getCurrentMonthKey()
-    
-    // Phase 1: Load just the current month (fast — user sees data instantly)
-    loadFyData(fy, currentMonth)
-    
-    // Phase 2: Load full FY data in background (replaces when done)
-    setBackgroundLoading(true)
-    const fullParams: Record<string, string> = { fy }
-    api.get('/interest-summary', { params: fullParams }).then(res => {
-      const payload: InterestSummaryData = res.data
-      setData(payload)
-      if (payload.fyList && payload.fyList.length > 0) {
-        setFyList(payload.fyList)
-      }
-      if (payload.rows.length > 0) {
-        const matched = payload.rows.find(r => r.tableFound)
-        setDrilldownAccount(matched ? matched.account : payload.rows[0].account)
-      }
-    }).catch(() => {
-      // Phase 2 failure is non-critical — Phase 1 data already displayed
-    }).finally(() => {
-      setBackgroundLoading(false)
-    })
+    loadFyData(getCurrentFy())
   }, [loadFyData])
 
   // Unique options for filters
@@ -697,15 +655,7 @@ export const InterestSummary: React.FC = () => {
             <Percent className="w-4 h-4 text-emerald-600" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xs font-semibold text-ink leading-none">Interest</h1>
-              {backgroundLoading && (
-                <span className="flex items-center gap-1 text-[9px] text-emerald-600 font-mono font-medium">
-                  <RefreshCw className="w-2.5 h-2.5 animate-spin" />
-                  Loading full data...
-                </span>
-              )}
-            </div>
+            <h1 className="text-xs font-semibold text-ink leading-none">Interest</h1>
             <p className="text-[10px] text-ink-mute mt-0.5">
                Reconciliation between interest charged vs calculated simple interest on daily statement balances.
             </p>
@@ -713,7 +663,7 @@ export const InterestSummary: React.FC = () => {
         </div>
         <div className="flex items-center gap-1.5">
           <button
-            onClick={() => { loadFyData(getCurrentFy()); }}
+            onClick={() => loadFyData('All FYs')}
             disabled={loading}
             className="flex items-center gap-1 px-2 py-1 rounded-md bg-white border border-hairline text-[11px] font-medium text-ink hover:bg-canvas transition-colors disabled:opacity-40 shadow-sm font-mono cursor-pointer"
           >

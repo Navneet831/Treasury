@@ -17,6 +17,16 @@ from apps.Treasury.backend.database import fetch_dict, fetch_one
 
 logger = logging.getLogger(__name__)
 
+# Simple in-memory cache for interest summary data (5min TTL)
+_interest_cache: Dict[str, Dict[str, Any]] = {}
+_INTEREST_CACHE_TTL = 300  # seconds
+
+def _get_interest_cache_key(fy: str = None, month: str = None) -> str:
+    return f"{fy or ''}|{month or ''}"
+
+def clear_interest_cache():
+    _interest_cache.clear()
+
 def clean_float(val):
     if val is None:
         return None
@@ -212,6 +222,13 @@ def get_daily_balances_for_month(stmt_rows: List[Dict[str, Any]], year: int, mon
     return daily_balances
 
 def get_interest_summary_data(fy: str = None, month: str = None) -> Dict[str, Any]:
+    # Check cache
+    cache_key = _get_interest_cache_key(fy, month)
+    cached = _interest_cache.get(cache_key)
+    if cached and (time.time() - cached["ts"]) < _INTEREST_CACHE_TTL:
+        logger.info("get_interest_summary_data(fy=%s, month=%s) CACHE HIT", fy, month)
+        return cached["data"]
+
     t_start = time.time()
     logger.info("get_interest_summary_data(fy=%s, month=%s) START", fy, month)
 
@@ -535,10 +552,13 @@ def get_interest_summary_data(fy: str = None, month: str = None) -> Dict[str, An
 
     logger.info("get_interest_summary_data(fy=%s, month=%s) DONE: %d rows in %.2fs",
                 fy, month, len(all_rows), time.time() - t_start)
-    # Return metadata + filtered rows
-    return {
+    # Build result
+    result = {
         "rows": all_rows,
         "months": active_months if fy else months_order,
         "monthLabels": month_labels,
         "fyList": fy_list
     }
+    # Store in cache
+    _interest_cache[cache_key] = {"data": result, "ts": time.time()}
+    return result
