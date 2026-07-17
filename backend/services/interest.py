@@ -459,8 +459,17 @@ def get_interest_summary_data(fy: str = None) -> Dict[str, Any]:
                 rate = float(roi_val)
                 if stmt_rows:
                     daily_bals = get_daily_balances_for_month(stmt_rows, dt.year, dt.month, days_in_month)
-                    daily_interests = [abs(bal) * (rate / 100.0) / 365.0 for bal in daily_bals]
-                    int_calculated = round(sum(daily_interests), 2)
+                    # CC accounts: interest only on negative (utilised) daily balances
+                    if acct_row["table_type"] == "CC":
+                        negative_bals = [bal for bal in daily_bals if bal < 0]
+                        if negative_bals:
+                            sum_negative = sum(negative_bals)
+                            int_calculated = round(abs(sum_negative) * (rate / 100.0) * (days_in_month / 365.0), 2)
+                        else:
+                            int_calculated = 0.0
+                    else:
+                        daily_interests = [abs(bal) * (rate / 100.0) / 365.0 for bal in daily_bals]
+                        int_calculated = round(sum(daily_interests), 2)
                 else:
                     if opening_bal is not None:
                         principal = abs(opening_bal)
