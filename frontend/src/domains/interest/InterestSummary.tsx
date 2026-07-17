@@ -254,12 +254,9 @@ export const InterestSummary: React.FC = () => {
           return defaultFy
         })
 
-        // Auto-select latest month by default for targetFy
-        if (payload.months && payload.months.length > 0) {
-          const latest = getLatestMonthForFy(targetFy, payload.months, payload.rows)
-          setSelectedMonth(latest)
-          setDrilldownMonth(latest)
-        }
+        // Show all months of the selected FY by default
+        setSelectedMonth('All')
+        setDrilldownMonth('all')
       }
 
       // Auto-select first account (prioritise one with statement table found)
