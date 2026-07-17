@@ -438,6 +438,10 @@ def get_interest_summary_data(fy: str = None) -> Dict[str, Any]:
         for mk in active_months:
             m_metric = metrics.get(mk, {"opening": None, "closing": None, "int_recovered": 0, "has_data": False})
             
+            # Skip months with no actual statement data — don't generate imaginary rows
+            if not m_metric.get("has_data", False):
+                continue
+            
             # Days in month
             dt = datetime.strptime(mk, "%b_%y")
             days_in_month = calendar.monthrange(dt.year, dt.month)[1]
