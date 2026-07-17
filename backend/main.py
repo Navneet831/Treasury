@@ -397,6 +397,15 @@ async def get_interest_summary(fy: Optional[str] = Query(None), month: Optional[
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/interest-daily-breakdown")
+async def get_interest_daily_breakdown(acct: str = Query(...), month: str = Query(...)):
+    try:
+        return datalogic.get_daily_breakdown(acct=acct, month_key=month)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/tables")
 async def get_tables():
     try:

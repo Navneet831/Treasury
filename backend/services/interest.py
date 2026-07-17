@@ -608,3 +608,161 @@ def get_interest_summary_data(fy: str = None, month: str = None) -> Dict[str, An
     # Store in cache
     _interest_cache[cache_key] = {"data": result, "ts": time.time()}
     return result
+
+
+def get_daily_breakdown(acct: str, month_key: str) -> List[Dict[str, Any]]:
+    """Get day-wise breakdown (opening, debit, credit, closing, interest) for a CC account month."""
+    # Find table name
+    candidates = [acct]
+    if acct.startswith("000000"):
+        stripped = acct.lstrip("0")
+        if stripped:
+            candidates.append(stripped)
+    else:
+        padded = acct.zfill(15)
+        candidates.append(padded)
+    tables_res = fetch_dict("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+    existing_tables = {r["tablename"] for r in tables_res}
+    tbl_name = None
+    for c in candidates:
+        if c in existing_tables:
+            tbl_name = c
+            break
+    if not tbl_name:
+        return []
+
+    # Determine year/month from month_key
+    month_map = {
+        "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+        "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12
+    }
+    try:
+        parts = month_key.split("_")
+        month_num = month_map[parts[0]]
+        year = 2000 + int(parts[1])
+    except (KeyError, IndexError, ValueError):
+        return []
+
+    from datetime import date
+    days_in_month = calendar.monthrange(year, month_num)[1]
+    start_str = f"{year}-{month_num:02d}-01"
+    end_str = f"{year}-{month_num:02d}-{days_in_month:02d}" if month_num < 12 else f"{year + 1}-01-01"
+
+    # Load statement rows for the month
+    try:
+        # Check if `id` column exists
+        has_id = False
+        try:
+            col_check = fetch_dict(f"""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = '{tbl_name}' AND column_name = 'id'
+                AND table_schema = 'public'
+            """)
+            has_id = len(col_check) > 0
+        except Exception:
+            pass
+        order_clause = "ORDER BY txn_date ASC, id ASC" if has_id else "ORDER BY txn_date ASC"
+        stmt_rows = fetch_dict(f"""
+            SELECT txn_date, value_date, description,
+                   COALESCE(debit, 0) as debit,
+                   COALESCE(credit, 0) as credit,
+                   balance
+            FROM "{tbl_name}"
+            WHERE txn_date >= '{start_str}' AND txn_date < '{end_str}'
+            {order_clause}
+        """)
+    except Exception:
+        return []
+
+    if not stmt_rows:
+        return []
+
+    # Get ROI from bank_summary
+    roi_val = 0.0
+    try:
+        roi_row = fetch_dict(f"""
+            SELECT roi FROM bank_summary
+            WHERE account_no = '{acct}' AND period >= '{start_str}' AND period < '{end_str}'
+            ORDER BY period DESC LIMIT 1
+        """)
+        if roi_row and roi_row[0].get("roi") is not None:
+            roi_val = float(roi_row[0]["roi"])
+        else:
+            # Fallback: any ROI for this account
+            fallback = fetch_dict(f"""
+                SELECT roi FROM bank_summary
+                WHERE account_no = '{acct}' AND roi IS NOT NULL
+                ORDER BY period DESC LIMIT 1
+            """)
+            if fallback and fallback[0].get("roi") is not None:
+                roi_val = float(fallback[0]["roi"])
+    except Exception:
+        pass
+
+    rate = float(roi_val)
+
+    # Parse and group rows by day
+    parsed = []
+    for r in stmt_rows:
+        parsed_d = parse_date_flexible(r["txn_date"])
+        if parsed_d:
+            parsed.append((parsed_d, r))
+    parsed.sort(key=lambda x: x[0])
+
+    # Group by day: date -> {debits, credits, last_balance}
+    from collections import OrderedDict
+    day_data = OrderedDict()
+    for parsed_d, r in parsed:
+        d_key = parsed_d.date()
+        if d_key not in day_data:
+            day_data[d_key] = {"debits": 0.0, "credits": 0.0, "last_balance": None}
+        day_data[d_key]["debits"] += float(r.get("debit", 0) or 0)
+        day_data[d_key]["credits"] += float(r.get("credit", 0) or 0)
+        bal = float(r["balance"]) if r.get("balance") is not None else None
+        if bal is not None:
+            day_data[d_key]["last_balance"] = bal
+
+    # Compute opening for day 1 and carry forward
+    # Opening of day 1 = closing of previous transaction date
+    prev_closing = 0.0
+    # Try to get opening balance from the first transaction of the month
+    sorted_days = sorted(day_data.keys())
+    if sorted_days:
+        first_bal = day_data[sorted_days[0]]["last_balance"]
+        first_dr = day_data[sorted_days[0]]["debits"]
+        first_cr = day_data[sorted_days[0]]["credits"]
+        if first_bal is not None:
+            prev_closing = first_bal + first_dr - first_cr  # reverse first transaction
+
+    # Build daily breakdown
+    breakdown = []
+    for d in range(1, days_in_month + 1):
+        day_date = date(year, month_num, d)
+        if day_date in day_data:
+            dd = day_data[day_date]
+            closing = dd["last_balance"] if dd["last_balance"] is not None else prev_closing
+            debits = dd["debits"]
+            credits = dd["credits"]
+        else:
+            closing = prev_closing
+            debits = 0.0
+            credits = 0.0
+
+        opening = prev_closing
+        # Interest on negative closing balance
+        interest = 0.0
+        if closing < 0 and rate > 0:
+            interest = round(abs(closing) * (rate / 100.0) / 365.0, 2)
+
+        breakdown.append({
+            "day": d,
+            "date": day_date.isoformat(),
+            "opening": round(opening, 2),
+            "debit": round(debits, 2),
+            "credit": round(credits, 2),
+            "closing": round(closing, 2),
+            "interest": interest
+        })
+        prev_closing = closing
+
+    return breakdown

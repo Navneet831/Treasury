@@ -213,7 +213,10 @@ export const InterestSummary: React.FC = () => {
   const [txnError, setTxnError] = useState<string | null>(null)
   const [fyList, setFyList] = useState<string[]>([])
 
-  // (no editable cell state — removed per user feedback)
+  // Expanded daily breakdown state (CC accounts only)
+  const [expandedDaily, setExpandedDaily] = useState<{acct: string; month: string} | null>(null)
+  const [dailyBreakdown, setDailyBreakdown] = useState<any[] | null>(null)
+  const [dailyLoading, setDailyLoading] = useState(false)
 
   // Load data for a specific FY (or All FYs)
   const loadFyData = useCallback(async (fyToLoad?: string) => {
@@ -996,33 +999,115 @@ export const InterestSummary: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-hairline text-xs font-mono">
-                      {widePivotRows.map((acctRow, idx) => (
-                        <tr
-                          key={idx}
-                          className={`hover:bg-canvas-soft/40 cursor-pointer transition-colors ${
-                            drilldownAccount === acctRow.account ? 'bg-emerald-500/5' : ''
-                          }`}
-                        >
-                          <td className={`sticky left-0 z-20 bg-white p-2 text-ink-mute font-sans border-r border-hairline hover:bg-canvas-soft/40 ${drilldownAccount === acctRow.account ? 'bg-emerald-500/5' : ''}`} onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.type}</td>
-                          <td className={`sticky z-20 bg-white p-2 font-semibold text-ink border-r border-hairline hover:bg-canvas-soft/40 ${drilldownAccount === acctRow.account ? 'bg-emerald-500/5' : ''}`} style={{left: 'var(--c2, 100px)'}} onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.account}</td>
-                          <td className={`sticky z-20 bg-white p-2 text-ink-mute font-sans border-r border-hairline hover:bg-canvas-soft/40 ${drilldownAccount === acctRow.account ? 'bg-emerald-500/5' : ''}`} style={{left: 'var(--c3, 280px)'}} onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.bank}</td>
-                          {activeMonthsList.map(m => {
-                            const v = acctRow[`variance_${m}`]
-                            // Find original row for calc breakdown info
-                            const origRow = processedRows.find(r => r.account === acctRow.account && r.monthKey === m)
-                            return (
-                              <React.Fragment key={m}>
-                                {dataCell(acctRow[`roi_${m}`], 'p-2 border-l border-hairline text-right text-sky-600 font-semibold whitespace-nowrap', v2 => v2 !== null ? `${v2.toFixed(2)}%` : '-')}
-                                {dataCell(acctRow[`open_${m}`], 'p-2 text-right text-ink-mute whitespace-nowrap', formatAmt)}
-                                {dataCell(acctRow[`close_${m}`], 'p-2 text-right text-ink-mute whitespace-nowrap', formatAmt, origRow ? buildCalcTooltip(origRow, 'closingBal') : undefined)}
-                                {dataCell(acctRow[`recovered_${m}`], 'p-2 text-right text-emerald-600 font-medium whitespace-nowrap', formatAmt)}
-                                {dataCell(acctRow[`calculated_${m}`], 'p-2 text-right text-ink whitespace-nowrap', formatAmt, origRow ? buildCalcTooltip(origRow, 'intCalculated') : undefined)}
-                                {dataCell(v, `p-2 text-right font-semibold whitespace-nowrap ${v < 0 ? 'text-amber-600' : v > 0 ? 'text-emerald-700' : 'text-ink-mute'}`, formatAmt, origRow ? buildCalcTooltip(origRow, 'variance') : undefined)}
-                              </React.Fragment>
-                            )
-                          })}
-                        </tr>
-                      ))}
+                      {widePivotRows.map((acctRow, idx) => {
+                        const isCc = acctRow.type === 'CC'
+                        const isExpanded = expandedDaily?.acct === acctRow.account
+                        const lastMonth = activeMonthsList[activeMonthsList.length - 1]
+                        return (
+                          <React.Fragment key={idx}>
+                          <tr
+                            className={`hover:bg-canvas-soft/40 cursor-pointer transition-colors ${
+                              drilldownAccount === acctRow.account ? 'bg-emerald-500/5' : ''
+                            } ${isExpanded ? 'bg-yellow-50' : ''}`}
+                          >
+                            <td className={`sticky left-0 z-20 bg-white p-2 text-ink-mute font-sans border-r border-hairline hover:bg-canvas-soft/40 ${drilldownAccount === acctRow.account ? 'bg-emerald-500/5' : ''} ${isExpanded ? 'bg-yellow-50' : ''}`}
+                                onClick={() => {
+                                  setDrilldownAccount(acctRow.account);
+                                  setDrilldownMonth('all');
+                                  if (isCc) {
+                                    if (isExpanded) {
+                                      setExpandedDaily(null);
+                                      setDailyBreakdown(null);
+                                    } else {
+                                      setExpandedDaily({acct: acctRow.account, month: lastMonth});
+                                      setDailyLoading(true);
+                                      api.get('/interest-daily-breakdown', {params: {acct: acctRow.account, month: lastMonth}})
+                                        .then(res => setDailyBreakdown(res.data))
+                                        .catch(() => setDailyBreakdown(null))
+                                        .finally(() => setDailyLoading(false));
+                                    }
+                                  }
+                                }}
+                            >
+                              <span className="flex items-center gap-1">
+                                {isCc && <span className="text-[9px] font-mono text-ink-mute">{isExpanded ? '▾' : '▶'}</span>}
+                                {acctRow.type}
+                              </span>
+                            </td>
+                            <td className={`sticky z-20 bg-white p-2 font-semibold text-ink border-r border-hairline hover:bg-canvas-soft/40 ${drilldownAccount === acctRow.account ? 'bg-emerald-500/5' : ''} ${isExpanded ? 'bg-yellow-50' : ''}`} style={{left: 'var(--c2, 100px)'}} onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.account}</td>
+                            <td className={`sticky z-20 bg-white p-2 text-ink-mute font-sans border-r border-hairline hover:bg-canvas-soft/40 ${drilldownAccount === acctRow.account ? 'bg-emerald-500/5' : ''} ${isExpanded ? 'bg-yellow-50' : ''}`} style={{left: 'var(--c3, 280px)'}} onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.bank}</td>
+                            {activeMonthsList.map(m => {
+                              const v = acctRow[`variance_${m}`]
+                              const origRow = processedRows.find(r => r.account === acctRow.account && r.monthKey === m)
+                              return (
+                                <React.Fragment key={m}>
+                                  {dataCell(acctRow[`roi_${m}`], 'p-2 border-l border-hairline text-right text-sky-600 font-semibold whitespace-nowrap', v2 => v2 !== null ? `${v2.toFixed(2)}%` : '-')}
+                                  {dataCell(acctRow[`open_${m}`], 'p-2 text-right text-ink-mute whitespace-nowrap', formatAmt)}
+                                  {dataCell(acctRow[`close_${m}`], 'p-2 text-right text-ink-mute whitespace-nowrap', formatAmt, origRow ? buildCalcTooltip(origRow, 'closingBal') : undefined)}
+                                  {dataCell(acctRow[`recovered_${m}`], 'p-2 text-right text-emerald-600 font-medium whitespace-nowrap', formatAmt)}
+                                  {dataCell(acctRow[`calculated_${m}`], 'p-2 text-right text-ink whitespace-nowrap', formatAmt, origRow ? buildCalcTooltip(origRow, 'intCalculated') : undefined)}
+                                  {dataCell(v, `p-2 text-right font-semibold whitespace-nowrap ${v < 0 ? 'text-amber-600' : v > 0 ? 'text-emerald-700' : 'text-ink-mute'}`, formatAmt, origRow ? buildCalcTooltip(origRow, 'variance') : undefined)}
+                                </React.Fragment>
+                              )
+                            })}
+                          </tr>
+                          {/* Expanded daily breakdown row for CC accounts */}
+                          {isCc && isExpanded && (
+                            <tr className="bg-yellow-50/30">
+                              <td colSpan={3 + activeMonthsList.length * 6} className="p-0">
+                                {dailyLoading ? (
+                                  <div className="flex items-center gap-2 p-3 text-xs text-ink-mute font-mono">
+                                    <div className="w-3 h-3 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                                    Loading daily breakdown...
+                                  </div>
+                                ) : dailyBreakdown && dailyBreakdown.length > 0 ? (
+                                  <div className="p-3 overflow-x-auto">
+                                    <div className="text-[9px] font-bold text-ink-mute uppercase tracking-wide mb-1.5 font-mono">
+                                      Daily Breakdown — {data?.monthLabels[lastMonth]}
+                                    </div>
+                                    <table className="min-w-full text-[10px] font-mono border-collapse">
+                                      <thead>
+                                        <tr className="bg-canvas-soft text-ink-mute uppercase text-[9px] border-b border-hairline">
+                                          <th className="p-1 text-right">#</th>
+                                          <th className="p-1 text-left">Date</th>
+                                          <th className="p-1 text-right">Opening</th>
+                                          <th className="p-1 text-right">Debit</th>
+                                          <th className="p-1 text-right">Credit</th>
+                                          <th className="p-1 text-right">Closing</th>
+                                          <th className="p-1 text-right text-emerald-700">Interest</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-hairline">
+                                        {dailyBreakdown.map((dd: any) => (
+                                          <tr key={dd.day} className="hover:bg-canvas-soft/40">
+                                            <td className="p-1 text-right text-ink-mute">{dd.day}</td>
+                                            <td className="p-1 text-ink">{dd.date}</td>
+                                            <td className="p-1 text-right text-ink-mute">{formatAmt(dd.opening)}</td>
+                                            <td className="p-1 text-right text-red-600/70">{dd.debit > 0 ? formatAmt(dd.debit) : '-'}</td>
+                                            <td className="p-1 text-right text-emerald-600/70">{dd.credit > 0 ? formatAmt(dd.credit) : '-'}</td>
+                                            <td className="p-1 text-right text-ink font-semibold">{formatAmt(dd.closing)}</td>
+                                            <td className="p-1 text-right text-emerald-700 font-semibold">{dd.interest > 0 ? formatAmt(dd.interest) : '-'}</td>
+                                          </tr>
+                                        ))}
+                                        {/* Total row */}
+                                        <tr className="bg-canvas-soft font-semibold border-t-2 border-hairline">
+                                          <td colSpan={6} className="p-1 text-right text-ink-mute text-[9px] uppercase">Total Interest</td>
+                                          <td className="p-1 text-right text-emerald-700">
+                                            {formatAmt(dailyBreakdown.reduce((s: number, dd: any) => s + dd.interest, 0))}
+                                          </td>
+                                        </tr>
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                ) : (
+                                  <div className="p-3 text-xs text-ink-mute font-mono">No daily breakdown data available</div>
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                          </React.Fragment>
+                        )
+                      })}
                     </tbody>
                   </table>
                   </div>
