@@ -56,7 +56,8 @@ const formatAmt = (val: number | null) => {
 
 // ─── Data Cell — display with hover tooltip showing calculation formula ──────
 const dataCell = (value: number | null, className: string, fmt?: (v: number | null) => string, tooltip?: string) => {
-  const disp = fmt ? fmt(value) : (value !== null && value !== undefined ? String(value) : '-')
+  const safe: number | null = value === undefined ? null : value
+  const disp = fmt ? fmt(safe) : (value !== null && value !== undefined ? String(value) : '-')
   return (
     <td className={className} title={tooltip || ''}>
       <span className="px-0.5">{disp}</span>
