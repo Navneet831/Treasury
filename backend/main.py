@@ -389,9 +389,9 @@ async def ai_copilot(query: str = Body(..., embed=True)):
     return datalogic.process_ai_query(query)
 
 @router.get("/interest-summary")
-async def get_interest_summary(fy: Optional[str] = Query(None)):
+async def get_interest_summary(fy: Optional[str] = Query(None), month: Optional[str] = Query(None)):
     try:
-        return datalogic.get_interest_summary_data(fy=fy if fy else None)
+        return datalogic.get_interest_summary_data(fy=fy if fy else None, month=month if month else None)
     except Exception as e:
         import traceback
         traceback.print_exc()

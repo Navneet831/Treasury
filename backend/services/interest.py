@@ -211,9 +211,9 @@ def get_daily_balances_for_month(stmt_rows: List[Dict[str, Any]], year: int, mon
         daily_balances.append(last_bal)
     return daily_balances
 
-def get_interest_summary_data(fy: str = None) -> Dict[str, Any]:
+def get_interest_summary_data(fy: str = None, month: str = None) -> Dict[str, Any]:
     t_start = time.time()
-    logger.info("get_interest_summary_data(fy=%s) START", fy)
+    logger.info("get_interest_summary_data(fy=%s, month=%s) START", fy, month)
 
     # 1. Load Bank_summary
     accounts_res = fetch_dict("""
@@ -261,10 +261,12 @@ def get_interest_summary_data(fy: str = None) -> Dict[str, Any]:
         dt = datetime.strptime(mk, "%b_%y")
         month_fy_map[mk] = get_fy_label(dt)
 
-    # Determine which months to process (filter by FY if specified)
+    # Determine which months to process (filter by FY / month if specified)
     active_months = months_order
     if fy:
         active_months = [mk for mk in months_order if month_fy_map.get(mk) == fy]
+    if month:
+        active_months = [mk for mk in active_months if mk == month]
 
     # Parse FY into date range for SQL WHERE clause
     fy_date_start = None
@@ -531,8 +533,8 @@ def get_interest_summary_data(fy: str = None) -> Dict[str, Any]:
                 "calcBreakdown": calc_breakdown
             })
 
-    logger.info("get_interest_summary_data(fy=%s) DONE: %d rows in %.2fs",
-                fy, len(all_rows), time.time() - t_start)
+    logger.info("get_interest_summary_data(fy=%s, month=%s) DONE: %d rows in %.2fs",
+                fy, month, len(all_rows), time.time() - t_start)
     # Return metadata + filtered rows
     return {
         "rows": all_rows,
