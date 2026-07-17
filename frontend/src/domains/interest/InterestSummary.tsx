@@ -9,14 +9,15 @@ import api from '../../api'
 
 interface CalcBreakdown {
   daysInMonth: number;
-  actualCharged: number | null;
-  actualRecovered: number | null;
+  actualCharged: number;
+  actualRecovered: number;
   rawClosingBal: number | null;
   adjustedClosingBal: number | null;
   dailyBalCount: number;
   avgDailyBalance: number | null;
   openingBalUsed: number | null;
   roiUsed: number | null;
+  dailyInterestSum: number | null;
 }
 
 interface InterestRow {
@@ -80,15 +81,20 @@ const buildCalcTooltip = (r: InterestRow, field: string): string => {
       break
     }
     case 'intCalculated': {
-      lines.push('Interest = |Opening| x ROI% / 100 x Days/365')
-      if (c) {
-        const ob = c.openingBalUsed ?? r.openingBal ?? 0
-        const roi = c.roiUsed ?? r.roi ?? 0
-        const dim = c.daysInMonth
-        lines.push(`|${formatAmt(ob)}| x ${roi}% / 100 x ${dim}/365`)
+      if (c && c.dailyBalCount > 0 && c.dailyInterestSum != null) {
+        // CC Account: per-day interest on negative daily balances only
+        lines.push('CC: Sum of daily interest on negative closing balances')
         lines.push(`= ${formatAmt(r.intCalculated ?? 0)}`)
-        lines.push(`Daily balances used: ${c.dailyBalCount} days`)
-        if (c.avgDailyBalance !== null) lines.push(`Avg daily balance: ${formatAmt(c.avgDailyBalance)}`)
+      } else {
+        // Non-CC: interest on opening balance
+        lines.push('Interest = |Opening| x ROI% / 100 x Days/365')
+        if (c) {
+          const ob = c.openingBalUsed ?? r.openingBal ?? 0
+          const roi = c.roiUsed ?? r.roi ?? 0
+          const dim = c.daysInMonth
+          lines.push(`|${formatAmt(ob)}| x ${roi}% / 100 x ${dim}/365`)
+          lines.push(`= ${formatAmt(r.intCalculated ?? 0)}`)
+        }
       }
       break
     }
