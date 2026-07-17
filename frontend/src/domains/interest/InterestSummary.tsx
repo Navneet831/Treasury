@@ -165,25 +165,6 @@ const getCurrentFy = (): string => {
   }
 }
 
-const parseMk = (mk: string) => {
-  if (!mk) return 0
-  const parts = mk.split('_')
-  if (parts.length !== 2) return 0
-  const shortMonths = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
-  const monthIdx = shortMonths.indexOf(parts[0].toLowerCase())
-  const yr = 2000 + Number(parts[1])
-  return new Date(yr, monthIdx, 1).getTime()
-}
-
-const getLatestMonthForFy = (fy: string, months: string[], rows: InterestRow[]) => {
-  const baseList = fy === 'All FYs' ? months : months.filter(m => {
-    const match = rows.find(r => r.monthKey === m && r.fy === fy)
-    return !!match
-  })
-  const sorted = [...baseList].sort((a, b) => parseMk(b) - parseMk(a))
-  return sorted.length > 0 ? sorted[0] : 'All'
-}
-
 export const InterestSummary: React.FC = () => {
   const [data, setData] = useState<InterestSummaryData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -196,12 +177,12 @@ export const InterestSummary: React.FC = () => {
 
 
   // Filters State
-  const [selectedType, setSelectedType] = useState<string>('All')
-  const [selectedBank, setSelectedBank] = useState<string>('All')
+  const [selectedType, _setSelectedType] = useState<string>('All')
+  const [selectedBank, _setSelectedBank] = useState<string>('All')
   const [selectedAccount, setSelectedAccount] = useState<string>('All')
   const [selectedFy, setSelectedFy] = useState<string>('All FYs')
   const [selectedMonth, setSelectedMonth] = useState<string>('All')
-  const [showEmptyAccounts, setShowEmptyAccounts] = useState<boolean>(false)
+  const [showEmptyAccounts, _setShowEmptyAccounts] = useState<boolean>(false)
 
   // Drill-down FY state (which FY is expanded in the FY→Month tree)
   const [drilldownFy, setDrilldownFy] = useState<string>('')
@@ -246,16 +227,13 @@ export const InterestSummary: React.FC = () => {
         setFyList(payload.fyList)
         
         // Auto-select default FY if not already selected
-        let targetFy = 'All FYs'
         setSelectedFy(prev => {
           if (prev && prev !== 'All FYs' && payload.fyList.includes(prev)) {
-            targetFy = prev
             return prev
           }
           const currentFy = getCurrentFy()
           const defaultFy = payload.fyList.includes(currentFy) ? currentFy : payload.fyList[0]
           setDrilldownFy(defaultFy)
-          targetFy = defaultFy
           return defaultFy
         })
 
@@ -282,17 +260,6 @@ export const InterestSummary: React.FC = () => {
   useEffect(() => {
     loadFyData(getCurrentFy())
   }, [loadFyData])
-
-  // Unique options for filters
-  const accountTypes = useMemo(() => {
-    if (!data) return []
-    return ['All', ...Array.from(new Set(data.rows.map(r => r.type))).sort()]
-  }, [data])
-
-  const banks = useMemo(() => {
-    if (!data) return []
-    return ['All', ...Array.from(new Set(data.rows.map(r => r.bank))).sort()]
-  }, [data])
 
   // Filter bank summary rows based on type/bank selection
   const filteredAccountsForSelect = useMemo(() => {
