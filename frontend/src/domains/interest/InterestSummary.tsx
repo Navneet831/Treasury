@@ -922,9 +922,9 @@ export const InterestSummary: React.FC = () => {
                   <table className="min-w-full w-max text-left border-collapse table-auto whitespace-nowrap">
                     <thead>
                       <tr className="bg-canvas-soft border-b border-hairline text-[10px] font-mono text-ink-mute uppercase">
-                        <th rowSpan={2} className="sticky top-0 bg-canvas-soft z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('type')}>Type {renderSortIndicator('type')}</th>
-                        <th rowSpan={2} className="sticky top-0 bg-canvas-soft z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('account')}>Account {renderSortIndicator('account')}</th>
-                        <th rowSpan={2} className="sticky top-0 bg-canvas-soft z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('bank')}>Bank {renderSortIndicator('bank')}</th>
+                        <th rowSpan={2} className="sticky top-0 left-0 z-40 bg-canvas-soft p-1.5 font-bold text-left border-r border-hairline cursor-pointer select-none min-w-[100px]" onClick={() => handleSort('type')}>Type {renderSortIndicator('type')}</th>
+                        <th rowSpan={2} className="sticky top-0 z-40 bg-canvas-soft p-1.5 font-bold text-left border-r border-hairline cursor-pointer select-none min-w-[180px]" style={{left: '100px'}} onClick={() => handleSort('account')}>Account {renderSortIndicator('account')}</th>
+                        <th rowSpan={2} className="sticky top-0 z-40 bg-canvas-soft p-1.5 font-bold text-left border-r border-hairline cursor-pointer select-none min-w-[120px]" style={{left: '280px'}} onClick={() => handleSort('bank')}>Bank {renderSortIndicator('bank')}</th>
                         {activeMonthsList.map(m => (
                           <th key={m} colSpan={2} className="sticky top-0 bg-canvas-soft z-10 p-1.5 font-bold text-ink border-l border-hairline text-center">
                             {data?.monthLabels[m]}
@@ -948,9 +948,9 @@ export const InterestSummary: React.FC = () => {
                             drilldownAccount === acctRow.account ? 'bg-emerald-500/5' : ''
                           }`}
                         >
-                          <td className="p-2 text-ink-mute font-sans" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.type}</td>
-                          <td className="p-2 font-semibold text-ink" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.account}</td>
-                          <td className="p-2 text-ink-mute font-sans" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.bank}</td>
+                          <td className={`sticky left-0 z-30 bg-white p-2 text-ink-mute font-sans border-r border-hairline ${drilldownAccount === acctRow.account ? 'bg-emerald-500/5' : ''}`} onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.type}</td>
+                          <td className={`sticky z-30 bg-white p-2 font-semibold text-ink border-r border-hairline ${drilldownAccount === acctRow.account ? 'bg-emerald-500/5' : ''}`} style={{left: '100px'}} onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.account}</td>
+                          <td className={`sticky z-30 bg-white p-2 text-ink-mute font-sans border-r border-hairline ${drilldownAccount === acctRow.account ? 'bg-emerald-500/5' : ''}`} style={{left: '280px'}} onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.bank}</td>
                           {activeMonthsList.map(m => {
                             const origRow = processedRows.find(r => r.account === acctRow.account && r.monthKey === m)
                             return (
@@ -970,9 +970,9 @@ export const InterestSummary: React.FC = () => {
                   <table className="min-w-full w-max text-left border-collapse table-auto whitespace-nowrap">
                     <thead>
                       <tr className="bg-canvas-soft border-b border-hairline text-[10px] font-mono text-ink-mute uppercase">
-                        <th rowSpan={2} className="sticky top-0 bg-canvas-soft z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('type')}>Type {renderSortIndicator('type')}</th>
-                        <th rowSpan={2} className="sticky top-0 bg-canvas-soft z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('account')}>Account {renderSortIndicator('account')}</th>
-                        <th rowSpan={2} className="sticky top-0 bg-canvas-soft z-20 p-1.5 font-bold text-left border-b border-hairline cursor-pointer select-none" onClick={() => handleSort('bank')}>Bank {renderSortIndicator('bank')}</th>
+                        <th rowSpan={2} className="sticky top-0 left-0 z-40 bg-canvas-soft p-1.5 font-bold text-left border-r border-hairline cursor-pointer select-none min-w-[100px]" onClick={() => handleSort('type')}>Type {renderSortIndicator('type')}</th>
+                        <th rowSpan={2} className="sticky top-0 z-40 bg-canvas-soft p-1.5 font-bold text-left border-r border-hairline cursor-pointer select-none min-w-[180px]" style={{left: '100px'}} onClick={() => handleSort('account')}>Account {renderSortIndicator('account')}</th>
+                        <th rowSpan={2} className="sticky top-0 z-40 bg-canvas-soft p-1.5 font-bold text-left border-r border-hairline cursor-pointer select-none min-w-[120px]" style={{left: '280px'}} onClick={() => handleSort('bank')}>Bank {renderSortIndicator('bank')}</th>
                         {activeMonthsList.map(m => (
                           <th key={m} colSpan={6} className="sticky top-0 bg-canvas-soft z-10 p-1.5 font-bold text-ink border-l border-hairline text-center">
                             {data?.monthLabels[m]}
@@ -1000,9 +1000,9 @@ export const InterestSummary: React.FC = () => {
                             drilldownAccount === acctRow.account ? 'bg-emerald-500/5' : ''
                           }`}
                         >
-                          <td className="p-2 text-ink-mute font-sans" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.type}</td>
-                          <td className="p-2 font-semibold text-ink" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.account}</td>
-                          <td className="p-2 text-ink-mute font-sans" onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.bank}</td>
+                          <td className={`sticky left-0 z-30 bg-white p-2 text-ink-mute font-sans border-r border-hairline ${drilldownAccount === acctRow.account ? 'bg-emerald-500/5' : ''}`} onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.type}</td>
+                          <td className={`sticky z-30 bg-white p-2 font-semibold text-ink border-r border-hairline ${drilldownAccount === acctRow.account ? 'bg-emerald-500/5' : ''}`} style={{left: '100px'}} onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.account}</td>
+                          <td className={`sticky z-30 bg-white p-2 text-ink-mute font-sans border-r border-hairline ${drilldownAccount === acctRow.account ? 'bg-emerald-500/5' : ''}`} style={{left: '280px'}} onClick={() => { setDrilldownAccount(acctRow.account); setDrilldownMonth('all'); }}>{acctRow.bank}</td>
                           {activeMonthsList.map(m => {
                             const v = acctRow[`variance_${m}`]
                             // Find original row for calc breakdown info
