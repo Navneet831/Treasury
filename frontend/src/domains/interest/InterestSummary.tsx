@@ -269,9 +269,7 @@ export const InterestSummary: React.FC = () => {
         setError(err.message || 'Failed to load interest summary data.')
       }
     } finally {
-      if (!isPriority) {
-        setLoading(false)
-      }
+      setLoading(false)
     }
   }, [])
 
