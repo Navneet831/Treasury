@@ -59,4 +59,4 @@ from apps.Treasury.backend.services.intelligence import (
 from apps.Treasury.backend.services.copilot import process_ai_query
 from apps.Treasury.backend.services.insights import get_page_insights
 from apps.Treasury.backend.services.audit import get_audit_catalog
-from apps.Treasury.backend.services.interest import get_interest_summary_data
+from apps.Treasury.backend.services.interest import get_interest_summary_data, get_daily_breakdown
