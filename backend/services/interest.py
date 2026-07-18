@@ -509,22 +509,30 @@ def get_interest_summary_data(fy: str = None, month: str = None) -> Dict[str, An
                 rate = float(roi_val)
                 if stmt_rows:
                     daily_bals = get_daily_balances_for_month(stmt_rows, dt.year, dt.month, days_in_month)
-                    # Day 1 opening balance = first_balance + debit - credit
-                    # (balance column shows closing value after first transaction,
-                    #  so reverse the earliest transaction to get the opening balance of day 1)
-                    sorted_stmts = sorted(stmt_rows, key=lambda r: parse_date_flexible(r["txn_date"]) or datetime.min)
-                    first = sorted_stmts[0]
-                    fb = float(first["balance"]) if first["balance"] is not None else 0.0
-                    fdr = float(first.get("debit", 0) or 0)
-                    fcr = float(first.get("credit", 0) or 0)
-                    daily_bals[0] = fb + fdr - fcr
                     # CC accounts: per-day interest on negative daily balances only
                     if acct_row["table_type"] == "CC":
+                        # Adjust daily balances to add back cumulative debit-interest charges
+                        # (matches daily breakdown popup which uses adjusted_closing)
+                        cum_adj = 0.0
+                        adjusted_daily_bals = list(daily_bals)
+                        # Group interest-charged debits by transaction date
+                        int_by_day = {}
+                        for r in stmt_rows:
+                            parsed_d = parse_date_flexible(r["txn_date"])
+                            if parsed_d and is_interest_charged(r.get("description", "")):
+                                d_idx = (parsed_d.date() - date(dt.year, dt.month, 1)).days
+                                if 0 <= d_idx < days_in_month:
+                                    int_by_day[d_idx] = int_by_day.get(d_idx, 0.0) + float(r.get("debit", 0) or 0)
+                        for d_idx in range(days_in_month):
+                            cum_adj += int_by_day.get(d_idx, 0.0)
+                            adjusted_daily_bals[d_idx] += cum_adj
                         daily_interests = [
-                            abs(bal) * (rate / 100.0) / 365.0
-                            for bal in daily_bals if bal < 0
+                            round(abs(bal) * (rate / 100.0) / 365.0, 2)
+                            for bal in adjusted_daily_bals if bal < 0
                         ]
-                        int_calculated = round(sum(daily_interests), 2)
+                        int_calculated = round(sum(daily_interests), 2) if daily_interests else 0.0
+                        # Re-sum rounded values to match popup (which sums per-day rounded values)
+                        int_calculated = sum(daily_interests)
                     else:
                         # Non-CC: interest on opening balance (no daily tracking)
                         if opening_bal is not None:
@@ -646,7 +654,7 @@ def get_daily_breakdown(acct: str, month_key: str) -> List[Dict[str, Any]]:
     from datetime import date
     days_in_month = calendar.monthrange(year, month_num)[1]
     start_str = f"{year}-{month_num:02d}-01"
-    end_str = f"{year}-{month_num:02d}-{days_in_month:02d}" if month_num < 12 else f"{year + 1}-01-01"
+    end_str = f"{year + 1}-01-01" if month_num == 12 else f"{year}-{month_num + 1:02d}-01"
 
     # Load statement rows for the month
     try:
@@ -709,15 +717,22 @@ def get_daily_breakdown(acct: str, month_key: str) -> List[Dict[str, Any]]:
             parsed.append((parsed_d, r))
     parsed.sort(key=lambda x: x[0])
 
-    # Group by day: date -> {debits, credits, last_balance}
+    # Group by day: date -> {debits, credits, last_balance, int_charged}
     from collections import OrderedDict
     day_data = OrderedDict()
     for parsed_d, r in parsed:
         d_key = parsed_d.date()
         if d_key not in day_data:
-            day_data[d_key] = {"debits": 0.0, "credits": 0.0, "last_balance": None}
+            day_data[d_key] = {"debits": 0.0, "credits": 0.0, "last_balance": None, "int_charged": 0.0, "has_interest": False}
         day_data[d_key]["debits"] += float(r.get("debit", 0) or 0)
         day_data[d_key]["credits"] += float(r.get("credit", 0) or 0)
+        desc = str(r.get("description", ""))
+        # Track debit interest charges to exclude from closing (add back)
+        if is_interest_charged(desc):
+            day_data[d_key]["int_charged"] += float(r.get("debit", 0) or 0)
+        # Mark day if it has interest-related entries (prior-month adjustments)
+        if is_interest_entry(desc):
+            day_data[d_key]["has_interest"] = True
         bal = float(r["balance"]) if r.get("balance") is not None else None
         if bal is not None:
             day_data[d_key]["last_balance"] = bal
@@ -732,10 +747,17 @@ def get_daily_breakdown(acct: str, month_key: str) -> List[Dict[str, Any]]:
         first_dr = day_data[sorted_days[0]]["debits"]
         first_cr = day_data[sorted_days[0]]["credits"]
         if first_bal is not None:
-            prev_closing = first_bal + first_dr - first_cr  # reverse first transaction
+            # Exception: if the first day has interest entries (prior-month adjustments
+            # being reversed/adjusted on opening day), the raw balance IS the opening.
+            # No need to reverse — those are already-adjusted carry-forwards.
+            if day_data[sorted_days[0]].get("has_interest", False):
+                prev_closing = first_bal
+            else:
+                prev_closing = first_bal + first_dr - first_cr  # reverse first transaction
 
-    # Build daily breakdown
+    # Build daily breakdown with cumulative debit-interest charge adjustment
     breakdown = []
+    cumulative_int_adj = 0.0
     for d in range(1, days_in_month + 1):
         day_date = date(year, month_num, d)
         if day_date in day_data:
@@ -743,16 +765,20 @@ def get_daily_breakdown(acct: str, month_key: str) -> List[Dict[str, Any]]:
             closing = dd["last_balance"] if dd["last_balance"] is not None else prev_closing
             debits = dd["debits"]
             credits = dd["credits"]
+            cumulative_int_adj += dd.get("int_charged", 0.0)
         else:
             closing = prev_closing
             debits = 0.0
             credits = 0.0
 
+        # Opening = previous day's raw closing (raw data carry-forward)
         opening = prev_closing
-        # Interest on negative closing balance
+        # Closing adjusted to exclude debit-interest charges (add back since they reduce balance)
+        adjusted_closing = closing + cumulative_int_adj
+        # Interest on the adjusted closing balance (adds back debit-interest charges)
         interest = 0.0
-        if closing < 0 and rate > 0:
-            interest = round(abs(closing) * (rate / 100.0) / 365.0, 2)
+        if adjusted_closing < 0 and rate > 0:
+            interest = round(abs(adjusted_closing) * (rate / 100.0) / 365.0, 2)
 
         breakdown.append({
             "day": d,
@@ -760,9 +786,12 @@ def get_daily_breakdown(acct: str, month_key: str) -> List[Dict[str, Any]]:
             "opening": round(opening, 2),
             "debit": round(debits, 2),
             "credit": round(credits, 2),
-            "closing": round(closing, 2),
-            "interest": interest
+            "closing": round(adjusted_closing, 2),
+            "rawClosing": round(closing, 2),
+            "interest": interest,
+            "cumIntCharged": round(cumulative_int_adj, 2)
         })
+        # Carry forward raw closing so opening derives from raw data
         prev_closing = closing
 
     return breakdown
