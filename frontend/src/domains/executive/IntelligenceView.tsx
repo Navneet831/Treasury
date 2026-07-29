@@ -97,13 +97,13 @@ const IntelligenceView: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
           <Section title="Risk Radar (0–100)" className="lg:col-span-2">
             <Card className="p-2">
-              <div className="h-[210px]">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="h-[210px] overflow-hidden">
+                <ResponsiveContainer width="100%" height="100%" debounce={200}>
                   <RadarChart cx="50%" cy="50%" outerRadius="78%" data={radar}>
                     <PolarGrid stroke="#ededed" />
                     <PolarAngleAxis dataKey="subject" tick={{ fill: '#707070', fontSize: 9, fontWeight: 600 }} />
                     <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                    <Radar name="Risk" dataKey="A" stroke="#dc2626" fill="#dc2626" fillOpacity={0.15} strokeWidth={1.5} />
+                    <Radar name="Risk" dataKey="A" stroke="#dc2626" fill="#dc2626" fillOpacity={0.15} strokeWidth={1.5} isAnimationActive={false} />
                   </RadarChart>
                 </ResponsiveContainer>
               </div>
@@ -214,8 +214,8 @@ const IntelligenceView: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           <Section title="Stress Scenarios — Limit Utilization Impact">
             <Card className="p-3">
-              <div className="h-[200px]">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="h-[200px] overflow-hidden">
+                <ResponsiveContainer width="100%" height="100%" debounce={200}>
                   <BarChart data={stressTests} layout="vertical" margin={{ left: 8, right: 24, top: 4, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#ededed" />
                     <XAxis type="number" domain={[0, maxUtil]} hide />
@@ -228,7 +228,7 @@ const IntelligenceView: React.FC = () => {
                       ]}
                       contentStyle={{ fontSize: 11, borderRadius: 6, border: '1px solid #dfdfdf' }}
                     />
-                    <Bar dataKey="utilization" barSize={14} radius={[0, 3, 3, 0]}>
+                    <Bar dataKey="utilization" barSize={14} radius={[0, 3, 3, 0]} isAnimationActive={false}>
                       {stressTests.map((entry, index) => (
                         <Cell key={index}
                           fill={entry.utilization > 100 ? '#dc2626' : entry.utilization > 85 ? '#d97706' : '#3ecf8e'} />

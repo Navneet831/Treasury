@@ -32,17 +32,21 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
 
 
 def _get_redis():
-    """Lazily initialise and return Redis client. Returns None if Redis is down."""
+    """Lazily initialise and return Redis client. Returns None if Redis is down or not installed."""
     global _redis_client, _redis_available, _redis_checked
     if _redis_checked:
         return _redis_client if _redis_available else None
     _redis_checked = True
     try:
-        import redis as _redis_module
+        try:
+            import redis as _redis_module
+        except ImportError:
+            logger.warning("Redis package not installed — using in-memory cache only")
+            return None
         _redis_client = _redis_module.from_url(REDIS_URL, socket_timeout=2, socket_connect_timeout=2)
         _redis_client.ping()
         _redis_available = True
-        logger.info("Redis connected at %s", REDIS_URL.replace("redis://", "redis://***@"))
+        logger.info("Redis connected at %s", REDIS_URL.replace("redis://", "redis://***@").split("@")[-1])
     except Exception as e:
         _redis_available = False
         _redis_client = None

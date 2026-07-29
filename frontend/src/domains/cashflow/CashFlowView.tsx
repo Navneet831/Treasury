@@ -94,8 +94,8 @@ const CashFlowView: React.FC = () => {
 
         <Section title="Payment Projection with Confidence Band">
           <Card className="p-3">
-            <div className="h-[230px]">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-[230px] overflow-hidden">
+              <ResponsiveContainer width="100%" height="100%" debounce={200}>
                 <ComposedChart data={forecast} margin={{ top: 4, right: 12, bottom: 0, left: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ededed" />
                   <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#707070' }} />
@@ -118,8 +118,8 @@ const CashFlowView: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           <Section title="LC Opening vs Closure (Monthly)">
             <Card className="p-3">
-              <div className="h-[180px]">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="h-[180px] overflow-hidden">
+                <ResponsiveContainer width="100%" height="100%" debounce={200}>
                   <ComposedChart data={openingTrend} margin={{ top: 4, right: 12, bottom: 0, left: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ededed" />
                     <XAxis dataKey="month" tick={{ fontSize: 9, fill: '#707070' }} axisLine={false} tickLine={false} />
@@ -136,8 +136,8 @@ const CashFlowView: React.FC = () => {
           </Section>
           <Section title="Monthly Due Obligations">
             <Card className="p-3">
-              <div className="h-[180px]">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="h-[180px] overflow-hidden">
+                <ResponsiveContainer width="100%" height="100%" debounce={200}>
                   <ComposedChart data={dueTrend} margin={{ top: 4, right: 12, bottom: 0, left: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ededed" />
                     <XAxis dataKey="month" tick={{ fontSize: 9, fill: '#707070' }} axisLine={false} tickLine={false} />
