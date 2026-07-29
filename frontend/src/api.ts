@@ -81,17 +81,29 @@ api.interceptors.request.use((config) => {
     return config
   }
 
-  // ── Duplicate — short-circuit via adapter override ───────────────────────
-  // dispatchRequest will call this function instead of making an HTTP call.
   config.adapter = async (cfg: any) => {
-    const orig = await existing.promise
-    return {
-      data: orig.data,
-      status: orig.status,
-      statusText: orig.statusText,
-      headers: orig.headers,
-      config: cfg,          // Use the duplicate's config (fresh _startTime, etc.)
-      request: orig.request,
+    try {
+      const orig = await existing.promise
+      return {
+        data: orig.data,
+        status: orig.status,
+        statusText: orig.statusText,
+        headers: orig.headers,
+        config: cfg,          // Use the duplicate's config (fresh _startTime, etc.)
+        request: orig.request,
+      }
+    } catch (err: any) {
+      const isCancel = err?.name === 'CanceledError' || err?.message === 'canceled' || axios.isCancel?.(err)
+      if (isCancel && !cfg.signal?.aborted) {
+        inflight.delete(key)
+        const defaultAdapter = (axios as any).getAdapter(cfg.adapter || api.defaults.adapter || axios.defaults.adapter)
+        if (defaultAdapter) {
+          const freshCfg = { ...cfg }
+          delete freshCfg.adapter
+          return defaultAdapter(freshCfg)
+        }
+      }
+      throw err
     }
   }
   return config
