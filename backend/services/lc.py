@@ -86,6 +86,7 @@ def get_lc_exposure_data(currency: str = "INR", fy: str = "All", lc_status: str 
     }
 
 
+@ttl_cache(seconds=60)
 def get_trend_analysis_data(currency: str = "INR", fy: str = "All") -> Dict[str, Any]:
     amt_col = COL_MAP["amt_inr"] if currency == "INR" else COL_MAP["amt_fc"]
     due_amt = _due_amount_expr(currency)
@@ -123,6 +124,7 @@ def get_trend_analysis_data(currency: str = "INR", fy: str = "All") -> Dict[str,
     return {"monthly_opening_trend": monthly_opening_trend, "monthly_due_trend": monthly_due_trend}
 
 
+@ttl_cache(seconds=60)
 def get_cohort_analysis_data(currency: str = "INR", fy: str = "All") -> List[Dict[str, Any]]:
     amt_col = COL_MAP["amt_inr"] if currency == "INR" else COL_MAP["amt_fc"]
     pending_col = COL_MAP["boe_pending_inr"] if currency == "INR" else COL_MAP["boe_pending_fc"]
@@ -153,12 +155,14 @@ def get_cohort_analysis_data(currency: str = "INR", fy: str = "All") -> List[Dic
     return rows
 
 
+@ttl_cache(seconds=60)
 def get_lifecycle_tracker_data(fy: str = "All") -> List[Dict[str, Any]]:
     cd, fy_f = get_current_date(), get_fy_clause(fy, COL_MAP['op_date'])
     stats = fetch_dict(f"SELECT COUNT(*) as total, COUNT(CASE WHEN {COL_MAP['shipment_date']} <= '{cd}' THEN 1 END) as shipped, COUNT(CASE WHEN {COL_MAP['docs_received']} = 'YES' THEN 1 END) as docs_received, COUNT(CASE WHEN {COL_MAP['bill_lodge']} IS NOT NULL THEN 1 END) as bill_lodged, COUNT(CASE WHEN {COL_MAP['bill_accept']} IS NOT NULL THEN 1 END) as bill_accepted, COUNT(CASE WHEN {COL_MAP['payment_status']} = 'Paid' THEN 1 END) as paid, COUNT(CASE WHEN {COL_MAP['lc_status']} = 'Closed' THEN 1 END) as closed FROM LC WHERE 1=1 {fy_f}")[0]
     return [{"stage": "Open LC", "count": stats['total']}, {"stage": "Shipment Done", "count": stats['shipped']}, {"stage": "Docs Received", "count": stats['docs_received']}, {"stage": "Bill Lodged", "count": stats['bill_lodged']}, {"stage": "Bill Accepted", "count": stats['bill_accepted']}, {"stage": "Payment Done", "count": stats['paid']}, {"stage": "LC Closed", "count": stats['closed']}]
 
 
+@ttl_cache(seconds=60)
 def get_shipment_tracking_data(fy: str = "All") -> Dict[str, Any]:
     cd, fy_f = get_current_date(), get_fy_clause(fy, COL_MAP['op_date'])
     pending = fetch_one(f"SELECT COUNT(*) FROM LC WHERE {COL_MAP['lc_status']} = 'Open' AND ({COL_MAP['shipment_date']} > '{cd}' OR {COL_MAP['shipment_date']} IS NULL) {fy_f}")[0] or 0
@@ -181,7 +185,7 @@ _ALLOWED_DATE_FIELDS = {'due_date', 'op_date', 'lc_close_date', 'expiry_date', '
 _ALLOWED_PAYMENT_STATUSES = {'Paid', 'Unpaid', 'Cancelled'}
 
 
-def get_drill_down_query(status: Optional[str] = None, bank: Optional[str] = None, boe_status: Optional[str] = None, date: Optional[str] = None, date_field: Optional[str] = None, fy: str = "All", margin: Optional[float] = None, payment_status: Optional[str] = None) -> List[Dict[str, Any]]:
+def get_drill_down_query(status: Optional[str] = None, bank: Optional[str] = None, boe_status: Optional[str] = None, date: Optional[str] = None, date_field: Optional[str] = None, fy: str = "All", margin: Optional[float] = None, payment_status: Optional[str] = None, page: int = 0, page_size: int = 0) -> List[Dict[str, Any]]:
     conditions, params = [], []
     fy_clause = get_fy_clause(fy, COL_MAP['op_date'])
     if fy_clause:
@@ -199,7 +203,8 @@ def get_drill_down_query(status: Optional[str] = None, bank: Optional[str] = Non
     if date: df = date_field if date_field in _ALLOWED_DATE_FIELDS else 'due_date'; conditions.append(f"{COL_MAP[df]} = ?"); params.append(date)
     if margin is not None: conditions.append("Margin = ?"); params.append(margin)
     where_stmt = (" WHERE " + " AND ".join(conditions)) if conditions else ""
-    lc_rows = fetch_dict(f'SELECT * FROM LC{where_stmt} ORDER BY {COL_MAP["op_date"]} DESC LIMIT 1000', params if params else None)
+    limit_clause = f" LIMIT {page_size} OFFSET {page * page_size}" if page_size > 0 else " LIMIT 1000"
+    lc_rows = fetch_dict(f'SELECT * FROM LC{where_stmt} ORDER BY {COL_MAP["op_date"]} DESC{limit_clause}', params if params else None)
 
     # Include LC in Process from the separate "LC BG in Process" table
     inprocess_data = []

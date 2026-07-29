@@ -23,10 +23,10 @@ export async function verifyWhitelistAndSetUser(
         .ilike('email', email)
         .single();
 
-    if (error || !data) {
-        console.error('Whitelist verification failed for email:', email, 'Error:', error);
+    if (error || !data || data.Authentication === false) {
+        console.error('Whitelist verification failed for email:', email, 'Error:', error || 'Authentication is false');
         await supabase.auth.signOut();
-        const msg = `ACCESS DENIED. The email address (${email}) could not be verified.`;
+        const msg = `ACCESS DENIED. The email address (${email}) could not be verified or does not have access permissions.`;
         useAuthStore.getState().setAuthError(msg);
         return { ok: false, errorMsg: msg };
     }

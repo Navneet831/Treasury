@@ -64,10 +64,10 @@ const AuditView: React.FC = () => {
           </div>
         }
       />
-      <div className="p-4 space-y-5 max-w-[1500px]">
+      <div className="p-2 space-y-2 max-w-[1500px]">
 
         <Section title="Reading Conventions">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-1.5">
             {(data.conventions || []).map((c: any) => (
               <div key={c.topic} className="bg-white border border-[#dfdfdf] rounded-[6px] px-3 py-2">
                 <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-[#171717]">{c.topic}</p>

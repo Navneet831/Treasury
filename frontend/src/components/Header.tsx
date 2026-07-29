@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { useStore } from '../store'
 import { getFYList } from '../api'
-import { RefreshCw, Sun, Moon } from 'lucide-react'
+import { Menu, RefreshCw, Sun, Moon } from 'lucide-react'
 
-const Header: React.FC = () => {
+const Header: React.FC<{ onToggleMobile?: () => void }> = ({ onToggleMobile }) => {
   const { currency, setCurrency, fy, setFy, asOnDate, setAsOnDate, setAmountUnit, isDarkMode, setIsDarkMode } = useStore()
   const [fyOptions, setFyOptions] = useState<string[]>([])
 
@@ -12,9 +12,18 @@ const Header: React.FC = () => {
   }, [])
 
   return (
-    <header className="sticky top-0 z-50 flex h-[52px] items-center justify-between border-b border-hairline bg-canvas px-6">
-      {/* Brand */}
-      <div className="flex items-center gap-6">
+    <header className="sticky top-0 z-40 flex flex-wrap items-center justify-between gap-y-1 border-b border-hairline bg-canvas px-3 py-2 sm:h-[52px] sm:flex-nowrap sm:px-6 sm:py-0 overflow-x-hidden">
+      {/* Left: Brand + Quick Actions */}
+      <div className="flex items-center gap-2 sm:gap-4">
+        {/* Mobile hamburger */}
+        <button
+          onClick={onToggleMobile}
+          className="flex md:hidden h-9 w-9 items-center justify-center rounded-md text-ink-mute hover:bg-parchment hover:text-ink transition-colors"
+          aria-label="Toggle menu"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        {/* Brand */}
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center">
             <img src="/bank_favicon.svg" alt="Logo" className="h-7 w-7" />
@@ -24,38 +33,50 @@ const Header: React.FC = () => {
             <span className="text-[10px] font-medium leading-tight text-ink-mute">Grew Analytics</span>
           </div>
         </div>
+
+        {/* Quick Actions Divider */}
+        <div className="h-6 w-px bg-hairline" />
+
+        {/* Global Refresh */}
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent('app-refresh'))}
+          className="flex items-center gap-1.5 rounded-md border border-hairline bg-parchment px-2.5 py-1.5 text-[12px] font-semibold text-ink-mute transition-colors hover:bg-canvas hover:text-ink"
+          title="Refresh all data"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          <span className="hidden min-[420px]:inline">Refresh</span>
+        </button>
+
+        {/* Dark Mode Toggle */}
+        <button
+          onClick={() => setIsDarkMode(!isDarkMode)}
+          className="flex items-center justify-center rounded-md border border-hairline bg-parchment p-1.5 text-ink-mute transition-colors hover:bg-canvas hover:text-ink cursor-pointer"
+          title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+        >
+          {isDarkMode ? <Sun className="h-3.5 w-3.5 text-amber-500" /> : <Moon className="h-3.5 w-3.5 text-violet-600" />}
+        </button>
       </div>
 
-      {/* Controls */}
-      <div className="flex items-center gap-5">
+      {/* Right: Filters & Controls */}
+      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 md:gap-5">
         {/* As On Date Selector */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-ink-faint">LC Payment Due Date</span>
+        <div className="flex items-center gap-1">
+          <span className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider text-ink-faint">LC Payment Due Date</span>
           <input
             type="date"
             value={asOnDate}
             onChange={(e) => setAsOnDate(e.target.value)}
-            className="cursor-pointer rounded-md border border-hairline bg-parchment px-2 py-1 text-[12px] font-semibold text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
+            className="cursor-pointer rounded-md border border-hairline bg-parchment px-2 py-1 text-[12px] font-semibold text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30 min-h-[36px] sm:min-h-0"
           />
         </div>
 
-        {/* Global Refresh — dispatches to active module via custom event */}
-        <button
-          onClick={() => window.dispatchEvent(new CustomEvent('app-refresh'))}
-          className="flex items-center gap-1.5 rounded-md border border-hairline bg-parchment px-3 py-1.5 text-[12px] font-semibold text-ink-mute transition-colors hover:bg-canvas hover:text-ink"
-          title="Refresh data"
-        >
-          <RefreshCw className="h-3.5 w-3.5" />
-          Refresh
-        </button>
-
         {/* FY Selector */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1">
           <span className="text-[10px] font-bold uppercase tracking-wider text-ink-faint">FY</span>
           <select
             value={fy}
             onChange={(e) => setFy(e.target.value)}
-            className="cursor-pointer rounded-md border border-hairline bg-parchment px-2 py-1 text-[12px] font-semibold text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
+            className="cursor-pointer rounded-md border border-hairline bg-parchment px-2 py-1 text-[12px] font-semibold text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30 min-h-[36px] sm:min-h-0"
           >
             <option value="All">All Years</option>
             {fyOptions.map((f) => (
@@ -73,7 +94,7 @@ const Header: React.FC = () => {
                 setCurrency(c);
                 if (c === 'INR') setAmountUnit('Cr');
               }}
-              className={`rounded-md px-3 py-1 text-[11px] font-bold uppercase transition-all ${
+              className={`rounded-md px-2.5 py-1.5 sm:py-1 text-[11px] font-bold uppercase transition-all min-w-[44px] sm:px-3 ${
                 currency === c
                   ? 'border border-hairline bg-canvas text-ink shadow-sm'
                   : 'text-ink-faint hover:text-ink-mute'
@@ -83,15 +104,6 @@ const Header: React.FC = () => {
               </button>
           ))}
         </div>
-
-        {/* Dark Mode Toggle */}
-        <button
-          onClick={() => setIsDarkMode(!isDarkMode)}
-          className="flex items-center justify-center p-1.5 rounded-lg border border-hairline bg-parchment text-ink-mute hover:bg-canvas transition-colors shadow-sm cursor-pointer"
-          title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-        >
-          {isDarkMode ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-violet-600" />}
-        </button>
       </div>
     </header>
   )

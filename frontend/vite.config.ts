@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import { sentryVitePlugin } from "@sentry/vite-plugin"
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -13,8 +14,23 @@ export default defineConfig(({ mode }) => {
   const port = parseInt(env.FRONTEND_PORT || process.env.FRONTEND_PORT || '8000', 10)
   const backendPort = env.BACKEND_PORT || process.env.BACKEND_PORT || '8002'
 
+  // Sentry source maps — only active when SENTRY_AUTH_TOKEN is set (CI/production builds)
+  const sentryPlugin = process.env.SENTRY_AUTH_TOKEN
+    ? sentryVitePlugin({
+        org: "adi-z6",
+        project: "treasury-frontend",
+        authToken: process.env.SENTRY_AUTH_TOKEN,
+        url: "https://de.sentry.io",
+        sourcemaps: {
+          assets: "./dist/**",
+          ignore: ["node_modules/**"],
+        },
+        telemetry: false,
+      })
+    : null
+
   return {
-    plugins: [react()],
+    plugins: [react(), sentryPlugin].filter(Boolean),
     define: {
       'import.meta.env.VITE_FRONTEND_PORT': JSON.stringify(port.toString()),
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL || ''),

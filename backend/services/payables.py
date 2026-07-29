@@ -4,10 +4,11 @@ from typing import Any, Dict, List
 
 from apps.Treasury.backend.database import fetch_dict
 from apps.Treasury.backend.services.core import (
-    COL_MAP, _UNPAID, _due_amount_expr, get_current_date, get_fy_clause,
+    COL_MAP, _UNPAID, _due_amount_expr, get_current_date, get_fy_clause, ttl_cache,
 )
 
 
+@ttl_cache(seconds=60)
 def get_payables_risk_data(currency: str = "INR", fy: str = "All") -> Dict[str, Any]:
     amt_col = COL_MAP["amt_inr"] if currency == "INR" else COL_MAP["amt_fc"]
     fy_filter = get_fy_clause(fy, COL_MAP['due_date'])
@@ -47,6 +48,7 @@ def get_payables_risk_data(currency: str = "INR", fy: str = "All") -> Dict[str, 
     return {"categories": categories, "risk_flags": risk_flags}
 
 
+@ttl_cache(seconds=60)
 def get_cash_flow_forecast_data(currency: str = "INR", fy: str = "All") -> List[Dict[str, Any]]:
     due, ps = COL_MAP["due_date"], COL_MAP["payment_status"]
     due_amt = _due_amount_expr(currency)

@@ -35,11 +35,13 @@ const Footer: React.FC = () => {
         })
       } catch (e) {}
     }
-    fetchRates()
+    // Defer first FX fetch so it doesn't block initial paint (remote API is slow)
+    const deferTimer = setTimeout(fetchRates, 2000)
     const rateTimer = setInterval(fetchRates, 5 * 60 * 1000)
 
     return () => {
       clearInterval(clockTimer)
+      clearTimeout(deferTimer)
       clearInterval(rateTimer)
     }
   }, [])

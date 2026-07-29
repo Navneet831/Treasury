@@ -5,8 +5,13 @@ to generate proactive, deep treasury insights.
 import os
 import json
 import logging
+import time
 from typing import Any, Dict, List, Optional
 from openai import OpenAI
+
+from apps.Treasury.backend.llm_metrics import (
+    observe_llm_call, observe_retrieval_time, observe_fallback_depth
+)
 
 from apps.Treasury.backend.database import fetch_dict
 from apps.Treasury.backend.services.core import (
@@ -97,8 +102,10 @@ def process_ai_query(query: str) -> Dict[str, Any]:
     """Provides the DB snapshot to the AI and attempts multiple fallback models."""
     q = query.lower()
     
-    # Always fetch a comprehensive snapshot for the AI to reason over
+    # Always fetch a comprehensive snapshot for the AI to reason over, timed
+    _retrieval_start = time.time()
     snapshot = _get_comprehensive_snapshot()
+    observe_retrieval_time(time.time() - _retrieval_start)
     
     client = _get_client()
     if not client:
@@ -118,7 +125,10 @@ def process_ai_query(query: str) -> Dict[str, Any]:
     user_context = f"User Query: {query}\n\nLive Database Snapshot:\n{json.dumps(snapshot, default=str)}"
 
     last_error = None
+    attempts = 0
     for model in MODELS:
+        attempts += 1
+        _model_start = time.time()
         try:
             logger.info(f"Attempting GrewGpt response with model: {model}")
             response = client.chat.completions.create(
@@ -130,7 +140,21 @@ def process_ai_query(query: str) -> Dict[str, Any]:
                 timeout=45.0
             )
             
+            elapsed = time.time() - _model_start
             answer = response.choices[0].message.content
+            
+            # Extract token usage if available (OpenAI response.usage may be None on OpenRouter free tier)
+            usage = getattr(response, "usage", None)
+            prompt_tokens = usage.prompt_tokens if usage else None
+            completion_tokens = usage.completion_tokens if usage else None
+            
+            # Record success metrics
+            observe_llm_call(
+                model, "success", elapsed,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+            )
+            observe_fallback_depth(attempts)
             
             # Clean up <think> tags from Deepseek R1 for a cleaner UI presentation
             if "<think>" in answer and "</think>" in answer:
@@ -139,10 +163,14 @@ def process_ai_query(query: str) -> Dict[str, Any]:
             return {"answer": answer, "data": snapshot["top_5_largest_unpaid_bills"]}
 
         except Exception as e:
-            logger.warning(f"Model {model} failed: {e}")
+            elapsed = time.time() - _model_start
+            error_type = type(e).__name__
+            logger.warning(f"Model {model} failed after {elapsed:.1f}s: {e}")
+            observe_llm_call(model, "error", elapsed, error_type=error_type)
             last_error = str(e)
             continue
-            
-    # If all models fail
+    
+    # All models failed — record the full fallback depth
+    observe_fallback_depth(attempts)
     error_msg = f"I am currently experiencing connectivity issues with the AI providers ({last_error}). However, based on your data, your limit utilisation is {snapshot['limit_snapshot']['utilization_pct']:.1f}% and you have {snapshot['overdue_summary']['count']} overdue bills."
     return {"answer": error_msg, "data": snapshot["top_5_largest_unpaid_bills"]}

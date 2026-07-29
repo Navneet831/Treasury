@@ -149,6 +149,15 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
+.animate-in-slide-left {
+  animation: slideInLeft 0.2s ease-out forwards;
+}
+
 /* Transaction Ledger (AG Grid): Excel-style header — keep the per-column filter
    "dropdown" button permanently visible instead of only on hover. */
 .ag-theme-alpine .ag-header-cell-filter-button {

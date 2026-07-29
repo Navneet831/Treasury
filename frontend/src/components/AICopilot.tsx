@@ -49,7 +49,7 @@ const AICopilot: React.FC = () => {
               <Bot className="w-12 h-12 text-muted-foreground opacity-20" />
               <div className="max-w-md">
                 <p className="text-sm font-bold text-muted-foreground">Ask me anything about your Bills & LCs</p>
-                <div className="grid grid-cols-2 gap-2 mt-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4">
                   {["Generate daily insights", "Show unpaid bills", "Expiring LCs", "Upcoming payment obligations"].map(q => (
                     <button 
                       key={q}

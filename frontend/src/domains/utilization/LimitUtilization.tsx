@@ -1,19 +1,13 @@
 // @ts-nocheck
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { getLimitUtilisation, getCommandData, getDrillDown } from '../../api'
 import DrillDownModal from '../../components/DrillDownModal'
-import ProvenanceBadge from '../../components/ProvenanceBadge'
 import { useStore } from '../../store'
 import { formatCurrencyCompact, formatPercent } from '../../utils'
 import { 
-  Gauge, RefreshCw, Clock, Shield,
-  ChevronRight, TrendingUp, Building2,  FileText, CreditCard, Activity, Wallet, ShieldCheck,
-  Package, Users, Globe
+  ChevronRight, FileText, ShieldCheck,
+  Database, FlaskConical, X
 } from 'lucide-react'
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
-  ResponsiveContainer, PieChart, Pie, Cell, Legend
-} from 'recharts'
 
 const BOE_COLOR_MAP: Record<string, string> = {
   'BOE Received & Paid': '#16a34a',
@@ -44,86 +38,155 @@ const FacilityCard: React.FC<{
   overdue?: { amount: number; count: number }
   frozen?: number
   formula: string
-}> = ({ title, icon, isActive, onClick, headroom, limit, used, pct, color, currency, unit, overdue, frozen, formula }) => (
-  <button
-    onClick={onClick}
-    className={`flex-1 bg-canvas border rounded-lg p-2 transition-all duration-300 text-left relative overflow-hidden group ${
-      isActive 
-        ? 'border-transparent shadow-sm ring-1 ring-offset-0' 
-        : 'border-hairline hover:border-hairline-strong shadow-sm'
-    }`}
-    style={{ 
-      boxShadow: isActive ? `0 4px 12px -2px ${color}20` : undefined,
-      borderColor: isActive ? color : undefined,
-      background: isActive ? `linear-gradient(135deg, var(--color-canvas) 0%, ${color}10 100%)` : 'var(--color-canvas)'
-    }}
-  >
-    {/* Active indicator bar */}
-    <div 
-      className={`absolute top-0 left-0 w-full h-1 transition-opacity duration-300 ${isActive ? 'opacity-100' : 'opacity-0'}`}
-      style={{ backgroundColor: color }}
-    />
+}> = ({ title, icon, isActive, onClick, headroom, limit, used, pct, color, currency, unit, overdue, frozen, formula }) => {
+  const { sourceMode } = useStore()
+  const [showProvenance, setShowProvenance] = useState(false)
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const ref = useRef<HTMLDivElement>(null)
 
-    <div className="flex justify-between items-center h-8">
-      {/* Left section: Icon + Title + Progress */}
-      <div className="flex items-center gap-2">
-        <div className={`p-1 rounded transition-colors ${isActive ? 'bg-canvas-soft' : 'bg-canvas-soft group-hover:bg-canvas-soft'}`} style={{ color: isActive ? color : '#64748b' }}>
-          {React.cloneElement(icon as React.ReactElement, { size: 14 })}
-        </div>
-        <span className="text-[10.5px] font-black text-ink uppercase tracking-wider">{title}</span>
-        
-        <div className="hidden lg:flex items-center gap-1.5 ml-2 w-16">
-          <div className="flex-1 bg-canvas-soft h-1 rounded-full overflow-hidden">
-            <div 
-              className="h-full rounded-full transition-all duration-1000 ease-out"
-              style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: color }}
-            />
+  // Dismiss on outside click
+  useEffect(() => {
+    if (!showProvenance) return
+    const dismiss = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setShowProvenance(false)
+    }
+    document.addEventListener('mousedown', dismiss)
+    return () => document.removeEventListener('mousedown', dismiss)
+  }, [showProvenance])
+
+  return (
+    <div ref={ref} className="relative flex-1">
+      <button
+        onClick={onClick}
+        onMouseEnter={() => {
+          if (hideTimer.current) clearTimeout(hideTimer.current)
+          if (sourceMode && formula) setShowProvenance(true)
+        }}
+        onMouseLeave={() => {
+          hideTimer.current = setTimeout(() => setShowProvenance(false), 300)
+        }}
+        className={`w-full bg-canvas border rounded-lg p-2 transition-all duration-300 text-left relative overflow-hidden group ${
+          isActive 
+            ? 'border-transparent shadow-sm ring-1 ring-offset-0' 
+            : sourceMode && showProvenance
+              ? 'border-accent/40 bg-accent/[0.01] shadow-sm'
+              : 'border-hairline hover:border-hairline-strong shadow-sm'
+        }`}
+        style={{ 
+          boxShadow: isActive ? `0 4px 12px -2px ${color}20` : undefined,
+          borderColor: isActive ? color : sourceMode && showProvenance ? undefined : undefined,
+          background: isActive ? `linear-gradient(135deg, var(--color-canvas) 0%, ${color}10 100%)` : 'var(--color-canvas)'
+        }}
+      >
+        {/* Active indicator bar */}
+        <div 
+          className={`absolute top-0 left-0 w-full h-1 transition-opacity duration-300 ${isActive ? 'opacity-100' : 'opacity-0'}`}
+          style={{ backgroundColor: color }}
+        />
+
+        <div className="flex justify-between items-center h-8">
+          {/* Left section: Icon + Title + Progress */}
+          <div className="flex items-center gap-2">
+            <div className={`p-1 rounded transition-colors ${isActive ? 'bg-canvas-soft' : 'bg-canvas-soft group-hover:bg-canvas-soft'}`} style={{ color: isActive ? color : '#64748b' }}>
+              {React.cloneElement(icon as React.ReactElement, { size: 14 })}
+            </div>
+            <span className="text-[10.5px] font-black text-ink uppercase tracking-wider">{title}</span>
+            
+            <div className="hidden lg:flex items-center gap-1.5 ml-2 w-16">
+              <div className="flex-1 bg-canvas-soft h-1 rounded-full overflow-hidden">
+                <div 
+                  className="h-full rounded-full transition-all duration-1000 ease-out"
+                  style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: color }}
+                />
+              </div>
+              <span className="text-[8px] font-black text-ink-faint whitespace-nowrap" title="Utilization % = (Used / Limit) * 100">{formatPercent(pct)}</span>
+            </div>
           </div>
-          <span className="text-[8px] font-black text-ink-faint whitespace-nowrap" title="Utilization % = (Used / Limit) * 100">{formatPercent(pct)}</span>
-        </div>
-      </div>
-      
-      {/* Right section: Limit, Used, Available, Overdue, Frozen */}
-      <div className="flex items-center gap-3 md:gap-4" title={formula}>
-        <div className="flex flex-col items-end">
-          <span className="text-[7px] font-bold text-ink-faint uppercase tracking-tight leading-none mb-0.5">Limit</span>
-          <span className="text-[10.5px] font-bold text-ink-mute leading-none">{formatCurrencyCompact(limit, currency, unit)}</span>
-        </div>
-        <div className="flex flex-col items-end">
-          <span className="text-[7px] font-bold text-ink-faint uppercase tracking-tight leading-none mb-0.5">Used</span>
-          <span className="text-[10.5px] font-bold text-ink-mute leading-none">{formatCurrencyCompact(used, currency, unit)}</span>
-        </div>
-        <div className="flex flex-col items-end">
-          <span className="text-[7px] font-bold text-ink-faint uppercase tracking-tight leading-none mb-0.5">Available</span>
-          <span className="text-[11.5px] font-black text-ink leading-none">{formatCurrencyCompact(headroom, currency, unit)}</span>
-        </div>
-        
-        {((overdue && overdue.amount > 0) || (frozen && frozen > 0)) && (
-          <div className="flex gap-3 pl-2 md:pl-3 border-l border-hairline-cool">
-            {overdue && overdue.amount > 0 && (
-              <div className="flex flex-col items-end">
-                <span className="text-[6px] font-bold text-red-500 uppercase tracking-tighter leading-none mb-0.5">Overdue</span>
-                <span className="text-[10px] font-black text-red-600 leading-none">{formatCurrencyCompact(overdue.amount, currency, unit)}</span>
+          
+          {/* Right section: Limit, Used, Available, Overdue, Frozen */}
+          <div className="flex items-center gap-3 md:gap-4" title={formula}>
+            <div className="flex flex-col items-end">
+              <span className="text-[7px] font-bold text-ink-faint uppercase tracking-tight leading-none mb-0.5">Limit</span>
+              <span className="text-[10.5px] font-bold text-ink-mute leading-none">{formatCurrencyCompact(limit, currency, unit)}</span>
+            </div>
+            <div className="flex flex-col items-end">
+              <span className="text-[7px] font-bold text-ink-faint uppercase tracking-tight leading-none mb-0.5">Used</span>
+              <span className="text-[10.5px] font-bold text-ink-mute leading-none">{formatCurrencyCompact(used, currency, unit)}</span>
+            </div>
+            <div className="flex flex-col items-end">
+              <span className="text-[7px] font-bold text-ink-faint uppercase tracking-tight leading-none mb-0.5">Available</span>
+              <span className="text-[11.5px] font-black text-ink leading-none">{formatCurrencyCompact(headroom, currency, unit)}</span>
+            </div>
+            
+            {((overdue && overdue.amount > 0) || (frozen && frozen > 0)) && (
+              <div className="flex gap-3 pl-2 md:pl-3 border-l border-hairline-cool">
+                {overdue && overdue.amount > 0 && (
+                  <div className="flex flex-col items-end">
+                    <span className="text-[6px] font-bold text-red-500 uppercase tracking-tighter leading-none mb-0.5">Overdue</span>
+                    <span className="text-[10px] font-black text-red-600 leading-none">{formatCurrencyCompact(overdue.amount, currency, unit)}</span>
+                  </div>
+                )}
+                {frozen && frozen > 0 && (
+                  <div className="flex flex-col items-end">
+                    <span className="text-[6px] font-bold text-ink-faint uppercase tracking-tighter leading-none mb-0.5">Frozen</span>
+                    <span className="text-[10px] font-black text-ink-mute leading-none">{formatCurrencyCompact(frozen, currency, unit)}</span>
+                  </div>
+                )}
               </div>
             )}
-            {frozen && frozen > 0 && (
-              <div className="flex flex-col items-end">
-                <span className="text-[6px] font-bold text-ink-faint uppercase tracking-tighter leading-none mb-0.5">Frozen</span>
-                <span className="text-[10px] font-black text-ink-mute leading-none">{formatCurrencyCompact(frozen, currency, unit)}</span>
-              </div>
-            )}
           </div>
-        )}
-      </div>
+        </div>
+      </button>
+
+      {/* ── Source Mode: Formula overlay on hover ── */}
+      {sourceMode && showProvenance && formula && (
+        <div
+          className="fixed inset-x-2 top-1/2 -translate-y-1/2 z-[100] max-h-[80vh] overflow-y-auto sm:absolute sm:top-full sm:mt-1.5 sm:left-1/2 sm:-translate-x-1/2 sm:w-[340px] sm:right-auto sm:max-h-none sm:overflow-y-visible bg-white border border-[#dfdfdf] rounded-xl shadow-lift text-left"
+          onMouseEnter={() => { if (hideTimer.current) clearTimeout(hideTimer.current); setShowProvenance(true) }}
+          onMouseLeave={() => { hideTimer.current = setTimeout(() => setShowProvenance(false), 300) }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between px-3 py-2.5 border-b border-[#dfdfdf] bg-gradient-to-r from-slate-50 to-white">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-md bg-accent/10 flex items-center justify-center">
+                <Database className="w-3.5 h-3.5 text-accent" />
+              </div>
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">Formula</span>
+                <p className="text-[9px] text-slate-400 font-medium">{title}</p>
+              </div>
+            </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowProvenance(false) }}
+              className="sm:hidden flex items-center justify-center w-7 h-7 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+              aria-label="Close"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="p-3.5 space-y-3">
+            <div className="flex gap-2.5">
+              <div className="text-slate-400 mt-0.5">
+                <FlaskConical className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <p className="text-[8.5px] font-black uppercase tracking-[0.12em] text-slate-400">Computation</p>
+                <p className="text-[11px] font-mono text-slate-600 leading-relaxed mt-1">{formula}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-  </button>
-)
+  )
+}
 
 const LimitUtilization: React.FC = () => {
-  const { currency, fy, asOnDate, amountUnit, setAmountUnit } = useStore()
+  const { currency, fy, amountUnit, setAmountUnit } = useStore()
   const [utilData, setUtilData] = useState<any>(null)
   const [cmdData, setCmdData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [paymentStatus, setPaymentStatus] = useState<'Paid' | 'Unpaid' | 'All'>('Unpaid')
   const [facilityToggle, setFacilityToggle] = useState<'LC' | 'SBLC' | 'CASH'>('LC')
   const [boeToggle, setBoeToggle] = useState<'Open' | 'Closed' | 'All'>('Open')
@@ -189,35 +252,61 @@ const LimitUtilization: React.FC = () => {
     setExpandedBoeStatus(next)
   }
 
-  const fetchData = useCallback(async () => {
+  // Stable ref to hold latest fetchData for event listener
+  const fetchDataRef = useRef<() => void>()
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  const loadData = useCallback(async (signal: AbortSignal) => {
     try {
       setLoading(true)
-      const [util, cmd] = await Promise.all([
-        getLimitUtilisation(currency, fy, paymentStatus, facilityToggle, boeToggle),
-        getCommandData(currency, fy, paymentStatus, facilityToggle, boeToggle)
-      ])
-      setUtilData(util)
+      setFetchError(null)
+      setUtilData(null)
+      setCmdData(null)
+
+      // Phase 1 — load critical KPIs first for fast initial render
+      const cmd = await getCommandData(currency, fy, paymentStatus, facilityToggle, boeToggle)
+      if (signal.aborted) return
       setCmdData(cmd)
-    } catch (e) {
+      setLoading(false)
+
+      // Phase 2 — load detailed analytics in background, stream in when ready
+      try {
+        const util = await getLimitUtilisation(currency, fy, paymentStatus, facilityToggle, boeToggle)
+        if (signal.aborted) return
+        setUtilData(util)
+      } catch (e: any) {
+        console.error('Phase 2 fetch error (non-critical):', e)
+      }
+    } catch (e: any) {
+      const msg = e?.message || 'Request failed'
       console.error('Data fetch error:', e)
-    } finally {
+      if (signal.aborted) return
+      setFetchError(msg)
       setLoading(false)
     }
   }, [currency, fy, paymentStatus, facilityToggle, boeToggle])
 
-  useEffect(() => { fetchData() }, [fetchData])
-
-  // Listen for global Refresh button in Header
+  // Main data loading effect — re-runs when filters change
   useEffect(() => {
-    window.addEventListener('app-refresh', fetchData)
-    return () => window.removeEventListener('app-refresh', fetchData)
-  }, [fetchData])
+    const abortController = new AbortController()
+    loadData(abortController.signal)
+    return () => abortController.abort()
+  }, [loadData, refreshKey])
 
-  if (loading && !utilData) {
+  // Stable event listener for global Refresh button
+  useEffect(() => {
+    fetchDataRef.current = () => setRefreshKey(k => k + 1)
+    const handler = () => fetchDataRef.current?.()
+    window.addEventListener('app-refresh', handler)
+    return () => window.removeEventListener('app-refresh', handler)
+  }, [])
+
+  // ── Phase-1 skeleton (cmdData not yet arrived) ──────────────────────────
+  if (loading && !cmdData) {
     return (
       <div className="p-8 space-y-6 animate-pulse">
         <div className="h-8 w-64 bg-canvas-soft rounded" />
-        <div className="grid grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="h-20 bg-canvas-soft rounded-lg" />)}
         </div>
         <div className="h-32 bg-canvas-soft rounded-xl" />
@@ -226,27 +315,30 @@ const LimitUtilization: React.FC = () => {
     )
   }
 
-  if (!utilData || !cmdData) {
+  if (!cmdData) {
     return (
-      <div className="p-12 text-center text-ink-mute">
-        No data available. Verify the backend connection.
+      <div className="p-12 text-center">
+        <div className="text-ink-mute text-sm mb-2">No data available. Verify the backend connection.</div>
+        {fetchError && (
+          <div className="text-red-500 text-xs font-mono bg-red-50 dark:bg-red-900/20 inline-block px-3 py-1.5 rounded border border-red-200 dark:border-red-800">
+            {fetchError}
+          </div>
+        )}
       </div>
     )
   }
 
-  let { bank_utilization: banks = [], portfolio_summary: summary = {}, margin_bank_pivot = [], banks_list = [] } = utilData
+  const { bank_utilization: banksRaw = [], portfolio_summary: summary = {} } = utilData || {}
   const {
     summary: cmdSummary = {},
-    boe_status_wise = [],
     product_unpaid_pivot = [],
-    currencies_list = [],
     boe_status_bank_pivot = [],
     banks_list: cmdBanksList = []
   } = cmdData
 
   // Sort banks: SBI, BOI, IDBI first
   const bankOrderMap: Record<string, number> = { 'SBI': 1, 'BOI': 2, 'IDBI': 3 }
-  banks = [...banks].sort((a, b) => {
+  const banks = [...banksRaw].sort((a, b) => {
     const valA = bankOrderMap[a.bank?.toUpperCase()] || 99
     const valB = bankOrderMap[b.bank?.toUpperCase()] || 99
     if (valA !== valB) return valA - valB
@@ -263,7 +355,7 @@ const LimitUtilization: React.FC = () => {
   }
 
   const sortedCmdBanksList = reorderBanksList(cmdBanksList)
-  const sortedBanksList = reorderBanksList(banks_list)
+  const sortedBanksList = reorderBanksList(cmdBanksList)
 
   // Dynamic columns matching the selected currency
   const isInr = currency === 'INR'
@@ -318,7 +410,6 @@ const LimitUtilization: React.FC = () => {
 
   const totalCashLimit = banks.reduce((acc: any, b: any) => acc + (b.cash_limit || 0), 0)
   const totalCashUsed = banks.reduce((acc: any, b: any) => acc + (b.cash_utilization || 0), 0)
-  const cashPct = totalCashLimit > 0 ? (totalCashUsed / totalCashLimit) * 100 : 0
 
   const totalSblcLimit = totalSblcLimitOnly
   const totalSblcUsed = totalSblcUsedOnly
@@ -327,7 +418,8 @@ const LimitUtilization: React.FC = () => {
   // Hoisted function declaration: referenced earlier in the component (e.g. the
   // data-derivation forEach and drill-down handler) before this point, so it must
   // not be a `const` (which would be in the temporal dead zone at those call sites).
-  function toProperCase(str: string) {
+  function toProperCase(str: string | null | undefined) {
+    if (!str || typeof str !== 'string') return ''
     return str.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
   }
 
@@ -339,7 +431,6 @@ const LimitUtilization: React.FC = () => {
   })
 
   const overallPct = summary.overall_utilization_pct || 0
-  const utilColor = getUtilColor(overallPct)
   
   const getStatusColor = (pct: number) => {
     if (pct >= 90) return { bar: 'bg-red-500', text: 'text-red-700', bg: 'bg-red-50 border-red-200', label: 'Critical' }
@@ -688,6 +779,18 @@ const LimitUtilization: React.FC = () => {
           })}
         </div>
 
+        {/* ── Phase-2 shimmer (utilData still loading) ── */}
+        {!utilData && (
+          <div className="animate-pulse flex items-center gap-3 px-4 py-2 rounded-lg bg-canvas border border-hairline">
+            <div className="h-2 w-2 rounded-full bg-amber-400" />
+            <div className="h-3 w-48 bg-canvas-soft rounded" />
+            <div className="flex gap-2 ml-auto">
+              <div className="h-8 w-24 bg-canvas-soft rounded" />
+              <div className="h-8 w-24 bg-canvas-soft rounded" />
+            </div>
+          </div>
+        )}
+
         {/* ── [ACTION CENTER ELEMENT] Facility Cards ── */}
         <div className="flex flex-col md:flex-row gap-4">
           <FacilityCard
@@ -981,7 +1084,7 @@ const LimitUtilization: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-hairline">
-                  {(utilData.margin_bank_pivot || []).map((row: any, i: number) => {
+                  {(utilData?.margin_bank_pivot || []).map((row: any, i: number) => {
                     const marginFraction = Number(row.margin)
                     const marginPct = +(marginFraction * 100).toFixed(2)
                     const rowTotal = sortedBanksList.reduce((acc: number, b: string) => acc + (row[b] || 0), 0)

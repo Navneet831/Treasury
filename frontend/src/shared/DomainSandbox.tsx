@@ -8,20 +8,21 @@ interface ErrorBoundaryProps {
 
 interface ErrorBoundaryState {
   hasError: boolean
+  error: Error | null
 }
 
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props)
-    this.state = { hasError: false }
+    this.state = { hasError: false, error: null }
   }
 
-  static getDerivedStateFromError(_: Error) {
-    return { hasError: true }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error }
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error(`ErrorBoundary caught an error in ${this.props.name}:`, error, errorInfo)
+    console.error(`[ErrorBoundary] ${this.props.name}:`, error.message, errorInfo)
   }
 
   render() {
@@ -32,9 +33,14 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
           <div className="text-center">
             <h3 className="text-rose-900 font-bold">{this.props.name} Module Error</h3>
             <p className="text-rose-600 text-sm">Failed to load this section.</p>
+            {this.state.error && (
+              <p className="text-rose-500 text-[10px] font-mono mt-1 max-w-md truncate">
+                {this.state.error.message}
+              </p>
+            )}
           </div>
           <button 
-            onClick={() => this.setState({ hasError: false })}
+            onClick={() => this.setState({ hasError: false, error: null })}
             className="flex items-center gap-2 px-4 py-2 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition-colors font-semibold text-sm"
           >
             <RefreshCcw size={16} />
