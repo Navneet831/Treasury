@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { getCalendarData, getDailyReco, getLimitUtilisation } from '../../api'
 import { useStore } from '../../store'
-import { useAudit } from '../../shared/AuditContext'
+import { useAudit } from '../../shared/useAudit'
 import { formatCurrencyAbsolute, formatCurrencyCompact } from '../../utils'
 
 const EVENT_STYLE: Record<string, { bg: string; text: string; label: string }> = {

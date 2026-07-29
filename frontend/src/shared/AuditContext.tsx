@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useState, useEffect } from 'react'
 import { getAuditCatalog, getDrillDown } from '../api'
 import DrillDownModal from '../components/DrillDownModal'
 
@@ -23,7 +23,8 @@ export interface AuditContextType {
   triggerDrillDown: (title: string, params: any) => Promise<void>
 }
 
-const AuditContext = createContext<AuditContextType | undefined>(undefined)
+// Export the context so useAudit.ts can import it (keeps this file component-only for Vite Fast Refresh)
+export const AuditContext = createContext<AuditContextType | undefined>(undefined)
 
 export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuditMode, setAuditMode] = useState<boolean>(() => {
@@ -91,12 +92,4 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       />
     </AuditContext.Provider>
   )
-}
-
-export const useAudit = () => {
-  const context = useContext(AuditContext)
-  if (!context) {
-    throw new Error('useAudit must be used within an AuditProvider')
-  }
-  return context
 }
