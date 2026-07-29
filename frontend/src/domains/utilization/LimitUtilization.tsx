@@ -57,7 +57,11 @@ const FacilityCard: React.FC<{
   return (
     <div ref={ref} className="relative flex-1">
       <button
-        onClick={onClick}
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          onClick();
+        }}
         onMouseEnter={() => {
           if (hideTimer.current) clearTimeout(hideTimer.current)
           if (sourceMode && formula) setShowProvenance(true)
@@ -157,7 +161,8 @@ const FacilityCard: React.FC<{
               </div>
             </div>
             <button
-              onClick={(e) => { e.stopPropagation(); setShowProvenance(false) }}
+              type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowProvenance(false) }}
               className="sm:hidden flex items-center justify-center w-7 h-7 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
               aria-label="Close"
             >
@@ -458,7 +463,8 @@ const LimitUtilization: React.FC = () => {
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setAmountUnit(amountUnit === 'Absolute' ? 'Cr' : 'Absolute')}
+              type="button"
+              onClick={(e) => { e.preventDefault(); setAmountUnit(amountUnit === 'Absolute' ? 'Cr' : 'Absolute') }}
               className={`px-2.5 py-1 text-[9px] font-bold rounded-md border transition-all ${
                 amountUnit === 'Absolute'
                   ? 'bg-blue-600 border-blue-600 text-white border-blue-600 shadow-sm'
@@ -847,8 +853,9 @@ const LimitUtilization: React.FC = () => {
                 <div className="flex items-center gap-0.5 bg-canvas border border-hairline rounded-lg p-0.5 shadow-sm">
                   {(['Open', 'Closed', 'All'] as const).map((s) => (
                     <button
+                      type="button"
                       key={s}
-                      onClick={() => setBoeToggle(s)}
+                      onClick={(e) => { e.preventDefault(); setBoeToggle(s) }}
                       className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-md transition-all ${
                         boeToggle === s
                           ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
@@ -987,8 +994,9 @@ const LimitUtilization: React.FC = () => {
               <div className="flex items-center gap-0.5 bg-canvas border border-hairline rounded-lg p-0.5 shadow-sm">
                 {(['Unpaid', 'Paid', 'All'] as const).map((s) => (
                   <button
+                    type="button"
                     key={s}
-                    onClick={() => setPaymentStatus(s)}
+                    onClick={(e) => { e.preventDefault(); setPaymentStatus(s) }}
                     className={`px-2 py-0.5 text-[8.5px] font-bold uppercase rounded-md transition-all ${
                       paymentStatus === s
                         ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
