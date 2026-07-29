@@ -681,7 +681,8 @@ export const InterestSummary: React.FC = () => {
         </div>
         <div className="flex items-center gap-1.5">
           <button
-            onClick={() => loadFyData('All FYs')}
+            type="button"
+            onClick={(e) => { e.preventDefault(); loadFyData('All FYs'); }}
             disabled={loading}
             className="flex items-center gap-1 px-2 py-1 rounded-md bg-white border border-hairline text-[11px] font-medium text-ink hover:bg-canvas transition-colors disabled:opacity-40 shadow-sm font-mono cursor-pointer"
           >
@@ -689,7 +690,8 @@ export const InterestSummary: React.FC = () => {
             Refresh
           </button>
           <button
-            onClick={handleDownloadCsv}
+            type="button"
+            onClick={(e) => { e.preventDefault(); handleDownloadCsv(); }}
             disabled={processedRows.length === 0}
             className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-600 border border-emerald-700 text-[11px] font-semibold text-white hover:bg-emerald-700 transition-colors disabled:opacity-40 shadow-sm"
           >
@@ -752,7 +754,9 @@ export const InterestSummary: React.FC = () => {
                 <div className="border border-hairline bg-canvas rounded-lg p-1 h-[90px] overflow-y-auto flex flex-col gap-0.5 custom-scrollbar-vertical">
                   {/* All option */}
                   <button
-                    onClick={() => {
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
                       setSelectedFy('All FYs')
                       setSelectedMonth('All')
                       setDrilldownFy('')
@@ -787,7 +791,9 @@ export const InterestSummary: React.FC = () => {
                       <div key={fy}>
                         {/* Level 1: FY row */}
                         <button
-                          onClick={() => {
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
                             const isFyAlreadyActive = selectedFy === fy
                             if (isFyAlreadyActive) {
                               // Toggle — deselect
@@ -820,7 +826,9 @@ export const InterestSummary: React.FC = () => {
                           return (
                             <div key={mKey}>
                               <button
-                                onClick={() => {
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
                                   setSelectedMonth(mKey)
                                   setDrilldownMonth(mKey)
                                 }}
@@ -854,7 +862,8 @@ export const InterestSummary: React.FC = () => {
             {/* View Mode Selector Tabs */}
             <div className="flex border-b border-hairline shrink-0 gap-4">
               <button
-                onClick={() => setViewMode('pivot')}
+                type="button"
+                onClick={(e) => { e.preventDefault(); setViewMode('pivot'); }}
                 className={`py-2 px-1 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition-colors ${
                   viewMode === 'pivot'
                     ? 'border-emerald-500 text-emerald-600'
@@ -865,7 +874,8 @@ export const InterestSummary: React.FC = () => {
                 Pivot by Account (Wide)
               </button>
               <button
-                onClick={() => setViewMode('summary')}
+                type="button"
+                onClick={(e) => { e.preventDefault(); setViewMode('summary'); }}
                 className={`py-2 px-1 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition-colors ${
                   viewMode === 'summary'
                     ? 'border-emerald-500 text-emerald-600'
@@ -876,7 +886,8 @@ export const InterestSummary: React.FC = () => {
                 Opening/Closing Summary
               </button>
               <button
-                onClick={() => setViewMode('all')}
+                type="button"
+                onClick={(e) => { e.preventDefault(); setViewMode('all'); }}
                 className={`py-2 px-1 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition-colors ${
                   viewMode === 'all'
                     ? 'border-emerald-500 text-emerald-600'
@@ -1152,8 +1163,10 @@ export const InterestSummary: React.FC = () => {
                             const isSelected = drilldownAccount === acct
                             return (
                               <button
+                                type="button"
                                 key={acct}
-                                onMouseDown={() => {
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
                                   setDrilldownAccount(acct)
                                   setAcctSearch('')
                                   setAcctSearchOpen(false)
@@ -1319,11 +1332,11 @@ export const InterestSummary: React.FC = () => {
                     </h3>
                     <div className="flex items-center gap-1">
                       {dailyBreakdown && dailyBreakdown.length > 0 && (
-                        <button className="text-ink-mute hover:text-emerald-700 text-sm p-1.5 rounded hover:bg-emerald-500/10 transition-colors" onClick={downloadCsv} title="Export CSV">
+                        <button type="button" className="text-ink-mute hover:text-emerald-700 text-sm p-1.5 rounded hover:bg-emerald-500/10 transition-colors" onClick={(e) => { e.preventDefault(); downloadCsv(); }} title="Export CSV">
                           <Download className="w-3.5 h-3.5" />
                         </button>
                       )}
-                      <button className="text-ink-mute hover:text-ink text-sm font-mono px-2" onClick={() => { setDailyModal(null); setDailyBreakdown(null); }}>✕</button>
+                      <button type="button" className="text-ink-mute hover:text-ink text-sm font-mono px-2" onClick={(e) => { e.preventDefault(); setDailyModal(null); setDailyBreakdown(null); }}>✕</button>
                     </div>
                   </div>
                   <div className="p-4">

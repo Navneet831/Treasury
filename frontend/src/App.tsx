@@ -250,6 +250,7 @@ const App: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
             <>
               {/* Mobile hamburger — fixed button on small screens */}
               <button
+                type="button"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="fixed bottom-4 left-4 z-50 flex h-11 w-11 items-center justify-center rounded-full bg-ink text-white shadow-lift md:hidden transition-transform active:scale-90"
                 aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}

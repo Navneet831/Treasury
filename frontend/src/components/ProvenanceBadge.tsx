@@ -52,7 +52,8 @@ const ProvenanceBadge: React.FC<Props> = ({ meta, align = 'right', className = '
   return (
     <div ref={ref} className={`relative inline-flex items-center ${className}`}>
       <button
-        onClick={(e) => { e.stopPropagation(); setOpen(o => !o) }}
+        type="button"
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(o => !o) }}
         title="View data provenance"
         aria-label="Data provenance"
         className={`flex items-center justify-center w-[14px] h-[14px] rounded-full transition-colors duration-150 ${
@@ -77,7 +78,8 @@ const ProvenanceBadge: React.FC<Props> = ({ meta, align = 'right', className = '
               Data Provenance
             </span>
             <button
-              onClick={() => setOpen(false)}
+              type="button"
+              onClick={(e) => { e.preventDefault(); setOpen(false) }}
               className="text-ink-faint hover:text-ink transition-colors"
               aria-label="Close"
             >

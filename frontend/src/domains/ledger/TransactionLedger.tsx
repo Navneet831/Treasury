@@ -322,7 +322,9 @@ export const TransactionLedger: React.FC = () => {
 
             {/* Excel Export Button */}
             <button
-              onClick={() => {
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
                 if (gridRef.current) {
                   gridRef.current.exportDataAsExcel({
                     fileName: `Transaction_Ledger_${selectedTable}_${new Date().toISOString().split('T')[0]}`
@@ -338,7 +340,8 @@ export const TransactionLedger: React.FC = () => {
 
             {/* Reset Layout Button */}
             <button
-              onClick={resetLayout}
+              type="button"
+              onClick={(e) => { e.preventDefault(); resetLayout(); }}
               className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-[#e2e8f0] px-4 py-1.5 rounded-xl shadow-sm transition-all text-[12px] font-bold cursor-pointer"
               title="Reset column orders, visibility, sorting, and filters to default"
             >

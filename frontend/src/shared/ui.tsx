@@ -163,7 +163,8 @@ export const StatTile: React.FC<{
         <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#9a9a9a] truncate flex-1">{label}</p>
         {meta && (
           <button
-            onClick={(e) => { e.stopPropagation(); setOpen(!open) }}
+            type="button"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(!open) }}
             className={`p-0.5 rounded-full hover:bg-slate-100 transition-colors ${open ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
             title="Inspect Provenance & Auditability"
           >
@@ -186,7 +187,8 @@ export const StatTile: React.FC<{
           </span>
           {drillDownParams && (
             <button
-              onClick={() => triggerDrillDown(`${meta.name} (Drill Down)`, drillDownParams)}
+              type="button"
+              onClick={(e) => { e.preventDefault(); triggerDrillDown(`${meta.name} (Drill Down)`, drillDownParams) }}
               className="hover:underline hover:text-emerald-700"
             >
               Drill Down &rarr;
@@ -216,7 +218,8 @@ export const StatTile: React.FC<{
             </div>
             <span className="text-[8px] font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-400">ID: {meta.id}</span>
             <button
-              onClick={(e) => { e.stopPropagation(); setProvenanceHover(false) }}
+              type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setProvenanceHover(false) }}
               className="sm:hidden flex items-center justify-center w-7 h-7 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
               aria-label="Close provenance overlay"
             >
@@ -316,9 +319,11 @@ export const StatTile: React.FC<{
             {drillDownParams && (
               <div className="pt-1">
                 <button
-                  onClick={() => {
-                    setProvenanceHover(false)
-                    triggerDrillDown(`${meta.name} (Drill Down)`, drillDownParams)
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setProvenanceHover(false);
+                    triggerDrillDown(`${meta.name} (Drill Down)`, drillDownParams);
                   }}
                   className="w-full bg-slate-900 text-white rounded py-2.5 sm:py-1.5 text-[10px] font-bold hover:bg-black text-center transition-all flex items-center justify-center gap-1 min-h-[36px] sm:min-h-0"
                 >
@@ -344,7 +349,8 @@ export const StatTile: React.FC<{
               Audit Provenance
             </span>
             <button
-              onClick={() => setOpen(false)}
+              type="button"
+              onClick={(e) => { e.preventDefault(); setOpen(false) }}
               className="text-[#9a9a9a] hover:text-[#171717] text-[10px]"
             >
               ✕
@@ -410,9 +416,11 @@ export const StatTile: React.FC<{
             <div className="flex gap-2 pt-1 border-t border-slate-100">
               {drillDownParams && (
                 <button
-                  onClick={() => {
-                    setOpen(false)
-                    triggerDrillDown(`${meta.name} (Drill Down)`, { ...drillDownParams, fy: 'All' })
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setOpen(false);
+                    triggerDrillDown(`${meta.name} (Drill Down)`, { ...drillDownParams, fy: 'All' });
                   }}
                   className="flex-1 bg-slate-900 text-white rounded py-1 text-[10px] font-bold hover:bg-black text-center transition-all"
                 >

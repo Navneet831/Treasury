@@ -40,7 +40,8 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
             )}
           </div>
           <button 
-            onClick={() => this.setState({ hasError: false, error: null })}
+            type="button"
+            onClick={(e) => { e.preventDefault(); this.setState({ hasError: false, error: null }); }}
             className="flex items-center gap-2 px-4 py-2 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition-colors font-semibold text-sm"
           >
             <RefreshCcw size={16} />
