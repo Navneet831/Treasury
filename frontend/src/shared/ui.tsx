@@ -570,8 +570,14 @@ export const ErrorState: React.FC<{ message?: string; onRetry: () => void }> = (
   <div className="p-10 flex flex-col items-center text-center gap-3">
     <p className="text-[13px] font-semibold text-[#171717]">Data unavailable</p>
     <p className="text-[12px] text-[#707070] max-w-sm">{message || 'The treasury service did not respond.'}</p>
-    <button onClick={onRetry}
-      className="px-3.5 py-1.5 bg-[#3ecf8e] text-[#171717] rounded-[6px] text-[12px] font-semibold hover:bg-[#24b47e] transition-colors">
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        onRetry();
+      }}
+      className="px-3.5 py-1.5 bg-[#3ecf8e] text-[#171717] rounded-[6px] text-[12px] font-semibold hover:bg-[#24b47e] transition-colors"
+    >
       Retry
     </button>
   </div>

@@ -11,6 +11,7 @@ const SidebarToggle: React.FC<SidebarToggleProps> = ({ collapsed, onToggle }) =>
   const Icon = collapsed ? PanelLeftOpen : PanelLeftClose
   return (
     <button
+      type="button"
       onClick={onToggle}
       title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
