@@ -7,3 +7,5 @@ pandas
 polars
 pywebview
 psycopg2-binary
+redis
+sentry-sdk

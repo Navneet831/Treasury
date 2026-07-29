@@ -1,4 +1,5 @@
 """Executive domain: overview KPIs and the command-center aggregate."""
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
 
 from apps.Treasury.backend.database import fetch_dict, fetch_one
@@ -144,8 +145,21 @@ def get_command_data(currency: str = "INR", fy: str = "All", payment_status: str
         status_filter = "('Open', 'In Process', 'Closed')"
 
     fy_filter += fac_filter
-    
-    exec_d, exp_d, boe_d, sblc_d = get_executive_overview_data(currency, fy, lc_status), get_lc_exposure_data(currency, fy, lc_status), get_boe_analytics_data(currency, fy, lc_status), get_sblc_module_data(currency, fy)
+
+    # Run 4 independent sub-functions in parallel via threads — each hits remote
+    # Supabase PG with multiple SQL queries. Sequential execution adds 8-20s per
+    # cold page load; parallel cuts this to the longest single function.
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futs = {
+            'exec_d': pool.submit(get_executive_overview_data, currency, fy, lc_status),
+            'exp_d':  pool.submit(get_lc_exposure_data, currency, fy, lc_status),
+            'boe_d':  pool.submit(get_boe_analytics_data, currency, fy, lc_status),
+            'sblc_d': pool.submit(get_sblc_module_data, currency, fy),
+        }
+        exec_d = futs['exec_d'].result()
+        exp_d  = futs['exp_d'].result()
+        boe_d  = futs['boe_d'].result()
+        sblc_d = futs['sblc_d'].result()
     kpis = exec_d['kpis']
 
     # Define limit_map for pivots

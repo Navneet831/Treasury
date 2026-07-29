@@ -40,6 +40,9 @@ frontend/dist/
 .npm
 npm-debug.log*
 
+# Sentry CLI config (contains auth token)
+.sentryclirc
+
 # Databases & Temporary Files
 *.duckdb
 *.duckdb.wal

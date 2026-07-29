@@ -55,7 +55,7 @@ const IntelligenceView: React.FC = () => {
       <div className="p-4 space-y-5 max-w-[1500px]">
 
         {/* The four scores that decide whether anything below needs attention */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
           <StatTile 
             size="hero" 
             tone={healthTone} 
@@ -111,7 +111,7 @@ const IntelligenceView: React.FC = () => {
           </Section>
 
           <Section title={`Cost of Capital & Yield (${yo.yield_rate_pct.toFixed(1)}% market yield)`} className="lg:col-span-3">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
               <StatTile 
                 size="md" 
                 label="Margin FD Locked" 
@@ -173,7 +173,7 @@ const IntelligenceView: React.FC = () => {
         </div>
 
         <Section title="Predictive Models">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
             <StatTile 
               size="md" 
               label="Avg LC Cycle" 

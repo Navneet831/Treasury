@@ -11,6 +11,8 @@ interface AppState {
   setAmountUnit: (unit: 'Cr' | 'Absolute') => void
   isDarkMode: boolean
   setIsDarkMode: (dark: boolean) => void
+  sourceMode: boolean
+  setSourceMode: (mode: boolean) => void
 }
 
 export const useStore = create<AppState>((set) => ({
@@ -27,4 +29,6 @@ export const useStore = create<AppState>((set) => ({
     localStorage.setItem('treasury.dark', String(isDarkMode))
     set({ isDarkMode })
   },
+  sourceMode: false,
+  setSourceMode: (sourceMode) => set({ sourceMode }),
 }))

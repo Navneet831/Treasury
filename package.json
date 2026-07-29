@@ -8,5 +8,8 @@
   ],
   "scripts": {
     "build": "npm install && npm run build --prefix frontend"
+  },
+  "dependencies": {
+    "@sentry/vite-plugin": "^5.4.0"
   }
 }

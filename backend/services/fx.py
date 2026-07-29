@@ -2,9 +2,10 @@
 from typing import Any, Dict
 
 from apps.Treasury.backend.database import fetch_dict
-from apps.Treasury.backend.services.core import COL_MAP, _app_config, get_fy_clause
+from apps.Treasury.backend.services.core import COL_MAP, _app_config, get_fy_clause, ttl_cache
 
 
+@ttl_cache(seconds=60)
 def get_fx_risk_data(fy: str = "All") -> Dict[str, Any]:
     fy_filter = get_fy_clause(fy, COL_MAP['op_date'])
     threshold = _app_config()["unhedged_threshold_pct"]
@@ -30,6 +31,7 @@ def get_fx_risk_data(fy: str = "All") -> Dict[str, Any]:
     return {"exposure": exposure, "total_unhedged_pct": unhedged_pct, "alert": alert}
 
 
+@ttl_cache(seconds=60)
 def get_hedge_coverage_data(currency: str = "INR", fy: str = "All") -> Dict[str, Any]:
     fy_filter = get_fy_clause(fy, COL_MAP['op_date'])
     ps = COL_MAP['payment_status']

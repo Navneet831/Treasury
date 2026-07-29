@@ -9,9 +9,11 @@ import SidebarToggle from './SidebarToggle'
 interface SidebarProps {
   activePage: string
   setActivePage: (page: string) => void
+  mobileOpen?: boolean
+  onMobileClose?: () => void
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, mobileOpen = false, onMobileClose }) => {
   const { collapsed, toggle, expand, query, setQuery } = useSidebar()
   const { user, setUser, setAuthenticated } = useAuthStore()
 
@@ -23,16 +25,23 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage }) => {
 
   const isFeatureEnabled = (id: string) => {
     if (!user || !user.features) return true
-    const mapping: Record<string, string> = {
-      ai: 'GrewGpt',
-      audit: 'audit',
-      ledger: 'Ledger',
-      dev: 'Dev',
-      research: 'agentation'
+    const mapping: Record<string, string[]> = {
+      limit: ['Command Center'],
+      calendar: ['calendar', 'Calendar'],
+      cashflow: ['cashflow', 'Cashflow', 'Cash Flow'],
+      fx: ['fx', 'FX', 'FX & Hedging'],
+      interest: ['interest', 'Interest'],
+      ops: ['ops', 'Ops', 'Operations'],
+      lifecycle: ['lifecycle', 'Lifecycle', 'LC Lifecycle'],
+      ai: ['GrewGpt', 'GrewGPT'],
+      audit: ['audit', 'Audit'],
+      ledger: ['ledger', 'Ledger'],
+      dev: ['dev', 'Dev'],
+      research: ['agentation', 'Agentation']
     }
-    const featureKey = mapping[id]
-    if (!featureKey) return true
-    return user.features[featureKey] !== false
+    const featureKeys = mapping[id]
+    if (!featureKeys) return true
+    return featureKeys.some((key) => user.features[key] === true)
   }
 
   const filtered = useMemo(() => {
@@ -54,13 +63,40 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage }) => {
   }, [user])
 
   return (
-    <aside
-      className={`sticky top-[52px] z-40 flex h-[calc(100vh-52px)] flex-col border-r border-hairline bg-canvas transition-[width] duration-200 ease-out ${
-        collapsed ? 'w-[56px]' : 'w-[220px]'
-      }`}
-    >
-      {/* Pinned top: collapse toggle */}
-      <div className="px-2 pt-3">
+    <>
+      {/* Mobile overlay backdrop */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 md:hidden"
+          onClick={onMobileClose}
+        />
+      )}
+
+      <aside
+        className={`${
+          mobileOpen
+            ? 'fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col border-r border-hairline bg-canvas shadow-lift animate-in-slide-left'
+            : 'sticky top-[52px] z-40 hidden md:flex h-[calc(100vh-52px)] flex-col border-r border-hairline bg-canvas'
+        } transition-[width] duration-200 ease-out ${
+          !mobileOpen && collapsed ? 'w-[56px]' : !mobileOpen ? 'w-[220px]' : ''
+        }`}
+      >
+      {/* Mobile close button */}
+      {mobileOpen && (
+        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+          <span className="text-[13px] font-bold text-ink">Treasury</span>
+          <button
+            onClick={onMobileClose}
+            className="flex h-9 w-9 items-center justify-center rounded-md text-ink-mute hover:bg-parchment hover:text-ink transition-colors"
+            aria-label="Close menu"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+      )}
+
+      {/* Pinned top: collapse toggle (desktop only) */}
+      <div className="hidden md:block px-2 pt-3">
         <SidebarToggle collapsed={collapsed} onToggle={toggle} />
       </div>
 
@@ -149,6 +185,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage }) => {
         </button>
       </div>
     </aside>
+    </>
   )
 }
 

@@ -2,9 +2,10 @@
 from typing import Any, Dict
 
 from apps.Treasury.backend.database import fetch_dict
-from apps.Treasury.backend.services.core import COL_MAP, get_fy_clause
+from apps.Treasury.backend.services.core import COL_MAP, get_fy_clause, ttl_cache
 
 
+@ttl_cache(seconds=60)
 def get_boe_analytics_data(currency: str = "INR", fy: str = "All", lc_status: str = "Open") -> Dict[str, Any]:
     amt_col = COL_MAP["amt_inr"] if currency == "INR" else COL_MAP["amt_fc"]
     pending_col = COL_MAP["boe_pending_inr"] if currency == "INR" else COL_MAP["boe_pending_fc"]
