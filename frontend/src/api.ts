@@ -165,13 +165,19 @@ export const getExecutiveOverview = async (currency: string, fy: string) => {
   return data
 }
 
-export const getCommandData = async (currency: string, fy: string, paymentStatus: string = 'Unpaid', facilityType: string = 'LC', lcStatus: string = 'Open') => {
-  const { data } = await api.get('/command-data', { params: { currency, fy, payment_status: paymentStatus, facility_type: facilityType, lc_status: lcStatus } })
+export const getCommandData = async (currency: string, fy: string, paymentStatus: string = 'Unpaid', facilityType: string = 'LC', lcStatus: string = 'Open', signal?: AbortSignal) => {
+  const { data } = await api.get('/command-data', { 
+    params: { currency, fy, payment_status: paymentStatus, facility_type: facilityType, lc_status: lcStatus },
+    signal
+  })
   return data
 }
 
-export const getLimitUtilisation = async (currency: string, fy: string, paymentStatus: string = 'Unpaid', facilityType: string = 'LC', lcStatus: string = 'Open') => {
-  const { data } = await api.get('/limit-utilisation', { params: { currency, fy, payment_status: paymentStatus, facility_type: facilityType, lc_status: lcStatus } })
+export const getLimitUtilisation = async (currency: string, fy: string, paymentStatus: string = 'Unpaid', facilityType: string = 'LC', lcStatus: string = 'Open', signal?: AbortSignal) => {
+  const { data } = await api.get('/limit-utilisation', { 
+    params: { currency, fy, payment_status: paymentStatus, facility_type: facilityType, lc_status: lcStatus },
+    signal
+  })
   return data
 }
 

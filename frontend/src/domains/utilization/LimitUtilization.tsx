@@ -263,24 +263,29 @@ const LimitUtilization: React.FC = () => {
       setUtilData(null)
       setCmdData(null)
 
-      // Phase 1 — load critical KPIs first for fast initial render
-      const cmd = await getCommandData(currency, fy, paymentStatus, facilityToggle, boeToggle)
+      // Fire both requests concurrently in parallel to avoid waterfalls
+      const cmdPromise = getCommandData(currency, fy, paymentStatus, facilityToggle, boeToggle, signal)
+      const utilPromise = getLimitUtilisation(currency, fy, paymentStatus, facilityToggle, boeToggle, signal)
+
+      // Phase 1 — wait for critical KPIs first for fast initial render
+      const cmd = await cmdPromise
       if (signal.aborted) return
       setCmdData(cmd)
       setLoading(false)
 
-      // Phase 2 — load detailed analytics in background, stream in when ready
+      // Phase 2 — wait for detailed analytics in background, stream in when ready
       try {
-        const util = await getLimitUtilisation(currency, fy, paymentStatus, facilityToggle, boeToggle)
+        const util = await utilPromise
         if (signal.aborted) return
         setUtilData(util)
       } catch (e: any) {
+        if (signal.aborted || e?.name === 'CanceledError' || e?.message === 'canceled') return
         console.error('Phase 2 fetch error (non-critical):', e)
       }
     } catch (e: any) {
+      if (signal.aborted) return
       const msg = e?.message || 'Request failed'
       console.error('Data fetch error:', e)
-      if (signal.aborted) return
       setFetchError(msg)
       setLoading(false)
     }
