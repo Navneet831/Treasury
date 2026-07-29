@@ -17,6 +17,7 @@ const Header: React.FC<{ onToggleMobile?: () => void }> = ({ onToggleMobile }) =
       <div className="flex items-center gap-2 sm:gap-4">
         {/* Mobile hamburger */}
         <button
+          type="button"
           onClick={onToggleMobile}
           className="flex md:hidden h-9 w-9 items-center justify-center rounded-md text-ink-mute hover:bg-parchment hover:text-ink transition-colors"
           aria-label="Toggle menu"
@@ -39,6 +40,7 @@ const Header: React.FC<{ onToggleMobile?: () => void }> = ({ onToggleMobile }) =
 
         {/* Global Refresh */}
         <button
+          type="button"
           onClick={() => window.dispatchEvent(new CustomEvent('app-refresh'))}
           className="flex items-center gap-1.5 rounded-md border border-hairline bg-parchment px-2.5 py-1.5 text-[12px] font-semibold text-ink-mute transition-colors hover:bg-canvas hover:text-ink"
           title="Refresh all data"
@@ -49,6 +51,7 @@ const Header: React.FC<{ onToggleMobile?: () => void }> = ({ onToggleMobile }) =
 
         {/* Dark Mode Toggle */}
         <button
+          type="button"
           onClick={() => setIsDarkMode(!isDarkMode)}
           className="flex items-center justify-center rounded-md border border-hairline bg-parchment p-1.5 text-ink-mute transition-colors hover:bg-canvas hover:text-ink cursor-pointer"
           title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
@@ -89,6 +92,7 @@ const Header: React.FC<{ onToggleMobile?: () => void }> = ({ onToggleMobile }) =
         <div className="flex items-center gap-0.5 rounded-lg border border-hairline bg-parchment p-0.5">
           {(['INR', 'FC'] as const).map((c) => (
             <button
+              type="button"
               key={c}
               onClick={() => {
                 setCurrency(c);

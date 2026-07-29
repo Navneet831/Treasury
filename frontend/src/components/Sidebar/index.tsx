@@ -86,6 +86,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, mobileOpen
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <span className="text-[13px] font-bold text-ink">Treasury</span>
           <button
+            type="button"
             onClick={onMobileClose}
             className="flex h-9 w-9 items-center justify-center rounded-md text-ink-mute hover:bg-parchment hover:text-ink transition-colors"
             aria-label="Close menu"
@@ -104,6 +105,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, mobileOpen
       <div className={collapsed ? 'px-2 pb-3 pt-2' : 'px-4 pb-3 pt-2'}>
         {collapsed ? (
           <button
+            type="button"
             onClick={expand}
             title="Search modules"
             aria-label="Search modules"
@@ -173,6 +175,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, mobileOpen
       {/* Logout */}
       <div className="border-t border-hairline px-2 pb-3 pt-2">
         <button
+          type="button"
           onClick={handleLogout}
           title={collapsed ? 'Sign out' : undefined}
           aria-label="Sign out"

@@ -17,6 +17,7 @@ const NavItem: React.FC<NavItemProps> = ({ def, active, collapsed, onSelect }) =
   const Icon = def.icon
   return (
     <button
+      type="button"
       onClick={() => onSelect(def.id)}
       title={collapsed ? def.label : undefined}
       aria-current={active ? 'page' : undefined}
