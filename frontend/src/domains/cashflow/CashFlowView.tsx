@@ -37,9 +37,11 @@ const CashFlowView: React.FC = () => {
   if (error || !data) return <ErrorState message={error || undefined} onRetry={reload} />
 
   const { forecast, cohort, insights } = data
-  const total = forecast.reduce((s, d) => s + (d.monthly_value || 0), 0)
-  const avg = forecast.length ? total / forecast.length : 0
-  const peak = forecast.reduce((m, d) => ((d.monthly_value || 0) > (m?.monthly_value || 0) ? d : m), forecast[0])
+  const forecastSafe: any[] = forecast || []
+  const cohortSafe: any[] = cohort || []
+  const total = forecastSafe.reduce((s, d) => s + (d.monthly_value || 0), 0)
+  const avg = forecastSafe.length ? total / forecastSafe.length : 0
+  const peak = forecastSafe.reduce((m, d) => ((d.monthly_value || 0) > (m?.monthly_value || 0) ? d : m), forecastSafe[0])
 
   const openingTrend = (data.trend?.monthly_opening_trend || []).map((d: any) => ({
     month: String(d.month || '').slice(0, 7),
@@ -61,7 +63,7 @@ const CashFlowView: React.FC = () => {
             size="hero" 
             label="Total Forecast" 
             value={fmt(total)} 
-            sub={`${forecast.length} months ahead`} 
+            sub={`${forecastSafe.length} months ahead`} 
             metricId="cf-monthly"
             drillDownParams={{ payment_status: 'Unpaid', status: 'Open' }}
           />
@@ -85,7 +87,7 @@ const CashFlowView: React.FC = () => {
           <StatTile 
             size="md" 
             label="Obligations" 
-            value={String(forecast.reduce((s, d) => s + (d.lc_count || 0), 0))}
+            value={String(forecastSafe.reduce((s, d) => s + (d.lc_count || 0), 0))}
             sub="Unpaid bills in horizon" 
             metricId="cf-monthly"
             drillDownParams={{ payment_status: 'Unpaid', status: 'Open' }}
@@ -96,7 +98,7 @@ const CashFlowView: React.FC = () => {
           <Card className="p-3">
             <div className="h-[230px] overflow-hidden">
               <ResponsiveContainer width="100%" height="100%" debounce={200}>
-                <ComposedChart data={forecast} margin={{ top: 4, right: 12, bottom: 0, left: 8 }}>
+                <ComposedChart data={forecastSafe} margin={{ top: 4, right: 12, bottom: 0, left: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ededed" />
                   <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#707070' }} />
                   <YAxis tickFormatter={(v) => fmt(v)} axisLine={false} tickLine={false}
@@ -169,7 +171,7 @@ const CashFlowView: React.FC = () => {
                 { key: 'pending_boe_value', label: 'Pending BOE', align: 'right', render: (r) => fmt(r.pending_boe_value) },
                 { key: 'avg_age_days', label: 'Avg Age', align: 'right', render: (r) => `${Math.round(r.avg_age_days)}d` },
               ]}
-              rows={cohort}
+              rows={cohortSafe}
             />
           </Card>
         </Section>

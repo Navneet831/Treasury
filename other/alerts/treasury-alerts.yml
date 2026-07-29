@@ -1,0 +1,116 @@
+groups:
+  - name: treasury-api
+    interval: 30s
+    rules:
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{job="treasury-api",status=~"5.."}[5m]) / rate(http_requests_total{job="treasury-api"}[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          team: treasury
+        annotations:
+          summary: "Treasury API error rate above 5% for 2 minutes"
+          description: "Error rate is {{ $value | humanizePercentage }} — investigate recent backend changes."
+
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="treasury-api"}[5m])) by (le, endpoint)) > 3.0
+        for: 3m
+        labels:
+          severity: warning
+          team: treasury
+        annotations:
+          summary: "P95 latency above 3s for {{ $labels.endpoint }}"
+          description: "The endpoint {{ $labels.endpoint }} is slower than 3s at the 95th percentile."
+
+      - alert: NoData
+        expr: absent(http_requests_total{job="treasury-api"})
+        for: 5m
+        labels:
+          severity: critical
+          team: treasury
+        annotations:
+          summary: "Treasury API metrics are missing"
+          description: "Prometheus is not receiving any metrics from the Treasury API. The backend may be down."
+
+  - name: treasury-health
+    interval: 60s
+    rules:
+      - alert: BackendDown
+        expr: probe_success{job="treasury-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: treasury
+        annotations:
+          summary: "Treasury backend is unreachable"
+          description: "The Treasury backend has not responded to health checks for 1 minute."
+
+      - alert: DatabaseUnreachable
+        expr: treasury_db_status{status="ok"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: treasury
+        annotations:
+          summary: "Treasury database is unreachable"
+          description: "The PostgreSQL database connection has been failing for 2 minutes."
+
+      - alert: ReadinessCheckFailing
+        expr: treasury_ready{status="ready"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: treasury
+        annotations:
+          summary: "Readiness probe failing — backend not accepting traffic"
+          description: "The /ready endpoint has been returning non-200 for 1 minute."
+
+  - name: treasury-llm
+    interval: 60s
+    rules:
+      - alert: LLMHighErrorRate
+        expr: rate(llm_errors_total[10m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          team: treasury
+        annotations:
+          summary: "LLM / Copilot high error rate"
+          description: "LLM API calls are failing at a rate of {{ $value }} per 10 minutes."
+          action: "Check OpenRouter API key status and available model quotas. Verify network connectivity to openrouter.ai."
+
+      - alert: LLMHighLatency
+        expr: histogram_quantile(0.95, rate(llm_latency_seconds_bucket[10m])) > 30
+        for: 3m
+        labels:
+          severity: warning
+          team: treasury
+        annotations:
+          summary: "LLM response time above 30s (P95)"
+          description: "LLM requests are taking longer than 30 seconds at the 95th percentile."
+          action: "Check if free-tier models are rate-limited. Consider upgrading to paid models."
+
+      - alert: LLMDegradedFallback
+        expr: rate(llm_fallback_depth_bucket{le="1"}[30m]) / rate(llm_fallback_depth_count[30m]) < 0.5
+        for: 5m
+        labels:
+          severity: info
+          team: treasury
+        annotations:
+          summary: "LLM fallback chain degrading"
+          description: "More than 50% of LLM requests require fallback models — primary model may be down."
+          action: "Verify primary model (deepseek/deepseek-r1:free) availability."
+
+  - name: treasury-infra
+    interval: 60s
+    rules:
+      - alert: RedisUnavailable
+        expr: treasury_redis_status{status="ok"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          team: treasury
+        annotations:
+          summary: "Redis cache unavailable"
+          description: "Redis has been unreachable for 5 minutes. Cache falling back to in-memory."
+          action: "Start Redis via: docker compose -f other/docker-compose.yml up -d redis"

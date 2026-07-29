@@ -452,8 +452,8 @@ const SEV_STYLE: Record<Insight['severity'], { border: string; dot: string }> = 
   info:     { border: 'border-l-[#9a9a9a]', dot: 'bg-[#9a9a9a]' },
 }
 
-export const InsightStrip: React.FC<{ insights: Insight[] }> = ({ insights }) => {
-  if (!insights.length) return null
+export const InsightStrip: React.FC<{ insights?: Insight[] | null }> = ({ insights }) => {
+  if (!insights || !insights.length) return null
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
       {insights.map((ins) => (

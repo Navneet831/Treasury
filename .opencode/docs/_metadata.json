@@ -1,0 +1,40 @@
+{
+  "documents": {
+    "github_com_ChromeDevTools_chrome-devtools-mcp.md": {
+      "url": "https://github.com/ChromeDevTools/chrome-devtools-mcp",
+      "title": "GitHub - ChromeDevTools/chrome-devtools-mcp: Chrome DevTools for coding agents · GitHub",
+      "fetchedAt": "2026-07-20T09:09:19.471Z",
+      "expiresAt": "2026-07-21T09:09:19.471Z",
+      "size": 15221
+    },
+    "supabase_com_docs_reference_javascript_auth-signinwithotp.md": {
+      "url": "https://supabase.com/docs/reference/javascript/auth-signinwithotp",
+      "title": "JavaScript API Reference | Supabase Docs",
+      "fetchedAt": "2026-07-20T12:33:03.623Z",
+      "expiresAt": "2026-07-21T12:33:03.623Z",
+      "size": 15186
+    },
+    "supabase_com_docs_guides_auth_passwords.md": {
+      "url": "https://supabase.com/docs/guides/auth/passwords",
+      "title": "Password-based Auth | Supabase Docs",
+      "fetchedAt": "2026-07-20T12:33:20.957Z",
+      "expiresAt": "2026-07-21T12:33:20.957Z",
+      "size": 10189
+    },
+    "supabase_com_docs_guides_auth_auth-magic-link.md": {
+      "url": "https://supabase.com/docs/guides/auth/auth-magic-link",
+      "title": "Passwordless email logins | Supabase Docs",
+      "fetchedAt": "2026-07-20T12:33:21.210Z",
+      "expiresAt": "2026-07-21T12:33:21.210Z",
+      "size": 7635
+    },
+    "supabase_com_docs_reference_api_v1-update-auth-service-config.md": {
+      "url": "https://supabase.com/docs/reference/api/v1-update-auth-service-config",
+      "title": "Management API Reference | Supabase Docs",
+      "fetchedAt": "2026-07-20T12:47:24.219Z",
+      "expiresAt": "2026-07-21T12:47:24.219Z",
+      "size": 15190
+    }
+  },
+  "lastUpdated": "2026-07-20T12:47:24.239Z"
+}
