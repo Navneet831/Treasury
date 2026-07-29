@@ -1,6 +1,37 @@
 route:
+  group_by: ['alertname', 'severity', 'team']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
   receiver: 'default-receiver'
+  routes:
+    - match:
+        severity: critical
+      receiver: 'critical-receiver'
+      repeat_interval: 1h
+    - match:
+        severity: warning
+      receiver: 'default-receiver'
 
 receivers:
   - name: 'default-receiver'
-    # Add your slack/email config here
+    # Add your notification channel here (Slack, email, PagerDuty, etc.)
+    # Example Slack config:
+    # slack_configs:
+    #   - api_url: 'https://hooks.slack.com/services/...'
+    #     channel: '#treasury-alerts'
+    #     send_resolved: true
+
+  - name: 'critical-receiver'
+    # High-urgency notifications for critical alerts
+    # slack_configs:
+    #   - api_url: 'https://hooks.slack.com/services/...'
+    #     channel: '#treasury-critical'
+    #     send_resolved: true
+
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname']

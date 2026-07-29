@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { useState, lazy, useEffect } from 'react'
+import { Menu, X } from 'lucide-react'
 import Header from './components/Header'
 import Sidebar from './components/Sidebar'
 import Footer from './components/Footer'
@@ -57,6 +58,7 @@ const BootSpinner: React.FC = () => (
 // iframe checks — sub-apps are compiled into the shell bundle, not iframed.
 const App: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { isDarkMode } = useStore()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [activePage, setActivePage] = useState(() => {
     const params = new URLSearchParams(window.location.search)
     const view = params.get('view') || 'limit'
@@ -138,21 +140,64 @@ const App: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
     }
   }, [isAuthenticated])
 
+  useEffect(() => {
+    if (!isAuthenticated || !user?.email || embedded) return
+
+    const checkAuthStatus = async () => {
+      const { data, error } = await supabase
+        .from('whitelist')
+        .select('Authentication')
+        .ilike('email', user.email)
+        .single()
+      
+      if (error || !data || data.Authentication === false) {
+        console.warn('Access revoked. Logging out...')
+        await supabase.auth.signOut()
+        setUser(null)
+        setAuthenticated(false)
+      }
+    }
+
+    // Check on window focus (highly responsive when returning to tab)
+    const handleFocus = () => {
+      checkAuthStatus()
+    }
+    window.addEventListener('focus', handleFocus)
+
+    // Check periodically every 30 seconds
+    const interval = setInterval(checkAuthStatus, 30000)
+
+    // Run initial check on mount/auth state change
+    checkAuthStatus()
+
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      clearInterval(interval)
+    }
+  }, [isAuthenticated, user?.email, embedded, setUser, setAuthenticated])
+
   // ────────────────────────────────────────────────────────────────────────────
 
   const isFeatureEnabled = (id: string) => {
     if (embedded) return true // skip check in embedded shell mode
     if (!user || !user.features) return true
-    const mapping: Record<string, string> = {
-      ai: 'GrewGpt',
-      audit: 'audit',
-      ledger: 'Ledger',
-      dev: 'Dev',
-      research: 'agentation'
+    const mapping: Record<string, string[]> = {
+      limit: ['Command Center'],
+      calendar: ['calendar', 'Calendar'],
+      cashflow: ['cashflow', 'Cashflow', 'Cash Flow'],
+      fx: ['fx', 'FX', 'FX & Hedging'],
+      interest: ['interest', 'Interest'],
+      ops: ['ops', 'Ops', 'Operations'],
+      lifecycle: ['lifecycle', 'Lifecycle', 'LC Lifecycle'],
+      ai: ['GrewGpt', 'GrewGPT'],
+      audit: ['audit', 'Audit'],
+      ledger: ['ledger', 'Ledger'],
+      dev: ['dev', 'Dev'],
+      research: ['agentation', 'Agentation']
     }
-    const featureKey = mapping[id]
-    if (!featureKey) return true
-    return user.features[featureKey] !== false
+    const featureKeys = mapping[id]
+    if (!featureKeys) return true
+    return featureKeys.some((key) => user.features[key] === true)
   }
 
   const renderPage = () => {
@@ -199,14 +244,31 @@ const App: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   return (
     <AuditProvider>
       <div className={`min-h-screen bg-parchment pb-8 ${isDarkMode ? 'dark' : ''}`}>
-        {!isEmbedded && <Header />}
+        {!isEmbedded && <Header onToggleMobile={() => setMobileMenuOpen(!mobileMenuOpen)} />}
         <div className="flex">
-          {!isEmbedded && <Sidebar activePage={activePage} setActivePage={setActivePage} />}
-          <main className="flex-1 overflow-x-auto">
+          {!isEmbedded && (
+            <>
+              {/* Mobile hamburger — fixed button on small screens */}
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="fixed bottom-4 left-4 z-50 flex h-11 w-11 items-center justify-center rounded-full bg-ink text-white shadow-lift md:hidden transition-transform active:scale-90"
+                aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+              >
+                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              </button>
+              <Sidebar
+                activePage={activePage}
+                setActivePage={(page) => { setActivePage(page); setMobileMenuOpen(false) }}
+                mobileOpen={mobileMenuOpen}
+                onMobileClose={() => setMobileMenuOpen(false)}
+              />
+            </>
+          )}
+          <main className={`flex-1 overflow-x-hidden lg:overflow-x-auto ${mobileMenuOpen ? 'hidden md:block' : ''}`}>
             {renderPage()}
           </main>
         </div>
-        {!embedded && <Agentation />}
+        {!embedded && isFeatureEnabled('research') && <Agentation />}
         {!isEmbedded && <Footer />}
       </div>
     </AuditProvider>

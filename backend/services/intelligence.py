@@ -240,6 +240,7 @@ def get_advanced_quant_data(currency: str = "INR", fy: str = "All") -> Dict[str,
     }
 
 
+@ttl_cache(seconds=60)
 def get_treasury_radar_data(currency: str = "INR", fy: str = "All") -> List[Dict[str, Any]]:
     risk = _portfolio_risk_inputs(currency, fy)
     ratios = _risk_ratios(currency, fy)

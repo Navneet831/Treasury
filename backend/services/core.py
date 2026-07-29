@@ -11,6 +11,7 @@ from datetime import date
 from typing import Any, Dict, List, Optional
 
 from apps.Treasury.backend.database import fetch_dict, fetch_one
+from apps.Treasury.backend.redis_cache import redis_cache as _redis_cache_decorator
 
 logger = logging.getLogger(__name__)
 
@@ -136,30 +137,19 @@ def _due_amount_expr(currency: str) -> str:
     return f"CASE WHEN {boe} > 0 THEN {boe} ELSE {amt} END"
 
 
-# ── TTL cache ────────────────────────────────────────────────────────────────
+# ── TTL cache (Redis-backed with in-memory fallback) ──────────────────────────
+# All @ttl_cache decorators throughout the codebase now use Redis when available
+# and gracefully fall back to in-memory when Redis is down. The warehouse is a
+# read-only daily Excel load, so short TTLs trade no correctness for speed.
 
-def ttl_cache(seconds: float = 60.0, maxsize: int = 256):
-    """Read-through cache for warehouse aggregates. The warehouse is a read-only
-    daily Excel load, so short TTLs trade no correctness for large latency wins."""
-    def decorator(fn):
-        store: Dict[Any, Any] = {}
+def ttl_cache(seconds: float = 60.0):
+    """Read-through cache backed by Redis (with in-memory fallback).
 
-        @functools.wraps(fn)
-        def wrapper(*args, **kwargs):
-            key = (args, tuple(sorted(kwargs.items())))
-            now = time.monotonic()
-            hit = store.get(key)
-            if hit is not None and now - hit[0] < seconds:
-                return hit[1]
-            value = fn(*args, **kwargs)
-            if len(store) >= maxsize:
-                store.pop(next(iter(store)))
-            store[key] = (now, value)
-            return value
-
-        wrapper.cache_clear = store.clear
-        return wrapper
-    return decorator
+    The warehouse is a read-only daily Excel load, so short TTLs trade no
+    correctness for large latency wins. Falls back to in-memory if Redis is
+    unavailable — the app never crashes due to cache infra.
+    """
+    return _redis_cache_decorator(seconds=seconds)
 
 
 # ── Config (defaults overridable via APP_CONFIG table) ───────────────────────

@@ -5,6 +5,7 @@
  */
 import React, { useState, useRef, useEffect } from 'react'
 import { useAudit } from './AuditContext'
+import { useStore } from '../store'
 import { ShieldCheck, Database, FlaskConical, Shield, AlertTriangle, CheckCircle2 } from 'lucide-react'
 
 // ── Page chrome ────────────────────────────────────────────────────────────
@@ -67,9 +68,12 @@ export const StatTile: React.FC<{
   title?: string
   metricId?: string
   drillDownParams?: any
-}> = ({ label, value, sub, tone = 'default', size = 'md', title, metricId, drillDownParams }) => {
+}> = ({ label, value, sub, tone = 'default', size = 'md', title: passedTitle, metricId, drillDownParams }) => {
   const { isAuditMode, getMetricMeta, triggerDrillDown } = useAudit()
+  const { sourceMode } = useStore()
   const [open, setOpen] = useState(false)
+  const [provenanceHover, setProvenanceHover] = useState(false)
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -80,6 +84,27 @@ export const StatTile: React.FC<{
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
   }, [open])
+
+  // Clean up hide timer on unmount
+  useEffect(() => {
+    return () => { if (hideTimer.current) clearTimeout(hideTimer.current) }
+  }, [])
+
+  // Dismiss provenance overlay on outside tap/click (touch-friendly)
+  useEffect(() => {
+    if (!provenanceHover) return
+    const dismiss = (e: MouseEvent | TouchEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setProvenanceHover(false)
+      }
+    }
+    document.addEventListener('mousedown', dismiss)
+    document.addEventListener('touchstart', dismiss)
+    return () => {
+      document.removeEventListener('mousedown', dismiss)
+      document.removeEventListener('touchstart', dismiss)
+    }
+  }, [provenanceHover])
 
   const meta = metricId ? getMetricMeta(metricId) : undefined
 
@@ -94,15 +119,45 @@ export const StatTile: React.FC<{
 
   const confInfo = meta?.confidence ? CONF[meta.confidence] : null
 
+  // ── Hover/touch handlers for Source Mode provenance ──
+  const handleMouseEnter = () => {
+    if (hideTimer.current) clearTimeout(hideTimer.current)
+    if (sourceMode && meta) setProvenanceHover(true)
+  }
+  const handleMouseLeave = () => {
+    hideTimer.current = setTimeout(() => setProvenanceHover(false), 250)
+  }
+  const handleTapToggle = () => {
+    if (sourceMode && meta) {
+      setProvenanceHover((prev) => !prev)
+    }
+  }
+
+  // Native title: only when Source Mode is OFF, show compact formula
+  const compactFormula = (f: string) =>
+    f
+      .replace(/^[^=]*=\s*/i, '')           // strip "X = "
+      .replace(/^Sum of\s*/i, '')            // strip "Sum of "
+      .replace(/\s*across\s+all\s+banks/i, '') // strip "... across all banks"
+      .replace(/\s*\(Note:[^)]*\)/gi, '')     // strip parenthetical notes
+      .replace(/\[[^\]]*\]/g, '')             // strip [bracketed notes]
+      .trim()
+  const nativeTitle = !sourceMode && meta ? compactFormula(meta.formula) : passedTitle
+
   return (
     <div
       ref={ref}
-      className={`relative bg-white border rounded-[8px] ${pad} min-w-0 transition-all duration-200 ${
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onClick={handleTapToggle}
+      className={`relative bg-white border rounded-[8px] ${pad} min-w-0 transition-all duration-200 cursor-default ${
         isAuditMode && meta
           ? 'border-emerald-500/40 bg-emerald-500/[0.01] shadow-sm hover:border-emerald-500 hover:shadow-md'
-          : 'border-[#dfdfdf]'
+          : sourceMode && meta && provenanceHover
+            ? 'border-accent/40 bg-accent/[0.01] shadow-sm'
+            : 'border-[#dfdfdf]'
       }`}
-      title={title}
+      title={nativeTitle}
     >
       <div className="flex justify-between items-start gap-2">
         <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#9a9a9a] truncate flex-1">{label}</p>
@@ -140,7 +195,143 @@ export const StatTile: React.FC<{
         </div>
       )}
 
-      {/* Audit Provenance Popover */}
+      {/* ── Source Mode: Rich Provenance Overlay (hover/tap) ── */}
+      {sourceMode && provenanceHover && meta && (
+        <div
+          className="fixed inset-x-2 top-1/2 -translate-y-1/2 z-[100] max-h-[80vh] overflow-y-auto sm:absolute sm:top-full sm:mt-1.5 sm:left-1/2 sm:-translate-x-1/2 sm:w-[380px] sm:right-auto sm:max-h-none sm:overflow-y-visible bg-white border border-[#dfdfdf] rounded-xl shadow-lift text-left"
+          onMouseEnter={() => { if (hideTimer.current) clearTimeout(hideTimer.current); setProvenanceHover(true) }}
+          onMouseLeave={handleMouseLeave}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-[#dfdfdf] bg-gradient-to-r from-slate-50 to-white">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-md bg-accent/10 flex items-center justify-center">
+                <Database className="w-3.5 h-3.5 text-accent" />
+              </div>
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">Data Provenance</span>
+                <p className="text-[9px] text-slate-400 font-medium">{meta.name}</p>
+              </div>
+            </div>
+            <span className="text-[8px] font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-400">ID: {meta.id}</span>
+            <button
+              onClick={(e) => { e.stopPropagation(); setProvenanceHover(false) }}
+              className="sm:hidden flex items-center justify-center w-7 h-7 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+              aria-label="Close provenance overlay"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+          </div>
+
+          <div className="p-3.5 space-y-3">
+            {/* Source Tables */}
+            <div className="flex gap-2.5">
+              <div className="w-4 h-4 mt-0.5 flex-shrink-0 text-slate-400">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-[8px] font-black uppercase tracking-[0.12em] text-slate-400">Source Tables</p>
+                  <div className="h-px flex-1 bg-slate-100" />
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {meta.source.split(',').map((t: string, i: number) => (
+                    <span key={i} className="text-[10px] font-mono font-bold text-slate-700 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded leading-tight">
+                      {t.trim()}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Filters / Config */}
+            {meta.config_keys && (
+              <div className="flex gap-2.5">
+                <div className="w-4 h-4 mt-0.5 flex-shrink-0 text-slate-400">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-[8px] font-black uppercase tracking-[0.12em] text-slate-400">Filters Applied</p>
+                    <div className="h-px flex-1 bg-slate-100" />
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {meta.config_keys.split(',').map((f: string, i: number) => (
+                      <span key={i} className="text-[10px] font-mono text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded leading-tight">
+                        {f.trim()}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Derivation Formula */}
+            <div className="flex gap-2.5">
+              <FlaskConical className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-[8px] font-black uppercase tracking-[0.12em] text-slate-400">Derivation Formula</p>
+                  <div className="h-px flex-1 bg-slate-100" />
+                </div>
+                <p className="text-[10px] text-slate-600 leading-snug bg-slate-50 border border-slate-200 rounded p-1.5 font-mono">{meta.formula}</p>
+              </div>
+            </div>
+
+            {/* Methodology Assumptions */}
+            {meta.caveats && (
+              <div className="flex gap-2.5">
+                <Shield className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-[8px] font-black uppercase tracking-[0.12em] text-slate-400">Methodology Notes</p>
+                    <div className="h-px flex-1 bg-slate-100" />
+                  </div>
+                  <p className="text-[10px] text-slate-600 leading-snug">{meta.caveats}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Bottom grid: Confidence + Risk */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              {confInfo && (
+                <div className={`flex items-center gap-1.5 px-2 py-1.5 rounded border ${confInfo.bgCls}`}>
+                  <div className={`w-1.5 h-1.5 rounded-full ${confInfo.dotCls}`} />
+                  <span className={`text-[9px] font-bold ${confInfo.textCls}`}>{confInfo.label} Confidence</span>
+                </div>
+              )}
+              {meta.atRisk && (
+                <div className="flex items-center gap-1.5 px-2 py-1.5 rounded border bg-rose-50 border-rose-100">
+                  <AlertTriangle className="w-3 h-3 text-rose-500 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[7px] font-black uppercase tracking-[0.1em] text-rose-800">Risk</p>
+                    <p className="text-[9px] text-rose-700 font-medium leading-tight truncate">{meta.atRisk}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Drill‑down CTA */}
+            {drillDownParams && (
+              <div className="pt-1">
+                <button
+                  onClick={() => {
+                    setProvenanceHover(false)
+                    triggerDrillDown(`${meta.name} (Drill Down)`, drillDownParams)
+                  }}
+                  className="w-full bg-slate-900 text-white rounded py-2.5 sm:py-1.5 text-[10px] font-bold hover:bg-black text-center transition-all flex items-center justify-center gap-1 min-h-[36px] sm:min-h-0"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                  Verify Underlying Transactions
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Audit Mode: Click-triggered Provenance Popover ── */}
       {open && meta && (
         <div
           className="absolute z-50 top-8 right-2 w-[320px] bg-white border border-[#dfdfdf] rounded-xl shadow-lift overflow-hidden text-left"
@@ -368,7 +559,7 @@ export const BarRow: React.FC<{
 export const PageSkeleton: React.FC = () => (
   <div className="p-5 space-y-3 animate-pulse">
     <div className="h-7 w-64 bg-[#ededed] rounded" />
-    <div className="grid grid-cols-4 gap-2">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
       {[1, 2, 3, 4].map((i) => <div key={i} className="h-16 bg-[#ededed] rounded-[8px]" />)}
     </div>
     <div className="h-56 bg-[#ededed] rounded-[8px]" />

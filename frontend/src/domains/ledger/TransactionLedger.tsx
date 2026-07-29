@@ -9,7 +9,7 @@ import { useStore } from '../../store'
 import { formatCurrency, formatDate } from '../../utils'
 import { FileSpreadsheet, RotateCcw } from 'lucide-react'
 
-// AG Grid z35 requires explicit module registration
+// AG Grid Enterprise — full feature set (charts, pivot, excel export, etc.)
 ModuleRegistry.registerModules([AllEnterpriseModule])
 
 const getPrimaryDateColumn = (keys: string[]): string | null => {
@@ -37,6 +37,8 @@ export const TransactionLedger: React.FC = () => {
   const [rowData, setRowData] = useState<any[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [colDefs, setColDefs] = useState<any[]>([])
+
+  const PAGE_SIZE = 50
 
   const gridRef = useRef<any>(null)
   const isRestoringRef = useRef<boolean>(false)
@@ -152,8 +154,8 @@ export const TransactionLedger: React.FC = () => {
       setSumBoeAmt(0)
 
       const data = selectedTable === 'LC'
-        ? await getDrillDown({ fy })
-        : await getTableData(selectedTable)
+        ? await getDrillDown({ fy, page: 0, page_size: PAGE_SIZE })
+        : await getTableData(selectedTable, 0, PAGE_SIZE)
 
       setRowData(data)
       if (data && data.length > 0) {

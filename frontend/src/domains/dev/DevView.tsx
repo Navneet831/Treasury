@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import {
   Terminal, Database, RefreshCw, CheckCircle2, XCircle,
-  Server, User, Hash, Layers, GitBranch, GitCommit, Clock,
-  ArrowRight, Code2, Filter, BarChart3, Info, Cpu, Settings,
-  Shield, UserCheck, Tag, Table2
+  Server, User, Hash, Layers,   GitBranch, GitCommit,
+  ArrowRight, Code2, Filter, Info, Cpu, Settings,
+  Shield, Tag, BookOpen, Gauge, Calendar, Zap, Globe, Percent, Package, FileSearch, Sparkles
 } from 'lucide-react'
 import { useStore } from '../../store'
-import { useAuthStore, supabase } from '@grew/auth'
+import { useAuthStore } from '@grew/auth'
 import api from '../../api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -32,13 +32,13 @@ interface DataStats {
   maxDate: string | null;
   cacheStatus: 'warm' | 'cold' | 'error';
   fetchMode: 'direct_pg' | 'error';
+  tableCounts: Record<string, number | null> | null;
 }
 
 interface DataLogic {
   table: string;
   dateColumn: string;
   minDateFilter: string;
-  sqlQuery: string;
   currencyDivider: string;
   fiscalYearStart: string;
   weekDefinition: string;
@@ -67,6 +67,7 @@ interface DbConfigResponse {
   dataLogic: DataLogic | null;
   gitInfo: GitInfo | null;
   dbSchema: SchemaColumn[] | null;
+  columnMappingByTable: Record<string, Record<string, string>> | null;
 }
 
 // ─── Main View ────────────────────────────────────────────────────────────────
@@ -80,15 +81,29 @@ export const DevView: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Whitelist table state
-  const [whitelist, setWhitelist] = useState<any[]>([])
-  const [loadingWhitelist, setLoadingWhitelist] = useState(true)
-  const [whitelistError, setWhitelistError] = useState<string | null>(null)
-
-  // DB Tables state
-  const [dbTables, setDbTables] = useState<string[]>([])
-  const [loadingTables, setLoadingTables] = useState(true)
-  const [tablesError, setTablesError] = useState<string | null>(null)
+  // App tables map — which tables each tab uses (matches audit._DATA_SOURCES)
+  const appTables: Record<string, { table: string; tabs: string[] }> = {
+    'LC':                { table: 'LC',                tabs: ['All Tabs'] },
+    'bank_limit':        { table: 'bank_limit',        tabs: ['Command Center', 'Audit', 'Developer'] },
+    'SBLC':              { table: 'SBLC',              tabs: ['Command Center', 'Audit'] },
+    'LC BG in Process':  { table: '"LC BG in Process"', tabs: ['Command Center', 'Audit'] },
+    'FDR_List':          { table: 'FDR_List',           tabs: ['Interest'] },
+    'Bank_Guarantee':    { table: 'Bank_Guarantee',     tabs: ['Audit', 'Operations'] },
+    'APP_CONFIG':        { table: 'APP_CONFIG',         tabs: ['Audit'] },
+  }
+  const tabIcons: Record<string, React.ReactNode> = {
+    'Command Center': <Gauge className="w-2.5 h-2.5" />,
+    'Calendar':       <Calendar className="w-2.5 h-2.5" />,
+    'Cash Flow':      <Zap className="w-2.5 h-2.5" />,
+    'FX & Hedging':   <Globe className="w-2.5 h-2.5" />,
+    'Interest':       <Percent className="w-2.5 h-2.5" />,
+    'Operations':     <Package className="w-2.5 h-2.5" />,
+    'LC Lifecycle':   <Layers className="w-2.5 h-2.5" />,
+    'Intelligence':   <BookOpen className="w-2.5 h-2.5" />,
+    'Audit':          <FileSearch className="w-2.5 h-2.5" />,
+    'GrewGpt':        <Sparkles className="w-2.5 h-2.5" />,
+    'Developer':      <Terminal className="w-2.5 h-2.5" />,
+  }
 
   const fetchConfig = useCallback(async () => {
     setLoading(true)
@@ -103,110 +118,18 @@ export const DevView: React.FC = () => {
     }
   }, [])
 
-  const fetchWhitelist = useCallback(async () => {
-    if (!user?.email) {
-      setWhitelist([])
-      setLoadingWhitelist(false)
-      return
-    }
-    setLoadingWhitelist(true)
-    setWhitelistError(null)
-    try {
-      const { data, error } = await supabase
-        .from('whitelist')
-        .select('*')
-        .ilike('email', user.email)
-
-      if (error) throw error
-      setWhitelist(data || [])
-    } catch (err: any) {
-      console.error('Error fetching whitelist:', err)
-      setWhitelistError(err.message || 'Failed to load whitelist table.')
-    } finally {
-      setLoadingWhitelist(false)
-    }
-  }, [user])
-
-  const fetchTables = useCallback(async () => {
-    setLoadingTables(true)
-    setTablesError(null)
-    try {
-      const res = await api.get('/tables')
-      setDbTables(res.data || [])
-    } catch (err: any) {
-      setTablesError(err.response?.data?.detail || err.message || 'Failed to load tables.')
-    } finally {
-      setLoadingTables(false)
-    }
-  }, [])
-
-  const [switchingBranch, setSwitchingBranch] = useState(false)
-  const [branchMessage, setBranchMessage] = useState<string | null>(null)
-  const [branchError, setBranchError] = useState<string | null>(null)
-
-  const handleBranchChange = async (newBranch: string) => {
-    if (!newBranch || newBranch === git?.branch) return
-    if (!window.confirm(`Are you sure you want to switch to branch "${newBranch}"?`)) return
-    
-    setSwitchingBranch(true)
-    setBranchMessage(null)
-    setBranchError(null)
-    try {
-      const res = await api.post('/git-branch', { branch: newBranch })
-      setBranchMessage(res.data.message || `Successfully switched to ${newBranch}`)
-      setTimeout(() => {
-        fetchConfig()
-      }, 1000)
-    } catch (err: any) {
-      const errMsg = err.response?.data?.detail || err.message || 'Failed to switch branch.'
-      setBranchError(errMsg)
-    } finally {
-      setSwitchingBranch(false)
-    }
-  }
-
-  // State for Git Console
-  const [gitCmd, setGitCmd] = useState('git status')
-  const [gitOutput, setGitOutput] = useState('')
-  const [runningGitCmd, setRunningGitCmd] = useState(false)
-  const [gitCmdExitCode, setGitCmdExitCode] = useState<number | null>(null)
-
-  const handleRunGitCmd = async (cmdToRun: string) => {
-    if (!cmdToRun.trim()) return
-    setRunningGitCmd(true)
-    setGitCmdExitCode(null)
-    try {
-      const res = await api.post('/git-command', { command: cmdToRun })
-      const { stdout, stderr, returncode } = res.data
-      let outputStr = ''
-      if (stdout) outputStr += stdout
-      if (stderr) outputStr += (outputStr ? '\n' : '') + 'STDERR:\n' + stderr
-      if (!stdout && !stderr) outputStr = '(No output)'
-      setGitOutput(outputStr)
-      setGitCmdExitCode(returncode)
-    } catch (err: any) {
-      const status = err.response?.status
-      const detail = err.response?.data?.detail
-      const errMsg = detail
-        ? `HTTP ${status}: ${detail}`
-        : (err.message || 'Failed to execute command.')
-      setGitOutput(`Error: ${errMsg}`)
-      setGitCmdExitCode(1)
-    } finally {
-      setRunningGitCmd(false)
-    }
-  }
+  // Removed: fetchTables — app uses a curated table map instead
+  // Git branch switching + console removed — no /git-branch or /git-command backend endpoints
 
   useEffect(() => {
     fetchConfig()
-    fetchWhitelist()
-    fetchTables()
-  }, [fetchConfig, fetchWhitelist, fetchTables])
+  }, [fetchConfig])
 
   const conn = config?.connection
   const stats = config?.dataStats
   const logic = config?.dataLogic
   const git = config?.gitInfo
+  const columnMappingByTable = config?.columnMappingByTable || {}
 
   return (
     <div className="flex-1 flex flex-col bg-canvas overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300 text-[10px]">
@@ -223,11 +146,11 @@ export const DevView: React.FC = () => {
         </div>
         <div className="flex items-center gap-1.5">
           <button
-            onClick={() => { fetchConfig(); fetchWhitelist(); fetchTables(); }}
-            disabled={loading || loadingWhitelist || loadingTables}
+            onClick={() => { fetchConfig(); }}
+            disabled={loading}
             className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-white border border-hairline text-[10px] font-medium text-ink hover:bg-canvas transition-colors disabled:opacity-40"
           >
-            <RefreshCw className={`w-2.5 h-2.5 ${loading || loadingWhitelist || loadingTables ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-2.5 h-2.5 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </button>
         </div>
@@ -278,46 +201,15 @@ export const DevView: React.FC = () => {
             title="Git"
             icon={<GitBranch className="w-4 h-4 text-violet-600" />}
           >
-            {/* Prominent branch row */}
-            <div className="flex items-center justify-between py-1 border-b border-hairline/30 pb-2">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <Tag className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span className="text-[10px] font-bold text-ink-mute uppercase font-mono">BRANCH</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                {git?.branches && git.branches.length > 0 ? (
-                  <select
-                    disabled={switchingBranch}
-                    value={git.branch || ''}
-                    onChange={(e) => handleBranchChange(e.target.value)}
-                    className="text-[10px] font-semibold bg-emerald-500/10 border border-emerald-500/20 rounded px-1.5 py-0.5 text-emerald-700 outline-none hover:bg-emerald-500/20 transition-all cursor-pointer font-mono"
-                  >
-                    {git.branches.map(b => (
-                      <option key={b} value={b}>{b}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <span className="font-mono text-ink font-semibold">{git?.branch || '—'}</span>
-                )}
-                {switchingBranch && <RefreshCw className="w-3 h-3 text-emerald-600 animate-spin" />}
-              </div>
+            <div className="flex items-center gap-2 py-1.5">
+              <Tag className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span className="text-[9px] font-bold text-ink-mute uppercase font-mono">BRANCH</span>
+              <span className="font-mono text-ink font-semibold">{git?.branch || '—'}</span>
             </div>
-
-            {/* Status messages for branch switching */}
-            {branchMessage && (
-              <div className="mt-1 px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[9px] font-mono">
-                {branchMessage}
-              </div>
-            )}
-            {branchError && (
-              <div className="mt-1 px-2 py-1 rounded bg-rose-500/10 border border-rose-500/20 text-rose-600 text-[9px] font-mono">
-                {branchError}
-              </div>
-            )}
             {git?.commits?.length ? (
               <div className="divide-y divide-hairline">
                 {git.commits.map((c, i) => (
-                  <div key={i} className="flex items-start gap-2 py-1.5">
+                  <div key={i} className="flex items-start gap-2 py-1">
                     <GitCommit className="w-3 h-3 text-violet-600 shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
@@ -335,137 +227,87 @@ export const DevView: React.FC = () => {
             )}
           </DarkCard>
 
-          {/* ── Git Console Card ── */}
-          <DarkCard
-            title="Git Console"
-            icon={<Terminal className="w-3.5 h-3.5 text-violet-600" />}
-            badge={gitCmdExitCode !== null ? (
-              <StatusBadge ok={gitCmdExitCode === 0} label={gitCmdExitCode === 0 ? 'exit 0' : `exit ${gitCmdExitCode}`} />
-            ) : null}
-          >
-            <div className="flex flex-col gap-2">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={gitCmd}
-                  onChange={(e) => setGitCmd(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleRunGitCmd(gitCmd)
-                  }}
-                  placeholder="e.g. git status"
-                  className="flex-1 text-[10px] font-mono bg-canvas border border-hairline rounded px-2 py-1 text-ink outline-none focus:border-violet-500 transition-colors"
-                />
-                <button
-                  onClick={() => handleRunGitCmd(gitCmd)}
-                  disabled={runningGitCmd}
-                  className="flex items-center gap-1 px-3 py-1 bg-violet-600 border border-violet-700 text-white rounded text-[10px] font-semibold hover:bg-violet-700 transition-colors disabled:opacity-40"
-                >
-                  {runningGitCmd ? <RefreshCw className="w-2.5 h-2.5 animate-spin" /> : 'Run'}
-                </button>
-              </div>
-
-              {/* Quick Actions */}
-              <div className="flex flex-wrap gap-1.5 py-0.5 border-b border-hairline/30 pb-1.5">
-                <button
-                  onClick={() => { setGitCmd('git status'); handleRunGitCmd('git status'); }}
-                  className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-mono text-[9px] font-medium transition-colors"
-                >
-                  git status
-                </button>
-                <button
-                  onClick={() => { setGitCmd('git diff'); handleRunGitCmd('git diff'); }}
-                  className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-mono text-[9px] font-medium transition-colors"
-                >
-                  git diff
-                </button>
-                <button
-                  onClick={() => { setGitCmd('git branch -a'); handleRunGitCmd('git branch -a'); }}
-                  className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-mono text-[9px] font-medium transition-colors"
-                >
-                  git branch -a
-                </button>
-                <button
-                  onClick={() => { setGitCmd('git log -n 5 --oneline'); handleRunGitCmd('git log -n 5 --oneline'); }}
-                  className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-mono text-[9px] font-medium transition-colors"
-                >
-                  git log -5
-                </button>
-              </div>
-
-              {/* Output terminal window */}
-              <div className="bg-slate-950 rounded border border-slate-800 p-2 min-h-[140px] max-h-[220px] overflow-auto font-mono text-[10px] text-emerald-400 custom-scrollbar-vertical whitespace-pre-wrap selection:bg-emerald-500/25">
-                {gitOutput || 'Type a git command above and click Run.'}
-              </div>
-            </div>
-          </DarkCard>
-
-          {/* ── Supabase Whitelist ── */}
-          <DarkCard
-            title="Whitelist"
-            icon={<Shield className="w-3.5 h-3.5 text-emerald-600" />}
-            badge={loadingWhitelist
-              ? <span className="text-[10px] text-ink-mute font-mono animate-pulse">…</span>
-              : <StatusBadge ok={whitelist.length > 0} label={`${whitelist.length} user`} />}
-          >
-            {whitelistError ? (
-              <p className="py-1 text-[10px] text-danger font-mono">{whitelistError}</p>
-            ) : whitelist.length > 0 ? (
-              <div className="max-h-20 overflow-y-auto custom-scrollbar-vertical divide-y divide-hairline">
-                {whitelist.map((w, idx) => (
-                  <div key={idx} className="flex items-center justify-between py-1">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <UserCheck className="w-3 h-3 text-emerald-600 shrink-0" />
-                      <span className="text-[10px] font-mono font-medium text-ink truncate">{w.email}</span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1 shrink-0 max-w-[60%] justify-end">
-                      {Object.entries(w)
-                        .filter(([k, v]) => k !== 'email' && k !== 'id' && k !== 'created_at' && typeof v === 'boolean')
-                        .map(([k, v]) => (
-                          <span key={k} className={`text-[9px] font-semibold px-1.5 py-px rounded-full border ${v ? 'bg-emerald-50 text-emerald-700 border-emerald-500/15' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>
-                            {k}
+          {/* ── DB Overview (merged: App Tables + Schema + Column Mapping + Stats) ── */}
+          <div className="bg-white rounded-lg border border-hairline shadow-sm overflow-hidden xl:col-span-2">
+            <CardHeader title="DB Overview (Schema · Mapping · Row Counts)" icon={<Database className="w-3.5 h-3.5 text-blue-600" />}>
+              <StatusBadge ok label={`${Object.keys(appTables).length} tables · ${currency === 'INR' ? '₹ INR' : '$ FC'}`} />
+            </CardHeader>
+            <div className="divide-y divide-hairline">
+              {Object.entries(appTables).map(([key, { table: tblName, tabs }]) => {
+                const cleanTable = tblName.replace(/"/g, '')
+                const schemaCols = (config?.dbSchema || []).filter(s => s.table === cleanTable)
+                const mapping = columnMappingByTable[cleanTable] || {}
+                const rowCount = stats?.tableCounts?.[cleanTable]
+                const hasDetail = schemaCols.length > 0 || Object.keys(mapping).length > 0
+                return (
+                  <details key={key} className="group open:bg-canvas-soft/20 transition-colors">
+                    <summary className="flex items-center justify-between gap-2 px-3 py-1.5 cursor-pointer hover:bg-canvas-soft/30 transition-colors list-none select-none">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-[9px] text-ink-faint font-mono rotate-0 group-open:rotate-90 transition-transform">▶</span>
+                        <span className="text-[10px] font-semibold text-blue-600 font-mono">{tblName}</span>
+                        <span className="text-[10px] font-mono tabular text-ink-mute">
+                          {rowCount != null ? Number(rowCount).toLocaleString('en-IN') : '—'} rows
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-0.5 shrink-0">
+                        {tabs.map(t => (
+                          <span key={t} className="inline-flex items-center gap-px text-[7px] font-medium px-1 py-px rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                            {tabIcons[t]}{t}
                           </span>
                         ))}
+                      </div>
+                    </summary>
+                    <div className="px-3 pb-2">
+                      {hasDetail ? (
+                        <div className="ml-3 border-l-2 border-hairline pl-2 space-y-px">
+                          {schemaCols.map((col) => {
+                            const dbColKey = Object.keys(mapping).find(k => k.replace(/\(in CUR\)/g, '').trim() === col.column.replace(/\(in (INR|FC)\)/g, '').trim() || k.replace(/\(in CUR\)/i, `(in ${currency})`).trim() === col.column.trim())
+                            const appField = dbColKey ? mapping[dbColKey] : null
+                            const displayCol = col.column.replace(/\(in CUR\)/gi, `(in ${currency})`)
+                            return (
+                              <div key={col.column} className="flex items-center gap-2 py-0.5 text-[9px] font-mono">
+                                <span className="text-blue-600 font-semibold min-w-[33%] truncate" title={displayCol}>{displayCol}</span>
+                                <span className="text-ink-faint w-16 shrink-0">{col.type}</span>
+                                {appField && (
+                                  <>
+                                    <ArrowRight className="w-2.5 h-2.5 text-ink-faint shrink-0" />
+                                    <span className="text-emerald-600 font-medium truncate">{appField}</span>
+                                  </>
+                                )}
+                              </div>
+                            )
+                          })}
+                          {Object.entries(mapping)
+                            .filter(([dbKey]) => !schemaCols.some(sc =>
+                              sc.column.replace(/\(in (INR|FC)\)/g, '').trim() === dbKey.replace(/\(in CUR\)/g, '').trim()
+                            ))
+                            .map(([dbKey, appField]) => {
+                              const displayKey = dbKey.replace(/\(in CUR\)/gi, `(in ${currency})`)
+                              return (
+                                <div key={dbKey} className="flex items-center gap-2 py-0.5 text-[9px] font-mono">
+                                  <span className="text-blue-600 font-semibold min-w-[33%] truncate" title={displayKey}>{displayKey}</span>
+                                  <span className="text-ink-faint w-16 shrink-0">—</span>
+                                  <ArrowRight className="w-2.5 h-2.5 text-ink-faint shrink-0" />
+                                  <span className="text-emerald-600 font-medium truncate">{appField}</span>
+                                </div>
+                              )
+                            })}
+                          {!hasDetail && <span className="text-[9px] text-ink-faint italic">No schema or mapping info</span>}
+                        </div>
+                      ) : (
+                        <p className="ml-3 text-[9px] text-ink-faint italic">No column info loaded</p>
+                      )}
                     </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="py-1 text-[10px] text-ink-faint font-mono">No whitelist entries found.</p>
-            )}
-          </DarkCard>
-
-          {/* ── DB Tables ── */}
-          <DarkCard
-            title="DB Tables"
-            icon={<Table2 className="w-3.5 h-3.5 text-blue-600" />}
-            badge={loadingTables
-              ? <span className="text-[10px] text-ink-mute font-mono animate-pulse">…</span>
-              : <StatusBadge ok={dbTables.length > 0} label={`${dbTables.length} tables`} />}
-          >
-            {tablesError ? (
-              <p className="py-1 text-[10px] text-danger font-mono">{tablesError}</p>
-            ) : (
-              <div className="max-h-40 overflow-y-auto custom-scrollbar-vertical divide-y divide-hairline">
-                {dbTables.length > 0 ? dbTables.map((tbl, idx) => (
-                  <div key={idx} className="flex items-center gap-1.5 py-1">
-                    <Database className="w-2.5 h-2.5 text-blue-500 shrink-0" />
-                    <span className="text-[10px] font-mono text-ink truncate" title={tbl}>{tbl}</span>
-                  </div>
-                )) : (
-                  <p className="py-1 text-[10px] text-ink-faint font-mono">No tables found.</p>
-                )}
-              </div>
-            )}
-          </DarkCard>
-
-          {/* ── Live Data Stats ── */}
-          <DarkCard title="Data Stats" icon={<BarChart3 className="w-3.5 h-3.5 text-violet-600" />}>
-            <DbRow icon={<Layers className="w-3 h-3 text-emerald-600" />} label="TOTAL RECORDS (LC)" value={stats?.totalRecords != null ? stats.totalRecords.toLocaleString('en-IN') : '—'} highlight={stats?.totalRecords != null} />
-            <DbRow icon={<Clock className="w-3 h-3 text-sky-600" />} label="MIN DATE" value={stats?.minDate || '—'} />
-            <DbRow icon={<Clock className="w-3 h-3 text-amber-600" />} label="MAX DATE" value={stats?.maxDate || '—'} />
-            <DbRow icon={<Server className="w-3 h-3 text-teal-600" />} label="FETCH ENGINE" value="Direct PostgreSQL" highlight />
-            <DbRow icon={<CheckCircle2 className="w-3 h-3 text-violet-600" />} label="ROW CACHE" value={stats?.cacheStatus === 'warm' ? 'warm' : stats?.cacheStatus === 'cold' ? 'cold' : 'error'} />
-          </DarkCard>
+                  </details>
+                )
+              })}
+            </div>
+            {/* Footer: LC date range + cache */}
+            <div className="border-t border-hairline px-3 py-1 flex justify-between text-[8px] text-ink-faint">
+              <span>LC dates: {stats?.minDate || '—'} → {stats?.maxDate || '—'}</span>
+              <span>Cache: {stats?.cacheStatus || '—'} · {stats?.fetchMode || '—'}</span>
+            </div>
+          </div>
 
           {/* ── Active Filters ── */}
           <DarkCard title="Active Filters" icon={<Filter className="w-3.5 h-3.5 text-amber-600" />}>
@@ -485,36 +327,6 @@ export const DevView: React.FC = () => {
             <DbRow label="WEEK DEFINITION" value={logic?.weekDefinition || '—'} />
           </DarkCard>
 
-          {/* ── DB Schema ── */}
-          <DarkCard title="DB Schema" icon={<Database className="w-3.5 h-3.5 text-blue-600" />}>
-            <div className="max-h-24 overflow-y-auto custom-scrollbar-vertical divide-y divide-hairline w-full">
-              {config?.dbSchema && config.dbSchema.length > 0 ? (
-                config.dbSchema.map((col, idx) => (
-                  <SchemaRow key={idx} table={col.table} col={col.column} type={col.type} />
-                ))
-              ) : (
-                <p className="py-1 text-[10px] text-ink-mute font-mono">No schema information loaded.</p>
-              )}
-            </div>
-          </DarkCard>
-
-          {/* ── Column Mapping ── */}
-          <div className="bg-white rounded-lg border border-hairline shadow-sm overflow-hidden xl:col-span-2">
-            <CardHeader title="Column Mapping (DB → App)" icon={<ArrowRight className="w-3.5 h-3.5 text-teal-600" />} />
-            <div className="p-2 grid grid-cols-2 lg:grid-cols-3 gap-1">
-              {logic?.columnMapping
-                ? Object.entries(logic.columnMapping).map(([db, app]) => (
-                  <div key={db} className="flex items-center gap-1 px-2 py-1 rounded bg-canvas border border-hairline/60 text-[10px]">
-                    <span className="font-mono text-sky-600 shrink-0 truncate">{db}</span>
-                    <ArrowRight className="w-2.5 h-2.5 text-ink-mute shrink-0" />
-                    <span className="font-mono text-emerald-600 truncate">{app}</span>
-                  </div>
-                ))
-                : <span className="text-xs text-ink-mute font-mono">Loading…</span>
-              }
-            </div>
-          </div>
-
           {/* ── Algorithm Notes ── */}
           <div className="bg-white rounded-lg border border-hairline shadow-sm overflow-hidden xl:col-span-2">
             <CardHeader title="Algorithm Notes" icon={<Cpu className="w-3.5 h-3.5 text-amber-600" />} />
@@ -523,16 +335,6 @@ export const DevView: React.FC = () => {
               <AlgoBlock accent="border-emerald-500" title="BOE Reconciliation" body="Matches Lodge date vs Acceptance date to classify outstanding BOE bills." />
               <AlgoBlock accent="border-amber-500" title="Facility Limits" body="Available = total limit - open LCs - open BGs, per bank per fiscal period." />
               <AlgoBlock accent="border-purple-500" title="Payables Maturity Pacing" body="Clusters future outflows into usance cohorts (30/60/90/180 day buckets)." />
-            </div>
-          </div>
-
-          {/* ── SQL Query ── */}
-          <div className="bg-white rounded-lg border border-hairline shadow-sm overflow-hidden xl:col-span-2">
-            <CardHeader title="SQL Query (Data Fetch)" icon={<Code2 className="w-3.5 h-3.5 text-violet-600" />} />
-            <div className="p-2">
-              <pre className="text-[10px] font-mono text-emerald-700 bg-canvas rounded p-2 overflow-x-auto whitespace-pre-wrap leading-snug border border-hairline">
-                {logic?.sqlQuery || 'Loading…'}
-              </pre>
             </div>
           </div>
 
@@ -607,14 +409,6 @@ const DbRow: React.FC<{
     <span className={`text-[10px] font-mono text-right truncate max-w-[60%] ${highlight ? 'text-ink font-semibold' : 'text-ink-mute'}`}>
       {value}
     </span>
-  </div>
-)
-
-const SchemaRow: React.FC<{ table: string; col: string; type: string }> = ({ table, col, type }) => (
-  <div className="flex items-start gap-2 py-1 border-b border-hairline last:border-0">
-    <span className="text-[9px] font-mono text-blue-600 font-semibold shrink-0 w-20">{table}</span>
-    <span className="text-[10px] font-semibold text-ink shrink-0 w-28 font-mono">{col}</span>
-    <span className="text-[10px] text-ink-mute font-mono truncate">{type}</span>
   </div>
 )
 
