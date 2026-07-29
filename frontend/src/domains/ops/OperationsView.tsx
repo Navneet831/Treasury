@@ -34,7 +34,10 @@ const OperationsView: React.FC = () => {
   if (error || !data) return <ErrorState message={error || undefined} onRetry={reload} />
 
   const { lifecycle, boe, shipment, suppliers, insights } = data
-  const funnelMax = Math.max(...lifecycle.map((s) => s.count), 1)
+  const lifecycleSafe: any[] = lifecycle || []
+  const boeSafe: any = boe || {}
+  const shipmentSafe: any = shipment || {}
+  const funnelMax = Math.max(...lifecycleSafe.map((s) => s.count), 1)
 
   return (
     <div className="page-in">
@@ -46,7 +49,7 @@ const OperationsView: React.FC = () => {
           <StatTile 
             size="md" 
             label="Shipments Pending" 
-            value={formatNumber(shipment.pending_count)} 
+            value={formatNumber(shipmentSafe.pending_count)} 
             sub="Awaiting dispatch" 
             metricId="ops-funnel"
             drillDownParams={{ status: 'Open' }}
@@ -54,25 +57,25 @@ const OperationsView: React.FC = () => {
           <StatTile 
             size="md" 
             label="Shipments Done" 
-            value={formatNumber(shipment.completed_count)} 
+            value={formatNumber(shipmentSafe.completed_count)} 
             sub="Dispatched to date" 
             metricId="ops-funnel"
             drillDownParams={{ status: 'Open' }}
           />
           <StatTile 
             size="md" 
-            tone={shipment.delayed_count > 0 ? 'warning' : 'positive'}
+            tone={shipmentSafe.delayed_count > 0 ? 'warning' : 'positive'}
             label="Delayed Receipts" 
-            value={formatNumber(shipment.delayed_count)} 
+            value={formatNumber(shipmentSafe.delayed_count)} 
             sub="Material after LC ship date" 
             metricId="ops-delayed"
             drillDownParams={{ status: 'Open' }}
           />
           <StatTile 
             size="md" 
-            tone={shipment.expired_count > 0 ? 'critical' : 'positive'}
+            tone={shipmentSafe.expired_count > 0 ? 'critical' : 'positive'}
             label="Expired, Not Shipped" 
-            value={formatNumber(shipment.expired_count)} 
+            value={formatNumber(shipmentSafe.expired_count)} 
             sub="LC lapsed without shipment" 
             metricId="ops-funnel"
             drillDownParams={{ status: 'Open' }}
@@ -82,13 +85,13 @@ const OperationsView: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           <Section title="LC Lifecycle Funnel">
             <Card className="p-3 space-y-1.5">
-              {lifecycle.map((stage, i) => {
-                const conv = i > 0 && lifecycle[i - 1].count > 0
-                  ? (stage.count / lifecycle[i - 1].count) * 100 : 100
+              {lifecycleSafe.map((stage, i) => {
+                const conv = i > 0 && lifecycleSafe[i - 1].count > 0
+                  ? (stage.count / lifecycleSafe[i - 1].count) * 100 : 100
                 return (
                   <BarRow key={stage.stage} label={stage.stage}
                     pct={(stage.count / funnelMax) * 100}
-                    color={i === lifecycle.length - 1 ? '#3ecf8e' : '#171717'}
+                    color={i === lifecycleSafe.length - 1 ? '#3ecf8e' : '#171717'}
                     inBarText={String(stage.count)} display=""
                     rightExtra={i > 0 ? formatPercent(conv, 0) : ''} />
                 )
@@ -99,8 +102,8 @@ const OperationsView: React.FC = () => {
           <Section title="BOE Aging (Unpaid)">
             <Card className="p-3">
               <div className="space-y-1.5">
-                {(boe.aging_buckets || []).map((b: any) => {
-                  const maxVal = Math.max(...(boe.aging_buckets || []).map((x: any) => x.value || 0), 1)
+                {(boeSafe.aging_buckets || []).map((b: any) => {
+                  const maxVal = Math.max(...(boeSafe.aging_buckets || []).map((x: any) => x.value || 0), 1)
                   const danger = b.bucket === '90+ Days' || b.bucket === '61-90 Days'
                   return (
                     <BarRow key={b.bucket} label={b.bucket}
@@ -109,12 +112,12 @@ const OperationsView: React.FC = () => {
                       display={fmt(b.value)} rightExtra={String(b.count)} labelWidth="w-[70px]" />
                   )
                 })}
-                {(boe.aging_buckets || []).length === 0 && (
+                {(boeSafe.aging_buckets || []).length === 0 && (
                   <p className="text-[12px] text-[#707070] py-2">No unpaid BOE in aging buckets.</p>
                 )}
               </div>
               <div className="mt-3 pt-2 border-t border-[#ededed] grid grid-cols-2 gap-1.5">
-                {(boe.bifurcation || []).map((b: any) => (
+                {(boeSafe.bifurcation || []).map((b: any) => (
                   <div key={b.status_group} className="flex items-center justify-between">
                     <span className="text-[10px] text-[#707070] truncate">{b.status_group}</span>
                     <span className="text-[11px] font-semibold tabular">{formatPercent(b.pct, 0)}</span>

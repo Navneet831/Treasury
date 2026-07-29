@@ -36,9 +36,21 @@ const IntelligenceView: React.FC = () => {
   if (error || !data) return <ErrorState message={error || undefined} onRetry={reload} />
 
   const { intel, quant, radar } = data
+
+  // Guard: if any sub-response is missing (e.g. one API call returned null), show error
+  if (!intel || !quant || !Array.isArray(radar)) {
+    return <ErrorState message="Intelligence data is incomplete — one or more backend endpoints returned no data." onRetry={reload} />
+  }
+
   const yo = intel.yield_optimization
   const qm = intel.quant_models
-  const ewi = quant.early_warning_index
+
+  // Guard: if yield_optimization or quant_models are missing from the intel response
+  if (!yo || !qm) {
+    return <ErrorState message="Backend returned an unexpected response shape for Strategic Intelligence." onRetry={reload} />
+  }
+
+  const ewi = quant.early_warning_index ?? 0
   const stressTests: any[] = quant.stress_tests || []
   const maxUtil = Math.max(150, ...stressTests.map((s) => s.utilization + 10))
   const healthTone = intel.health_score >= 70 ? 'positive' : intel.health_score >= 40 ? 'warning' : 'critical'

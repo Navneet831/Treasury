@@ -34,18 +34,20 @@ const FXView: React.FC = () => {
   if (error || !data) return <ErrorState message={error || undefined} onRetry={reload} />
 
   const { fx, hedge, insights } = data
-  const exposure: any[] = fx.exposure || []
+  const fxSafe: any = fx || {}
+  const hedgeSafe: any = hedge || {}
+  const exposure: any[] = fxSafe.exposure || []
   const totalExposure = exposure.reduce((s, e) => s + (e.exposure_inr || 0), 0)
   const chartData = exposure.map((e) => ({
     currency: e.currency, Hedged: e.hedged || 0, Unhedged: e.unhedged || 0,
   }))
-  const s = hedge.summary
+  const s = hedgeSafe.summary || {}
 
   return (
     <div className="page-in">
       <PageHeader title="FX & Hedging" subtitle="Currency exposure and hedge coverage of the unpaid book"
-        right={<Pill tone={fx.total_unhedged_pct > 30 ? 'critical' : 'positive'}>
-          {formatPercent(fx.total_unhedged_pct)} unhedged
+        right={<Pill tone={fxSafe.total_unhedged_pct > 30 ? 'critical' : 'positive'}>
+          {formatPercent(fxSafe.total_unhedged_pct)} unhedged
         </Pill>} />
       <div className="p-4 space-y-5 max-w-[1500px]">
         <InsightStrip insights={insights} />
@@ -61,10 +63,10 @@ const FXView: React.FC = () => {
           />
           <StatTile 
             size="hero" 
-            tone={fx.total_unhedged_pct > 30 ? 'critical' : 'positive'}
+            tone={fxSafe.total_unhedged_pct > 30 ? 'critical' : 'positive'}
             label="Unhedged Share" 
-            value={formatPercent(fx.total_unhedged_pct)}
-            sub={fx.alert || 'Within policy threshold'} 
+            value={formatPercent(fxSafe.total_unhedged_pct)}
+            sub={fxSafe.alert || 'Within policy threshold'} 
             metricId="fx-unhedged"
             drillDownParams={{ status: 'Open' }}
           />
@@ -145,7 +147,7 @@ const FXView: React.FC = () => {
                 { key: 'unpaid_fc', label: 'Unpaid (FC)', align: 'right', render: (r) => `${r.currency} ${(r.unpaid_fc || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}` },
                 { key: 'unpaid_inr', label: 'Unpaid (INR)', align: 'right', render: (r) => <span className="font-semibold">{fmtInr(r.unpaid_inr)}</span> },
               ]}
-              rows={hedge.products || []}
+              rows={hedgeSafe.products || []}
             />
           </Card>
         </Section>
