@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { getLifecycleTracker, getDrillDown } from '../../api'
 import { useStore } from '../../store'
 import { formatNumber } from '../../utils'
-import { ArrowDown, Info, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { ArrowDown, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import DrillDownModal from '../../components/DrillDownModal'
 
 const LifecycleTracker: React.FC = () => {
@@ -63,10 +63,6 @@ const LifecycleTracker: React.FC = () => {
           <p className="text-sm text-muted-foreground">End-to-end transaction funnel monitoring. Click any stage to drill down.</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg border border-blue-100">
-            <Info className="w-4 h-4" />
-            <span className="text-xs font-bold uppercase tracking-tight">Interactive Funnel</span>
-          </div>
           <button type="button" onClick={(e) => { e.preventDefault(); fetchData(); }} className="p-2 border rounded-lg hover:bg-muted transition-colors">
             <RefreshCw className="w-4 h-4" />
           </button>
