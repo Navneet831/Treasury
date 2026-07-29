@@ -258,16 +258,16 @@ const CalendarView: React.FC = () => {
     <div className="flex flex-col h-full bg-parchment">
       <div className="bg-white border-b border-[#e2e8f0] px-4 py-2 flex flex-wrap items-center gap-2 sticky top-0 z-30">
         <div className="flex items-center gap-0.5 bg-[#f1f5f9] rounded-lg p-0.5 flex-shrink-0">
-          <button onClick={prevMonth} className="p-1.5 rounded-md hover:bg-white transition-colors text-[#64748b]"><ChevronLeft className="w-3.5 h-3.5" /></button>
+          <button type="button" onClick={(e) => { e.preventDefault(); prevMonth(); }} className="p-1.5 rounded-md hover:bg-white transition-colors text-[#64748b]"><ChevronLeft className="w-3.5 h-3.5" /></button>
           <span className="text-[12px] font-bold text-[#0f172a] min-w-[130px] text-center">{monthLabel}</span>
-          <button onClick={nextMonth} className="p-1.5 rounded-md hover:bg-white transition-colors text-[#64748b]"><ChevronRight className="w-3.5 h-3.5" /></button>
+          <button type="button" onClick={(e) => { e.preventDefault(); nextMonth(); }} className="p-1.5 rounded-md hover:bg-white transition-colors text-[#64748b]"><ChevronRight className="w-3.5 h-3.5" /></button>
         </div>
 
         <div className="w-px h-5 bg-[#e2e8f0]" />
 
         <div className="flex items-center gap-0.5 bg-[#f1f5f9] rounded-lg p-0.5">
           {(Object.keys(VIEW_LABELS) as ViewMode[]).map(v => (
-            <button key={v} onClick={() => setViewMode(v)} className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${viewMode === v ? 'bg-white text-[#0f172a] shadow-sm' : 'text-[#64748b] hover:text-[#0f172a]'}`}>
+            <button type="button" key={v} onClick={(e) => { e.preventDefault(); setViewMode(v); }} className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${viewMode === v ? 'bg-white text-[#0f172a] shadow-sm' : 'text-[#64748b] hover:text-[#0f172a]'}`}>
               {VIEW_LABELS[v]}
             </button>
           ))}
@@ -281,14 +281,14 @@ const CalendarView: React.FC = () => {
             <div className="w-px h-5 bg-[#e2e8f0]" />
             <div className="flex items-center gap-0.5 bg-[#f1f5f9] rounded-lg p-0.5">
               {['All', 'Open', 'Closed'].map(s => (
-                <button key={s} onClick={() => setNfbStatus(s as any)} className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${nfbStatus === s ? 'bg-white text-[#0f172a] shadow-sm' : 'text-[#64748b]'}`}>
+                <button type="button" key={s} onClick={(e) => { e.preventDefault(); setNfbStatus(s as any); }} className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${nfbStatus === s ? 'bg-white text-[#0f172a] shadow-sm' : 'text-[#64748b]'}`}>
                   {s}
                 </button>
               ))}
             </div>
             <div className="flex items-center gap-0.5 bg-[#f1f5f9] rounded-lg p-0.5">
               {['All', 'LC', 'SBLC'].map(t => (
-                <button key={t} onClick={() => setNfbType(t as any)} className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${nfbType === t ? 'bg-white text-[#0f172a] shadow-sm' : 'text-[#64748b]'}`}>
+                <button type="button" key={t} onClick={(e) => { e.preventDefault(); setNfbType(t as any); }} className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${nfbType === t ? 'bg-white text-[#0f172a] shadow-sm' : 'text-[#64748b]'}`}>
                   {t}
                 </button>
               ))}
@@ -301,7 +301,7 @@ const CalendarView: React.FC = () => {
             <div className="w-px h-5 bg-[#e2e8f0]" />
             <div className="flex items-center gap-0.5 bg-[#f1f5f9] rounded-lg p-0.5">
               {['All', 'Unpaid', 'Paid'].map(ps => (
-                <button key={ps} onClick={() => setBoePayStatus(ps)} className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${boePayStatus === ps ? 'bg-white text-[#0f172a] shadow-sm' : 'text-[#64748b]'}`}>
+                <button type="button" key={ps} onClick={(e) => { e.preventDefault(); setBoePayStatus(ps); }} className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${boePayStatus === ps ? 'bg-white text-[#0f172a] shadow-sm' : 'text-[#64748b]'}`}>
                   {ps}
                 </button>
               ))}
@@ -314,7 +314,7 @@ const CalendarView: React.FC = () => {
             <div className="w-px h-5 bg-[#e2e8f0]" />
             <div className="flex items-center gap-0.5 bg-[#f1f5f9] rounded-lg p-0.5">
               {['All', 'SBI', 'BOI', 'IDBI'].map(b => (
-                <button key={b} onClick={() => setBankFilter(b)} className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${bankFilter === b ? 'bg-white text-[#0f172a] shadow-sm' : 'text-[#64748b]'}`}>
+                <button type="button" key={b} onClick={(e) => { e.preventDefault(); setBankFilter(b); }} className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${bankFilter === b ? 'bg-white text-[#0f172a] shadow-sm' : 'text-[#64748b]'}`}>
                   {b}
                 </button>
               ))}
@@ -394,7 +394,7 @@ const CalendarView: React.FC = () => {
                         }
 
                         return (
-                          <button key={idx} onClick={e => handleEventClick(e, ev, day)} title={`${ev.bank || 'Unknown Bank'}: ${formatCurrencyAbsolute(ev.amount, currency)}`} className="w-full text-left rounded-[3px] px-1 py-[1.5px] flex flex-col gap-0 shadow-sm hover:brightness-95 transition-all" style={{ background: style.bg, color: style.text, borderLeft: `2px solid ${style.text}44` }}>
+                          <button type="button" key={idx} onClick={e => { e.preventDefault(); handleEventClick(e, ev, day); }} title={`${ev.bank || 'Unknown Bank'}: ${formatCurrencyAbsolute(ev.amount, currency)}`} className="w-full text-left rounded-[3px] px-1 py-[1.5px] flex flex-col gap-0 shadow-sm hover:brightness-95 transition-all" style={{ background: style.bg, color: style.text, borderLeft: `2px solid ${style.text}44` }}>
                             <div className="flex justify-between items-center w-full">
                                 <span className="text-[8px] font-black uppercase tracking-tighter opacity-80 truncate max-w-[50px]">{ev.bank || 'MISC'}</span>
                                 <span className="text-[8px] font-bold opacity-60">{style.label}</span>

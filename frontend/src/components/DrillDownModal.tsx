@@ -137,21 +137,24 @@ const DrillDownModal: React.FC<DrillDownModalProps> = ({ isOpen, onClose, data, 
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setIsTabular(!isTabular)}
+              type="button"
+              onClick={(e) => { e.preventDefault(); setIsTabular(!isTabular); }}
               className={`flex items-center justify-center p-2 rounded-full transition-all text-[#171717] border ${isTabular ? 'bg-[#f0f0f2] border-[#dfdfdf]' : 'bg-white border-[#dfdfdf] hover:bg-[#f5f5f7]'}`}
               title={isTabular ? "Switch to Grouped View" : "Switch to Tabular View"}
             >
               <Table className="w-4 h-4" />
             </button>
             <button
-              onClick={() => exportToCSV(data, title.replace(/[^a-zA-Z0-9]/g, '_'))}
+              type="button"
+              onClick={(e) => { e.preventDefault(); exportToCSV(data, title.replace(/[^a-zA-Z0-9]/g, '_')); }}
               className="flex items-center gap-2 px-4 py-1.5 bg-[#3ecf8e] hover:bg-[#24b47e] text-[#171717] rounded-full text-[12px] font-bold transition-all shadow-sm"
             >
               <Download className="w-3.5 h-3.5" />
               Export CSV
             </button>
             <button
-              onClick={onClose}
+              type="button"
+              onClick={(e) => { e.preventDefault(); onClose(); }}
               className="p-1.5 hover:bg-[#f5f5f7] rounded-full transition-all text-[#1d1d1f]"
             >
               <X className="w-5 h-5" />
@@ -225,7 +228,8 @@ const DrillDownModal: React.FC<DrillDownModalProps> = ({ isOpen, onClose, data, 
         <div className="px-6 py-4 border-t border-[#dfdfdf] flex justify-between items-center bg-[#fafafa]">
           <p className="text-[11px] text-[#707070] font-medium">Securely synchronized with treasury systems.</p>
           <button
-            onClick={onClose}
+            type="button"
+            onClick={(e) => { e.preventDefault(); onClose(); }}
             className="px-6 py-2 bg-[#171717] text-white rounded-full font-bold text-[13px] hover:bg-black transition-all active:scale-95 shadow-sm"
           >
             Done

@@ -52,8 +52,9 @@ const AICopilot: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4">
                   {["Generate daily insights", "Show unpaid bills", "Expiring LCs", "Upcoming payment obligations"].map(q => (
                     <button 
+                      type="button"
                       key={q}
-                      onClick={() => { setQuery(q); }}
+                      onClick={(e) => { e.preventDefault(); setQuery(q); }}
                       className="p-3 text-[10px] font-bold uppercase tracking-tight border rounded-lg hover:bg-muted transition-colors text-left"
                     >
                       {q}
@@ -138,7 +139,8 @@ const AICopilot: React.FC = () => {
               className="flex-1 px-4 py-2 text-sm focus:outline-none"
             />
             <button 
-              onClick={onSend}
+              type="button"
+              onClick={(e) => { e.preventDefault(); onSend(); }}
               disabled={loading || !query.trim()}
               className="p-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
             >

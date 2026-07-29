@@ -146,7 +146,8 @@ export const DevView: React.FC = () => {
         </div>
         <div className="flex items-center gap-1.5">
           <button
-            onClick={() => { fetchConfig(); }}
+            type="button"
+            onClick={(e) => { e.preventDefault(); fetchConfig(); }}
             disabled={loading}
             className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-white border border-hairline text-[10px] font-medium text-ink hover:bg-canvas transition-colors disabled:opacity-40"
           >

@@ -67,7 +67,7 @@ const LifecycleTracker: React.FC = () => {
             <Info className="w-4 h-4" />
             <span className="text-xs font-bold uppercase tracking-tight">Interactive Funnel</span>
           </div>
-          <button onClick={fetchData} className="p-2 border rounded-lg hover:bg-muted transition-colors">
+          <button type="button" onClick={(e) => { e.preventDefault(); fetchData(); }} className="p-2 border rounded-lg hover:bg-muted transition-colors">
             <RefreshCw className="w-4 h-4" />
           </button>
         </div>
