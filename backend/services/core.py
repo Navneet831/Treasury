@@ -45,7 +45,7 @@ class _ColMap(dict):
             return
         self._resolved = True
         try:
-            actual_cols = [r["column_name"] for r in fetch_dict("DESCRIBE LC")]
+            actual_cols = [r["column_name"] for r in fetch_dict("DESCRIBE lc")]
         except Exception:
             logger.warning("Treasury: could not introspect LC schema to resolve COL_MAP; using static defaults")
             return
@@ -62,33 +62,36 @@ class _ColMap(dict):
 
 
 COL_MAP = _ColMap({
-    "amt_inr": '"LC Amt (in INR)"',
-    "amt_fc": '"Final LC Amt (in FC)"',
-    "boe_pending_inr": '"Pending BOE Amt (in INR)"',
-    "boe_pending_fc": '"Pending BOE Amt (in FC)"',
-    "boe_bill_inr": '"BOE Bill Amt (in INR)"',
-    "boe_bill_fc": '"BOE Bill Amt (in FC)"',
-    "lc_status": '"LC Status"',
-    "bank": '"Bank Name"',
-    "supplier": '"Supplier Name"',
-    "due_date": '"LC Payment Due Date"',
-    "expiry_date": '"LC EXPIRY DATE"',
-    "op_date": '"LC Op. Date"',
-    "boe_status": '"BOE Status"',
-    "payment_status": '"Payment Status"',
-    "shipment_date": '"LC SHIPMENT DATE"',
-    "lc_no": '"LC no."',
-    "boe_date": '"Date of Bill of Entry Submitted to Bank"',
-    "limit_avail": '"LC Limit Available"',
-    "margin_fd": '"Margin FD Made"',
-    "tolerance": '"Tolerance Amt /Reduction Amt"',
-    "currency": '"Currency"',
-    "material_date": '"Material Receipt Date"',
-    "bill_lodge": '"Bill Lodge date"',
-    "bill_accept": '"Bill Acceptance date"',
-    "docs_received": '"DOCUMENTS RECEIVED"',
-    "rate": '"RATE"',
-    "lc_close_date": '"LC Close date"',
+    "amt_inr": '"lc_amt_inr"',
+    "amt_fc": '"final_lc_amt_fc"',
+    "boe_pending_inr": '"pending_boe_amt_inr"',
+    "boe_pending_fc": '"pending_boe_amt_fc"',
+    "boe_bill_inr": '"boe_bill_amt_inr"',
+    "boe_bill_fc": '"boe_bill_amt_fc"',
+    "lc_status": '"lc_status"',
+    "bank": '"bank_name"',
+    "supplier": '"supplier_name"',
+    "due_date": '"lc_payment_due_date"',
+    "expiry_date": '"lc_expiry_date"',
+    "op_date": '"lc_op_date"',
+    "boe_status": '"boe_status"',
+    "payment_status": '"payment_status"',
+    "shipment_date": '"lc_shipment_date"',
+    "lc_no": '"lc_no"',
+    "boe_date": '"date_of_bill_of_entry_submitted_to_bank"',
+    "limit_avail": '"lc_limit_available"',
+    "margin_fd": '"margin_fd_made"',
+    "tolerance": '"tolerance_amt_reduction_amt"',
+    "currency": '"currency"',
+    "sblc_status": '"sblc_status"',
+    "product_name": '"product_name"',
+    "type": '"type"',
+    "material_date": '"material_receipt_date"',
+    "bill_lodge": '"bill_lodge_date"',
+    "bill_accept": '"bill_acceptance_date"',
+    "docs_received": '"documents_received"',
+    "rate": '"rate"',
+    "lc_close_date": '"lc_close_date"',
 })
 
 def get_unpaid_cond():
@@ -177,7 +180,7 @@ CONFIG_DEFAULTS = {
 def _app_config() -> Dict[str, float]:
     rates = dict(CONFIG_DEFAULTS)
     try:
-        rows = fetch_dict("SELECT key, value FROM APP_CONFIG")
+        rows = fetch_dict("SELECT key, value FROM system.app_config")
         rates.update({r["key"]: float(r["value"]) for r in rows if r["value"] is not None})
     except Exception as e:
         logger.warning("APP_CONFIG unavailable, using default rates: %s", e)
@@ -198,19 +201,19 @@ def _limit_exposure_snapshot(currency: str = "INR", fy: str = "All", lc_status: 
     fy_filter = get_fy_clause(fy, COL_MAP["op_date"])
     status_filter = "('Open', 'In Process')" if lc_status == "Open" else "('Closed')"
     limits = fetch_one("""
-        SELECT COALESCE(SUM(CAST(NULLIF(REPLACE("LC", ',', ''), '') AS DOUBLE)), 0) AS lc_limit,
-               COALESCE(SUM(CAST(NULLIF(REPLACE("Cash", ',', ''), '') AS DOUBLE)), 0) AS cash_limit
-        FROM bank_limit WHERE Bank_Table = 'Bank' AND Element != ''
+        SELECT COALESCE(SUM(CAST(NULLIF(REPLACE("lc", ',', ''), '') AS DOUBLE PRECISION)), 0) AS lc_limit,
+               COALESCE(SUM(CAST(NULLIF(REPLACE("cash", ',', ''), '') AS DOUBLE PRECISION)), 0) AS cash_limit
+        FROM bank_limit WHERE bank_table = 'Bank' AND element != ''
     """)
     nfb_limit = float(limits[0] or 0) if limits else 0.0
     fb_limit = float(limits[1] or 0) if limits else 0.0
     row = fetch_one(f"""
         SELECT COALESCE(SUM(
             CASE WHEN UPPER({COL_MAP['bank']}) IN ('BOI', 'IDBI') 
-                 THEN (CASE WHEN {COL_MAP['lc_status']} = 'Open' AND Margin = 0.1 THEN COALESCE({boe_col}, 0) ELSE 0 END)
+                 THEN (CASE WHEN {COL_MAP['lc_status']} = 'Open' AND margin = 0.1 THEN COALESCE({boe_col}, 0) ELSE 0 END)
                  ELSE {amt_col} END
         ), 0)
-        FROM LC WHERE {COL_MAP['lc_status']} IN {status_filter} {fy_filter}
+        FROM lc WHERE {COL_MAP['lc_status']} IN {status_filter} {fy_filter}
     """)
     exposure = float(row[0] or 0) if row else 0.0
     return {
@@ -228,7 +231,7 @@ def get_fy_list() -> List[str]:
     row = fetch_one(f"""
         SELECT MIN({COL_MAP['op_date']}) AS min_date,
                MAX(COALESCE({COL_MAP['due_date']}, {COL_MAP['op_date']})) AS max_date
-        FROM LC
+        FROM lc
     """)
     if not row or row[0] is None:
         return []

@@ -72,7 +72,8 @@ def _set_db_cache(cache_key: str, data: Dict[str, Any], ttl: int = _INTEREST_CAC
         logger.debug("DB cache write skipped (non-fatal): %s", e)
 
 def _get_interest_cache_key(fy: str = None, month: str = None) -> str:
-    return f"{fy or ''}|{month or ''}"
+    # v2: statements now read from normalized bank_transaction (per-account digit tables removed)
+    return f"v2|{fy or ''}|{month or ''}"
 
 def clear_interest_cache():
     _interest_cache.clear()
@@ -171,39 +172,19 @@ def _disk_cache(seconds: float = 3600, cache_dir: str = None):
     return decorator
 
 def discover_months_info():
-    """Discover all months, labels, and ranges present in bank statement tables.
-    Uses fast per-table MIN/MAX queries instead of a massive UNION ALL."""
+    """Discover all months, labels, and ranges present in bank statement data.
+    Statements live in the normalized bank_transaction table (keyed by account_id)."""
     t0 = time.time()
-    tables_res = fetch_dict("""
-        SELECT tablename FROM pg_tables
-        WHERE schemaname = 'public'
-          AND (tablename ~ '^[0-9]{6,}' OR tablename ~ '^4[0-9]{5,}')
-    """)
-    table_names = [t["tablename"] for t in tables_res]
-    if not table_names:
+    row = fetch_one("SELECT MIN(txn_date), MAX(txn_date) FROM bank_transaction")
+    if not row or row[0] is None or row[1] is None:
         return [], {}, {}
 
-    # Fast path: query MIN/MAX per table instead of UNION ALL over all rows
-    min_date = None
-    max_date = None
-    for tbl in table_names:
-        try:
-            row = fetch_one(f'SELECT MIN(TO_DATE(txn_date, \'DD/MM/YYYY\')), MAX(TO_DATE(txn_date, \'DD/MM/YYYY\')) FROM "{tbl}"')
-            if row:
-                dmin, dmax = row
-                dmin_dt = parse_date_flexible(dmin)
-                dmax_dt = parse_date_flexible(dmax)
-                if dmin_dt and (min_date is None or dmin_dt < min_date):
-                    min_date = dmin_dt
-                if dmax_dt and (max_date is None or dmax_dt > max_date):
-                    max_date = dmax_dt
-        except Exception:
-            pass
-
+    min_date = parse_date_flexible(row[0])
+    max_date = parse_date_flexible(row[1])
     if not min_date or not max_date:
         return [], {}, {}
 
-    logger.info("discover_months_info: %d tables scanned in %.2fs", len(table_names), time.time() - t0)
+    logger.info("discover_months_info: bank_transaction range %s..%s in %.2fs", min_date, max_date, time.time() - t0)
 
     months_order = []
     month_ranges = {}
@@ -328,10 +309,6 @@ def get_interest_summary_data(fy: str = None, month: str = None, recompute: bool
     if not months_order:
         return {"rows": [], "months": [], "monthLabels": {}, "fyList": []}
 
-    # Get list of public tables to match statements fast
-    tables_res = fetch_dict("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
-    existing_tables = {t["tablename"] for t in tables_res}
-
     # Pre-compute FY for every month key to support partitioned loading
     month_fy_map = {}
     for mk in months_order:
@@ -378,49 +355,30 @@ def get_interest_summary_data(fy: str = None, month: str = None, recompute: bool
         acct = acct_row["account_no"]
         
         try:
-            # Check matching table
-            tbl_name = None
-            candidates = [acct]
-            if acct.startswith("000000"):
-                stripped = acct.lstrip("0")
-                if stripped:
-                    candidates.append(stripped)
-            else:
-                padded = acct.zfill(15)
-                candidates.append(padded)
-
-            for c in candidates:
-                if c in existing_tables:
-                    tbl_name = c
-                    break
+            # Resolve account to normalized bank_transaction rows via bank_account
+            # (per-account digit tables were removed during the lowercase-schema migration)
+            acct_key = acct.lstrip("0")
+            acct_lookup = fetch_one(
+                "SELECT id FROM bank_account WHERE account_number = %s",
+                (acct_key,),
+            )
+            tbl_name = acct_key if acct_lookup else None
 
             # Load statement data
             stmt_rows = []
-            if tbl_name:
+            if acct_lookup:
                 try:
-                    # Check if `id` column exists for deterministic ordering
-                    has_id = False
-                    try:
-                        col_check = fetch_dict(f"""
-                            SELECT column_name FROM information_schema.columns
-                            WHERE table_name = '{tbl_name}' AND column_name = 'id'
-                            AND table_schema = 'public'
-                        """)
-                        has_id = len(col_check) > 0
-                    except Exception:
-                        pass
-                    order_clause = "ORDER BY txn_date ASC, id ASC" if has_id else "ORDER BY txn_date ASC"
-                    stmt_rows = fetch_dict(f"""
+                    stmt_rows = fetch_dict("""
                         SELECT txn_date, value_date, description,
                                COALESCE(debit, 0) as debit,
                                COALESCE(credit, 0) as credit,
                                balance
-                        FROM "{tbl_name}"
-                        {order_clause}
-                    """)
+                        FROM bank_transaction
+                        WHERE account_id = %s
+                        ORDER BY txn_date ASC, id ASC
+                    """, (acct_lookup[0],))
                 except Exception as e:
-                    logger.warning(f"Failed to query statement table '{tbl_name}': {e}")
-                    # Brief pause so the remote server can recover before the next table query
+                    logger.warning(f"Failed to query statement rows for account '{acct}': {e}")
                     import time as _time
                     _time.sleep(0.5)
 
@@ -681,24 +639,15 @@ def get_interest_summary_data(fy: str = None, month: str = None, recompute: bool
 
 def get_daily_breakdown(acct: str, month_key: str) -> List[Dict[str, Any]]:
     """Get day-wise breakdown (opening, debit, credit, closing, interest) for a CC account month."""
-    # Find table name
-    candidates = [acct]
-    if acct.startswith("000000"):
-        stripped = acct.lstrip("0")
-        if stripped:
-            candidates.append(stripped)
-    else:
-        padded = acct.zfill(15)
-        candidates.append(padded)
-    tables_res = fetch_dict("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
-    existing_tables = {r["tablename"] for r in tables_res}
-    tbl_name = None
-    for c in candidates:
-        if c in existing_tables:
-            tbl_name = c
-            break
-    if not tbl_name:
+    # Resolve account to normalized bank_transaction rows via bank_account
+    acct_key = acct.lstrip("0")
+    acct_lookup = fetch_one(
+        "SELECT id FROM bank_account WHERE account_number = %s",
+        (acct_key,),
+    )
+    if not acct_lookup:
         return []
+    acct_id = acct_lookup[0]
 
     # Determine year/month from month_key
     month_map = {
@@ -717,29 +666,17 @@ def get_daily_breakdown(acct: str, month_key: str) -> List[Dict[str, Any]]:
     start_str = f"{year}-{month_num:02d}-01"
     end_str = f"{year + 1}-01-01" if month_num == 12 else f"{year}-{month_num + 1:02d}-01"
 
-    # Load statement rows for the month
+    # Load statement rows for the month (txn_date is a real DATE column)
     try:
-        # Check if `id` column exists
-        has_id = False
-        try:
-            col_check = fetch_dict(f"""
-                SELECT column_name FROM information_schema.columns
-                WHERE table_name = '{tbl_name}' AND column_name = 'id'
-                AND table_schema = 'public'
-            """)
-            has_id = len(col_check) > 0
-        except Exception:
-            pass
-        order_clause = "ORDER BY txn_date ASC, id ASC" if has_id else "ORDER BY txn_date ASC"
-        stmt_rows = fetch_dict(f"""
+        stmt_rows = fetch_dict("""
             SELECT txn_date, value_date, description,
                    COALESCE(debit, 0) as debit,
                    COALESCE(credit, 0) as credit,
                    balance
-            FROM "{tbl_name}"
-            WHERE txn_date >= '{start_str}' AND txn_date < '{end_str}'
-            {order_clause}
-        """)
+            FROM bank_transaction
+            WHERE account_id = %s AND txn_date >= %s AND txn_date < %s
+            ORDER BY txn_date ASC, id ASC
+        """, (acct_id, start_str, end_str))
     except Exception:
         return []
 

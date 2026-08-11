@@ -25,27 +25,17 @@ import re
 HAS_NEWLINE_COLUMNS = True
 
 # Treasury tables that must be double-quoted in PostgreSQL
-# (they were created with uppercase names via CREATE TABLE "LC" etc.)
+# (all lowercase after schema migration)
 _TREASURY_TABLES = {
-    "LC", "SBLC", "bank_limit", "APP_CONFIG", "FDR_List",
-    "Bank_Guarantee", "supplier_Bank_Guarantee", "DD", "FX_RATES",
-    "TREASURY_INSIGHTS", "YIELD_CURVE", "CAPITAL_STACK", "DEBT_MATURITY",
+    "lc", "sblc", "bank_limit", "bank_guarantee", "supplier_bank_guarantee",
+    "fdr_list", "fx_rates", "treasury_insights", "yield_curve",
+    "capital_stack", "debt_maturity", "lc_bg_in_process",
+    "bank_summary", "bank_account", "bank_transaction",
 }
 
-# Mixed-case column names that PostgreSQL would lowercase if unquoted.
-# Only quote these when they appear as bare identifiers (not already quoted,
-# not inside string literals).
-_MIXED_CASE_COLS = {
-    # bank_limit columns
-    "Bank_Table", "Element",
-    # LC BG in Process columns
-    "MRGIN", "Bank_Name",
-    # common columns that appear unquoted in queries
-    "Margin", "Type", "Status",
-}
-_COL_RE = re.compile(
-    r'(?<!["\w])(' + '|'.join(re.escape(c) for c in sorted(_MIXED_CASE_COLS, key=len, reverse=True)) + r')(?!["\w])',
-)
+# Mixed-case column names — now all lowercase after schema migration, no quoting needed.
+_MIXED_CASE_COLS = set()
+_COL_RE = re.compile(r'(?!)')  # matches nothing
 # Pre-compiled pattern: word boundary + table name + word boundary, NOT already quoted
 _TABLE_RE = re.compile(
     r'(?<!["\w])(' + '|'.join(re.escape(t) for t in sorted(_TREASURY_TABLES, key=len, reverse=True)) + r')(?!["\w])',
@@ -160,7 +150,7 @@ def translate_sql(query: str) -> str:
         return (
             "SELECT table_name AS name "
             "FROM information_schema.tables "
-            "WHERE table_schema = 'public' "
+            "WHERE table_schema = 'treasury' "
             "ORDER BY table_name"
         )
 
@@ -171,31 +161,26 @@ def translate_sql(query: str) -> str:
         return (
             f"SELECT column_name, data_type AS column_type "
             f"FROM information_schema.columns "
-            f"WHERE table_name = '{tbl}' AND table_schema = 'public' "
+            f"WHERE table_name = '{tbl}' AND table_schema = 'treasury' "
             f"ORDER BY ordinal_position"
         )
 
     # 3. Quote unquoted Treasury table names + mixed-case column names
     query = _quote_tables(query)
 
-    # Translate column names with spaces to their newline counterparts in the database
-    if HAS_NEWLINE_COLUMNS:
-        query = query.replace('"LC Amt (in INR)"', '"LC Amt \n(in INR)"')
-        query = query.replace('"Final LC Amt (in FC)"', '"Final LC Amt\n(in FC)"')
-        query = query.replace('"BOE Bill Amt (in FC)"', '"BOE Bill Amt\n(in FC)"')
-        query = query.replace('"Pending BOE Amt (in FC)"', '"Pending BOE Amt\n(in FC)"')
-        query = query.replace('"BOE Bill Amt (in INR)"', '"BOE Bill Amt\n(in INR)"')
-        query = query.replace('"Pending BOE Amt (in INR)"', '"Pending BOE Amt\n(in INR)"')
+    # No longer needed - columns are now snake_case (no spaces/newlines)
+    HAS_NEWLINE_COLUMNS = False
 
-    # 3b. Cast known date/timestamp columns stored as TEXT to ::DATE so
-    #     comparisons with date literals work. Applies to quoted column refs.
+    # 3b. Cast known date/timestamp columns stored as TEXT to ::DATE
+    # Columns are now snake_case - no longer need this translation
     _DATE_COL_NAMES = (
-        "LC Payment Due Date", "LC Op. Date", "LC EXPIRY DATE",
-        "LC SHIPMENT DATE", "LC Close date", "Material Receipt Date",
-        "Bill Lodge date", "Bill Acceptance date",
-        "Date of Bill of Entry Submitted to Bank",
-        "SBLC ISSUE DATE", "SBLC LC Payment Due Date",
-        "LC Op. Date",
+        "lc_payment_due_date", "lc_op_date", "lc_expiry_date",
+        "lc_shipment_date", "lc_close_date", "material_receipt_date",
+        "bill_lodge_date", "bill_acceptance_date",
+        "date_of_bill_of_entry_submitted_to_bank",
+        "limit_available_date",
+        "lc_payment_due_month",
+        "sblc_lc_payment_due_date",
     )
     for col in _DATE_COL_NAMES:
         quoted = f'"{col}"'

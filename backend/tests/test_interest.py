@@ -33,7 +33,7 @@ def test_daily_breakdown_opening_balance(datalogic):
         col_check = fetch_dict(f"""
             SELECT column_name FROM information_schema.columns
             WHERE table_name = '{tbl_name}' AND column_name = 'id'
-            AND table_schema = 'public'
+            AND table_schema = 'treasury'
         """)
         has_id = len(col_check) > 0
         order_by = "ORDER BY txn_date ASC, id ASC" if has_id else "ORDER BY txn_date ASC"
@@ -248,7 +248,7 @@ def test_daily_breakdown_raw_closing_matches_statement(datalogic):
         col_check = fetch_dict(f"""
             SELECT column_name FROM information_schema.columns
             WHERE table_name = '{tbl_name}' AND column_name = 'id'
-            AND table_schema = 'public'
+            AND table_schema = 'treasury'
         """)
         has_id = len(col_check) > 0
         order_by = "ORDER BY txn_date ASC, id ASC" if has_id else "ORDER BY txn_date ASC"

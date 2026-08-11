@@ -31,10 +31,10 @@ def get_executive_overview_data(currency: str = "INR", fy: str = "All", lc_statu
 
     limits = fetch_dict("""
         SELECT
-            CAST(NULLIF(REPLACE("LC", ',', ''), '') AS DOUBLE) as lc_limit,
-            CAST(NULLIF(REPLACE("SBLC", ',', ''), '') AS DOUBLE) as sblc_limit,
-            CAST(NULLIF(REPLACE("Cash", ',', ''), '') AS DOUBLE) as cash_limit
-        FROM bank_limit WHERE Bank_Table = 'Bank' AND Element != ''
+            CAST(NULLIF(REPLACE("lc", ',', ''), '') AS DOUBLE PRECISION) as lc_limit,
+            CAST(NULLIF(REPLACE("sblc", ',', ''), '') AS DOUBLE PRECISION) as sblc_limit,
+            CAST(NULLIF(REPLACE("cash", ',', ''), '') AS DOUBLE PRECISION) as cash_limit
+        FROM bank_limit WHERE bank_table = 'Bank' AND element != ''
     """)
     total_nfb_limit = sum((r['lc_limit'] or 0) for r in limits) if limits else 0
     total_sblc_limit = sum((r['sblc_limit'] or 0) for r in limits) if limits else 0
@@ -44,14 +44,14 @@ def get_executive_overview_data(currency: str = "INR", fy: str = "All", lc_statu
     lc_stats_res = fetch_one(f"""
         SELECT
             SUM(CASE WHEN UPPER({COL_MAP['bank']}) IN ('BOI', 'IDBI') 
-                     THEN (CASE WHEN {COL_MAP['lc_status']} = 'Open' AND Margin = 0.1 THEN COALESCE({boe_col}, 0) ELSE 0 END)
+                     THEN (CASE WHEN {COL_MAP['lc_status']} = 'Open' AND margin = 0.1 THEN COALESCE({boe_col}, 0) ELSE 0 END)
                      ELSE {amt_col} END) as total_lc_exposure,
             SUM(CASE WHEN {COL_MAP['lc_status']} = 'Open' THEN {COL_MAP['margin_fd']} ELSE 0 END) as margin_fd,
-            SUM(CASE WHEN "Type" != 'Unhedged' THEN {amt_col} ELSE 0 END) as hedged_amt,
+            SUM(CASE WHEN "type" != 'Unhedged' THEN {amt_col} ELSE 0 END) as hedged_amt,
             SUM(CASE WHEN {COL_MAP['lc_status']} = 'In Process' THEN 
                 (CASE WHEN UPPER({COL_MAP['bank']}) IN ('BOI', 'IDBI') THEN 0 ELSE {amt_col} END)
             ELSE 0 END) as lc_in_process
-        FROM LC WHERE {COL_MAP['lc_status']} IN {status_filter} {fy_filter}
+        FROM lc WHERE {COL_MAP['lc_status']} IN {status_filter} {fy_filter}
     """)
     lc_stats = lc_stats_res if lc_stats_res else (0, 0, 0, 0)
     total_lc_exposure = lc_stats[0] if lc_stats[0] is not None else 0
@@ -61,7 +61,7 @@ def get_executive_overview_data(currency: str = "INR", fy: str = "All", lc_statu
 
     sblc_stats_res = fetch_one(f"""
         SELECT SUM({amt_col}) as sblc_outstanding
-        FROM LC WHERE "SBLC Status" LIKE 'Yes%' AND {COL_MAP['lc_status']} = 'Open' {fy_filter}
+        FROM lc WHERE "sblc_status" LIKE 'Yes%' AND {COL_MAP['lc_status']} = 'Open' {fy_filter}
     """)
     total_sblc_exposure = sblc_stats_res[0] if sblc_stats_res and sblc_stats_res[0] is not None else 0
 
@@ -73,7 +73,7 @@ def get_executive_overview_data(currency: str = "INR", fy: str = "All", lc_statu
     unhedged_pct = 100 - hedged_pct if total_lc_exposure > 0 else 0
 
     u30_res = fetch_one(f"""
-        SELECT SUM({amt_col}) FROM LC
+        SELECT SUM({amt_col}) FROM lc
         WHERE {COL_MAP['due_date']} BETWEEN '{cd}' AND '{cd}'::DATE + INTERVAL 30 DAY
         AND ({COL_MAP['payment_status']} IS NULL OR {COL_MAP['payment_status']} != 'Paid')
         {get_fy_clause(fy, COL_MAP['due_date'])}
@@ -84,19 +84,19 @@ def get_executive_overview_data(currency: str = "INR", fy: str = "All", lc_statu
     if currency == 'FC':
         breakdowns['total_lc_exposure'] = get_currency_breakdown(f"""
             SELECT {COL_MAP['currency']} as Currency, SUM({COL_MAP['amt_fc']}) as value
-            FROM LC WHERE {COL_MAP['lc_status']} IN ('Open', 'In Process') {fy_filter}
+            FROM lc WHERE {COL_MAP['lc_status']} IN ('Open', 'In Process') {fy_filter}
             GROUP BY 1
         """)
         breakdowns['upcoming_30d'] = get_currency_breakdown(f"""
             SELECT {COL_MAP['currency']} as Currency, SUM({COL_MAP['amt_fc']}) as value
-            FROM LC WHERE {COL_MAP['due_date']} BETWEEN '{cd}' AND '{cd}'::DATE + INTERVAL 30 DAY
+            FROM lc WHERE {COL_MAP['due_date']} BETWEEN '{cd}' AND '{cd}'::DATE + INTERVAL 30 DAY
             AND ({COL_MAP['payment_status']} IS NULL OR {COL_MAP['payment_status']} != 'Paid')
             {get_fy_clause(fy, COL_MAP['due_date'])}
             GROUP BY 1
         """)
         breakdowns['working_capital_frozen'] = get_currency_breakdown(f"""
             SELECT {COL_MAP['currency']} as Currency, SUM({COL_MAP['margin_fd']}) as value
-            FROM LC WHERE {COL_MAP['lc_status']} = 'Open' {fy_filter}
+            FROM lc WHERE {COL_MAP['lc_status']} = 'Open' {fy_filter}
             GROUP BY 1
         """)
 
@@ -131,11 +131,11 @@ def get_command_data(currency: str = "INR", fy: str = "All", payment_status: str
     
     # Facility filter for LC table
     if facility_type == "SBLC":
-        fac_filter = " AND \"SBLC Status\" LIKE 'Yes%'"
+        fac_filter = f" AND {COL_MAP['sblc_status']} LIKE 'Yes%'"
     elif facility_type == "CASH":
-        fac_filter = " AND (\"Product Name\" LIKE '%CASH%' OR \"Type\" LIKE '%CASH%')"
+        fac_filter = f" AND ({COL_MAP['product_name']} LIKE '%CASH%' OR {COL_MAP['type']} LIKE '%CASH%')"
     else:
-        fac_filter = " AND (\"SBLC Status\" NOT LIKE 'Yes%' OR \"SBLC Status\" IS NULL) AND (\"Product Name\" NOT LIKE '%CASH%' OR \"Product Name\" IS NULL)"
+        fac_filter = f" AND ({COL_MAP['sblc_status']} NOT LIKE 'Yes%' OR {COL_MAP['sblc_status']} IS NULL) AND ({COL_MAP['product_name']} NOT LIKE '%CASH%' OR {COL_MAP['product_name']} IS NULL)"
     
     if lc_status == "Open":
         status_filter = "('Open', 'In Process')"
@@ -164,15 +164,15 @@ def get_command_data(currency: str = "INR", fy: str = "All", payment_status: str
 
     # Define limit_map for pivots
     limits = fetch_dict("""
-        SELECT TRIM(Element) as bank, CAST(NULLIF(REPLACE("LC", ',', ''), '') AS DOUBLE) as limit_amt
-        FROM bank_limit WHERE Bank_Table = 'Bank' AND Element != '' AND Element IS NOT NULL
+        SELECT TRIM(element) as bank, CAST(NULLIF(REPLACE("lc", ',', ''), '') AS DOUBLE PRECISION) as limit_amt
+        FROM bank_limit WHERE bank_table = 'Bank' AND element != '' AND element IS NOT NULL
     """)
     limit_map = {r['bank']: r['limit_amt'] or 0 for r in limits}
     bank_limit_summary = [{"bank": b, "limit": l} for b, l in limit_map.items()]
 
     overdue = fetch_one(f"""
         SELECT COUNT(*), SUM({amt_col})
-        FROM LC
+        FROM lc
         WHERE {COL_MAP['due_date']} < '{cd}'
           AND ({COL_MAP['payment_status']} IS NULL OR {COL_MAP['payment_status']} != 'Paid')
           AND {COL_MAP['lc_status']} IN {status_filter}
@@ -180,7 +180,7 @@ def get_command_data(currency: str = "INR", fy: str = "All", payment_status: str
     """)
     due_7d = fetch_one(f"""
         SELECT COUNT(*), SUM({amt_col})
-        FROM LC
+        FROM lc
         WHERE {COL_MAP['due_date']} BETWEEN '{cd}' AND '{cd}'::DATE + INTERVAL 7 DAY
           AND ({COL_MAP['payment_status']} IS NULL OR {COL_MAP['payment_status']} != 'Paid')
           AND {COL_MAP['lc_status']} IN {status_filter}
@@ -199,13 +199,13 @@ def get_command_data(currency: str = "INR", fy: str = "All", payment_status: str
     boe_bill_col = COL_MAP["boe_bill_inr"] if currency == "INR" else COL_MAP["boe_bill_fc"]
     product_unpaid_raw = fetch_dict(f"""
         SELECT
-            COALESCE(TRIM("Product Name"), 'Unknown') as product,
-            COALESCE(TRIM("Type"), 'Unknown') as type,
+            COALESCE(TRIM(product_name), 'Unknown') as product,
+            COALESCE(TRIM("type"), 'Unknown') as type,
             TRIM({COL_MAP['bank']}) as bank,
             SUM(CASE WHEN UPPER({COL_MAP['bank']}) IN ('BOI', 'IDBI') 
-                     THEN (CASE WHEN {COL_MAP['lc_status']} = 'Open' AND Margin = 0.1 THEN COALESCE({boe_bill_col}, 0) ELSE 0 END)
+                     THEN (CASE WHEN {COL_MAP['lc_status']} = 'Open' AND margin = 0.1 THEN COALESCE({boe_bill_col}, 0) ELSE 0 END)
                      ELSE COALESCE({boe_amt_col}, {amt_col}, 0) END) as value
-        FROM LC
+        FROM lc
         WHERE {pay_cond}
           AND {COL_MAP['lc_status']} IN {status_filter}
           {get_fy_clause(fy, COL_MAP['due_date'])}
@@ -230,9 +230,9 @@ def get_command_data(currency: str = "INR", fy: str = "All", payment_status: str
             COALESCE({COL_MAP['payment_status']}, 'Unpaid') as payment_status,
             TRIM({COL_MAP['bank']}) as bank,
             SUM(CASE WHEN UPPER({COL_MAP['bank']}) IN ('BOI', 'IDBI') 
-                     THEN (CASE WHEN Margin = 0.1 THEN COALESCE({boe_bill_amt_col}, 0) ELSE 0 END)
+                     THEN (CASE WHEN margin = 0.1 THEN COALESCE({boe_bill_amt_col}, 0) ELSE 0 END)
                      ELSE COALESCE({boe_bill_amt_col}, 0) END) as value
-        FROM LC WHERE 1=1 {fy_filter}
+        FROM lc WHERE 1=1 {fy_filter}
         GROUP BY 1, 2, 3, 4
     """)
 
@@ -269,9 +269,9 @@ def get_command_data(currency: str = "INR", fy: str = "All", payment_status: str
         SELECT
             {COL_MAP['bank']} as bank,
             COUNT(*) as lc_count,
-            AVG(Margin) as avg_margin_pct,
+            AVG(margin) as avg_margin_pct,
             SUM({COL_MAP['margin_fd']}) as total_margin_fd
-        FROM LC
+        FROM lc
         WHERE {COL_MAP['lc_status']} = 'Open' {fy_filter}
         GROUP BY 1
     """)

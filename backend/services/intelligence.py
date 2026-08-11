@@ -45,7 +45,7 @@ def _portfolio_risk_inputs(currency: str = "INR", fy: str = "All") -> Dict[str, 
         SELECT
             COALESCE(SUM(CASE WHEN {st} = 'Open' THEN {amt_inr} ELSE 0 END), 0) as open_inr,
             COALESCE(SUM(CASE WHEN {st} IN ('Open', 'In Process') AND {COL_MAP['currency']} != 'INR' THEN {amt_inr} ELSE 0 END), 0) as fc_exposure_inr,
-            COALESCE(SUM(CASE WHEN {st} = 'Open' AND "Type" = 'Unhedged' AND {COL_MAP['currency']} != 'INR' THEN {amt_inr} ELSE 0 END), 0) as unhedged_inr,
+            COALESCE(SUM(CASE WHEN {st} = 'Open' AND "type" = 'Unhedged' AND {COL_MAP['currency']} != 'INR' THEN {amt_inr} ELSE 0 END), 0) as unhedged_inr,
             COALESCE(SUM(CASE WHEN CAST({due} AS DATE) < CURRENT_DATE AND {_UNPAID} AND {st} NOT IN ('Closed', 'Cancelled') THEN {due_amt} ELSE 0 END), 0) as overdue_amt,
             COALESCE(SUM(CASE WHEN CAST({due} AS DATE) BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL 30 DAY AND {_UNPAID} THEN {due_amt} ELSE 0 END), 0) as due_30d,
             COALESCE(SUM(CASE WHEN CAST({due} AS DATE) BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL 90 DAY AND {_UNPAID} THEN {due_amt} ELSE 0 END), 0) as due_90d,
@@ -53,7 +53,7 @@ def _portfolio_risk_inputs(currency: str = "INR", fy: str = "All") -> Dict[str, 
             COUNT(CASE WHEN {st} = 'Open' THEN 1 END) as open_count,
             COUNT(CASE WHEN {st} = 'Open' AND CAST({COL_MAP['expiry_date']} AS DATE) BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL 30 DAY THEN 1 END) as expiring_30d_count,
             COUNT(CASE WHEN {st} = 'Open' AND ({COL_MAP['boe_status']} != 'Received' OR {COL_MAP['boe_status']} IS NULL) THEN 1 END) as boe_pending_count
-        FROM LC WHERE 1=1 {fy_f}
+        FROM lc WHERE 1=1 {fy_f}
     """)[0]
     return {k: float(v or 0) for k, v in row.items()}
 
@@ -63,7 +63,7 @@ def _peak_outflow_window(fy: str = "All", window_days: int = 7) -> tuple:
     due = COL_MAP["due_date"]
     rows = fetch_dict(f"""
         SELECT CAST({due} AS DATE) as d, SUM({_due_amount_expr("INR")}) as v
-        FROM LC
+        FROM lc
         WHERE CAST({due} AS DATE) >= CURRENT_DATE AND {_UNPAID}
           AND {COL_MAP['lc_status']} NOT IN ('Closed', 'Cancelled') {get_fy_clause(fy, due)}
         GROUP BY 1 ORDER BY 1
@@ -86,7 +86,7 @@ def get_strategic_intelligence_data(currency: str = "INR", fy: str = "All") -> D
     risk = _portfolio_risk_inputs(currency, fy)
 
     locked_fd = float(fetch_one(
-        f"SELECT COALESCE(SUM({COL_MAP['margin_fd']}), 0) FROM LC WHERE {COL_MAP['lc_status']} = 'Open' {fy_f}"
+        f"SELECT COALESCE(SUM({COL_MAP['margin_fd']}), 0) FROM lc WHERE {COL_MAP['lc_status']} = 'Open' {fy_f}"
     )[0] or 0)
     yield_lost = locked_fd * cfg["yield_rate"]
     cost_of_inefficiency = (risk["boe_received_unpaid"] * cfg["inefficiency_boe_rate"]
@@ -109,31 +109,31 @@ def get_strategic_intelligence_data(currency: str = "INR", fy: str = "All") -> D
         SELECT {COL_MAP['supplier']} as supplier,
                AVG(date_diff('day', {COL_MAP['shipment_date']}, {COL_MAP['boe_date']})) as avg_delay_days,
                COUNT(*) as tx_count
-        FROM LC
+        FROM lc
         WHERE {COL_MAP['shipment_date']} IS NOT NULL AND {COL_MAP['boe_date']} IS NOT NULL {fy_f}
         GROUP BY 1 ORDER BY avg_delay_days DESC LIMIT 8
     """)
 
     bank_utilization = fetch_dict(f"""
-        SELECT LC.{COL_MAP['bank']} as bank,
-               COALESCE(SUM(CASE WHEN LC.{COL_MAP['lc_status']} IN ('Open', 'In Process') THEN LC.{COL_MAP['amt_inr']} ELSE 0 END), 0) as used_limit,
-               COALESCE(MAX(CAST(NULLIF(REPLACE(bank_limit."LC", ',', ''), '') AS DOUBLE)), 0) as max_limit
-        FROM LC
-        LEFT JOIN bank_limit ON TRIM(UPPER(LC.{COL_MAP['bank']})) = TRIM(UPPER(bank_limit.Element))
-            AND bank_limit.Bank_Table = 'Bank'
+        SELECT lc.{COL_MAP['bank']} as bank,
+               COALESCE(SUM(CASE WHEN lc.{COL_MAP['lc_status']} IN ('Open', 'In Process') THEN lc.{COL_MAP['amt_inr']} ELSE 0 END), 0) as used_limit,
+               COALESCE(MAX(CAST(NULLIF(REPLACE(bank_limit."lc", ',', ''), '') AS DOUBLE PRECISION)), 0) as max_limit
+        FROM lc
+        LEFT JOIN bank_limit ON TRIM(UPPER(lc.{COL_MAP['bank']})) = TRIM(UPPER(bank_limit.Element))
+            AND bank_limit.bank_table = 'Bank'
         WHERE 1=1 {fy_f}
         GROUP BY 1 ORDER BY 2 DESC
     """)
 
     closure = fetch_one(f"""
         SELECT AVG(date_diff('day', {COL_MAP['op_date']}, {COL_MAP['lc_close_date']}))
-        FROM LC WHERE {COL_MAP['lc_close_date']} IS NOT NULL AND {COL_MAP['op_date']} IS NOT NULL {fy_f}
+        FROM lc WHERE {COL_MAP['lc_close_date']} IS NOT NULL AND {COL_MAP['op_date']} IS NOT NULL {fy_f}
     """)
     lc_closure_avg_days = float(closure[0] or 0) if closure else 0.0
 
     demand = fetch_dict(f"""
         SELECT date_trunc('month', {COL_MAP['op_date']}) as m, SUM({COL_MAP['amt_inr']}) as v
-        FROM LC
+        FROM lc
         WHERE CAST({COL_MAP['op_date']} AS DATE) >= CAST(date_trunc('month', CURRENT_DATE) - INTERVAL 3 MONTH AS DATE)
           AND CAST({COL_MAP['op_date']} AS DATE) < CAST(date_trunc('month', CURRENT_DATE) AS DATE)
         GROUP BY 1
@@ -182,7 +182,7 @@ def get_advanced_quant_data(currency: str = "INR", fy: str = "All") -> Dict[str,
 
     history = fetch_dict(f"""
         SELECT date_trunc('month', {due}) as m, SUM({_due_amount_expr("INR")}) as v
-        FROM LC WHERE {due} IS NOT NULL {get_fy_clause(fy, due)} GROUP BY 1
+        FROM lc WHERE {due} IS NOT NULL {get_fy_clause(fy, due)} GROUP BY 1
     """)
     monthly = [float(h["v"] or 0) for h in history]
     lar_mean = statistics.mean(monthly) if monthly else 0.0
@@ -223,7 +223,7 @@ def get_advanced_quant_data(currency: str = "INR", fy: str = "All") -> Dict[str,
     network = fetch_dict(f"""
         SELECT {COL_MAP['bank']} as source, {COL_MAP['supplier']} as target,
                SUM({COL_MAP['amt_inr']}) as value
-        FROM LC
+        FROM lc
         WHERE {COL_MAP['lc_status']} = 'Open'
           AND {COL_MAP['bank']} IS NOT NULL AND {COL_MAP['supplier']} IS NOT NULL
           {get_fy_clause(fy, COL_MAP['op_date'])}
@@ -251,7 +251,7 @@ def get_treasury_radar_data(currency: str = "INR", fy: str = "All") -> List[Dict
 
     delay_row = fetch_one(f"""
         SELECT AVG(date_diff('day', {COL_MAP['shipment_date']}, {COL_MAP['boe_date']}))
-        FROM LC WHERE {COL_MAP['shipment_date']} IS NOT NULL AND {COL_MAP['boe_date']} IS NOT NULL
+        FROM lc WHERE {COL_MAP['shipment_date']} IS NOT NULL AND {COL_MAP['boe_date']} IS NOT NULL
         {get_fy_clause(fy, COL_MAP['op_date'])}
     """)
     avg_delay = float(delay_row[0] or 0) if delay_row else 0.0

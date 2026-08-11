@@ -165,7 +165,7 @@ def _extract_schema_descriptions() -> list[str]:
     rows = repo.fetch_all(
         "SELECT table_name, column_name, data_type "
         "FROM information_schema.columns "
-        "WHERE table_schema = 'public' "
+        "WHERE table_schema = 'treasury' "
         "ORDER BY table_name, ordinal_position"
     )
     tables: dict[str, list[str]] = {}
@@ -177,7 +177,7 @@ def _extract_schema_descriptions() -> list[str]:
     descriptions = []
     for tn, cols in tables.items():
         descriptions.append(
-            f"Table public.{tn} has columns: {' | '.join(cols)}"
+            f"Table treasury.{tn} has columns: {' | '.join(cols)}"
         )
     return descriptions
 

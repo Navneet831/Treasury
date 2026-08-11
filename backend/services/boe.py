@@ -23,7 +23,7 @@ def get_boe_analytics_data(currency: str = "INR", fy: str = "All", lc_status: st
             END as status_group,
             COUNT(*) as count,
             COALESCE(SUM({amt_col}), 0) as amount
-        FROM LC
+        FROM lc
         WHERE 1=1 AND {COL_MAP['lc_status']} IN {status_filter} {fy_filter}
         GROUP BY 1
     """)
@@ -41,7 +41,7 @@ def get_boe_analytics_data(currency: str = "INR", fy: str = "All", lc_status: st
             END as bucket,
             COUNT(*) as count,
             COALESCE(SUM({pending_col}), 0) as value
-        FROM LC
+        FROM lc
         WHERE {COL_MAP['boe_date']} IS NOT NULL
           AND ({COL_MAP['payment_status']} IS NULL OR {COL_MAP['payment_status']} != 'Paid') {fy_filter}
         GROUP BY 1
@@ -54,7 +54,7 @@ def get_boe_analytics_data(currency: str = "INR", fy: str = "All", lc_status: st
             COALESCE({COL_MAP['boe_status']}, 'Not Received') as status,
             COUNT(*) as count,
             COALESCE(SUM({pending_col}), 0) as value
-        FROM LC
+        FROM lc
         WHERE 1=1 {fy_filter}
         GROUP BY 1
         ORDER BY value DESC

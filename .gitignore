@@ -52,3 +52,13 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# --- ONE-OFF DEBUG/MIGRATION SCRIPTS (local only) ---
+backend/check_schema.py
+backend/fix_dates.py
+backend/fix_dpp.py
+backend/fix_margin.py
+backend/fix_schema.py
+backend/test_endpoints.py
+backend/test_errors.py
+

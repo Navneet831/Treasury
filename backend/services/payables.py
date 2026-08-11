@@ -25,7 +25,7 @@ def get_payables_risk_data(currency: str = "INR", fy: str = "All") -> Dict[str, 
             END as category,
             SUM({amt_col}) as amount,
             COUNT(*) as count
-        FROM LC
+        FROM lc
         WHERE ({COL_MAP['payment_status']} != 'Paid' OR {COL_MAP['payment_status']} IS NULL)
           AND {COL_MAP['due_date']} IS NOT NULL {fy_filter}
         GROUP BY 1
@@ -34,14 +34,14 @@ def get_payables_risk_data(currency: str = "INR", fy: str = "All") -> Dict[str, 
     risk_flags = fetch_dict(f"""
         SELECT
             CASE
-                WHEN "Type" = 'Unhedged' AND {COL_MAP['currency']} != 'INR' THEN 'Red'
+                WHEN "type" = 'Unhedged' AND {COL_MAP['currency']} != 'INR' THEN 'Red'
                 WHEN {COL_MAP['boe_status']} != 'Received' OR {COL_MAP['boe_status']} IS NULL THEN 'Amber'
                 WHEN {COL_MAP['payment_status']} = 'Paid' THEN 'Green'
                 ELSE 'Neutral'
             END as flag,
             COUNT(*) as count,
             SUM({amt_col}) as amount
-        FROM LC
+        FROM lc
         WHERE {COL_MAP['lc_status']} = 'Open' {get_fy_clause(fy, COL_MAP['op_date'])}
         GROUP BY 1
     """)
@@ -55,7 +55,7 @@ def get_cash_flow_forecast_data(currency: str = "INR", fy: str = "All") -> List[
     fy_filter = get_fy_clause(fy, due)
     rows = fetch_dict(f"""
         SELECT date_trunc('month', {due}) as m, SUM({due_amt}) as v, COUNT(*) as n
-        FROM LC
+        FROM lc
         WHERE CAST({due} AS DATE) >= date_trunc('month', CURRENT_DATE)
           AND {_UNPAID}
           AND {COL_MAP['lc_status']} NOT IN ('Closed', 'Cancelled') {fy_filter}
@@ -63,7 +63,7 @@ def get_cash_flow_forecast_data(currency: str = "INR", fy: str = "All") -> List[
     """)
     history = fetch_dict(f"""
         SELECT date_trunc('month', {due}) as m, SUM({due_amt}) as v
-        FROM LC WHERE {due} IS NOT NULL GROUP BY 1
+        FROM lc WHERE {due} IS NOT NULL GROUP BY 1
     """)
     monthly_totals = [float(h["v"] or 0) for h in history]
     sigma = statistics.stdev(monthly_totals) if len(monthly_totals) > 1 else 0.0

@@ -172,7 +172,7 @@ async def get_db_config():
         data_stats["fetchMode"] = "direct_pg"
         
         # Parallel table counts for all app tables
-        all_tables = ['LC', 'bank_limit', 'SBLC', 'LC BG in Process', 'FDR_List', 'Bank_Guarantee', 'APP_CONFIG']
+        all_tables = ['lc', 'bank_limit', 'sblc', 'lc_bg_in_process', 'fdr_list', 'bank_guarantee']
         
         def count_table(tbl):
             try:
@@ -188,7 +188,7 @@ async def get_db_config():
                 data_stats["tableCounts"][tbl] = cnt
         
         # LC date range
-        date_res = fetch_dict('SELECT MIN("LC Op. Date") as min_d, MAX("LC Op. Date") as max_d FROM "LC"')
+        date_res = fetch_dict('SELECT MIN(lc_op_date)::DATE as min_d, MAX(lc_op_date)::DATE as max_d FROM lc')
         if date_res:
             data_stats["minDate"] = str(date_res[0]["min_d"])
             data_stats["maxDate"] = str(date_res[0]["max_d"])
@@ -202,13 +202,13 @@ async def get_db_config():
 
     # Parallel schema for all app tables
     db_schema = []
-    schema_tables = ['LC', 'bank_limit', 'SBLC', 'LC BG in Process', 'FDR_List', 'Bank_Guarantee', 'APP_CONFIG']
+    schema_tables = ['lc', 'bank_limit', 'sblc', 'lc_bg_in_process', 'fdr_list', 'bank_guarantee']
     
     def fetch_schema(tbl):
         try:
             cols = fetch_dict(
                 "SELECT column_name, data_type FROM information_schema.columns "
-                f"WHERE table_name = '{tbl}' AND table_schema = 'public' ORDER BY ordinal_position"
+                f"WHERE table_name = '{tbl}' AND table_schema = 'treasury' ORDER BY ordinal_position"
             )
             return tbl, [{"table": tbl, "column": c["column_name"], "type": c["data_type"]} for c in cols]
         except Exception:
@@ -485,7 +485,7 @@ async def get_drill_down(
         page_size=page_size,
     )
 
-from apps.Treasury.backend.database import fetch_dict, get_repo
+from apps.Treasury.backend.database import fetch_dict, fetch_one, get_repo
 
 @router.post("/ai-copilot")
 async def ai_copilot(query: str = Body(..., embed=True)):
@@ -589,6 +589,24 @@ async def get_table_data(
         res_tables = fetch_dict("SHOW TABLES")
         valid_tables = [r["name"] for r in res_tables]
         if table_name not in valid_tables:
+            # Fallback: account-number lookups (statements live in normalized
+            # bank_transaction keyed by bank_account.account_number after the
+            # lowercase-schema migration removed per-account digit tables).
+            acct_row = fetch_one(
+                "SELECT id FROM bank_account WHERE account_number = %s",
+                (table_name.lstrip("0"),),
+            )
+            if acct_row:
+                data = fetch_dict("""
+                    SELECT id, txn_date, value_date, description,
+                           COALESCE(debit, 0) as debit,
+                           COALESCE(credit, 0) as credit,
+                           balance
+                    FROM bank_transaction
+                    WHERE account_id = %s
+                    ORDER BY txn_date ASC, id ASC
+                """, (acct_row[0],))
+                return data
             raise HTTPException(status_code=400, detail="Invalid table name")
         
         # Double quote table name to handle spaces like "LC BG in Process"

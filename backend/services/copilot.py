@@ -60,7 +60,7 @@ def _get_comprehensive_snapshot() -> Dict[str, Any]:
     # Overdue summary
     overdue_rows = fetch_dict(f"""
         SELECT COUNT(*) as count, SUM({due_amt}) as amount 
-        FROM LC 
+        FROM lc 
         WHERE CAST({due} AS DATE) < CURRENT_DATE AND {_UNPAID} AND {st} NOT IN ('Closed', 'Cancelled')
     """)
     overdue_summary = overdue_rows[0] if overdue_rows else {"count": 0, "amount": 0}
@@ -68,7 +68,7 @@ def _get_comprehensive_snapshot() -> Dict[str, Any]:
     # Upcoming 30 days
     upcoming_rows = fetch_dict(f"""
         SELECT COUNT(*) as count, SUM({due_amt}) as amount 
-        FROM LC 
+        FROM lc 
         WHERE CAST({due} AS DATE) BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL 30 DAY
           AND {_UNPAID} AND {st} NOT IN ('Closed', 'Cancelled')
     """)
@@ -77,7 +77,7 @@ def _get_comprehensive_snapshot() -> Dict[str, Any]:
     # Bank-wise unpaid
     bank_rows = fetch_dict(f"""
         SELECT {COL_MAP['bank']} as bank, SUM({due_amt}) as unpaid_amount
-        FROM LC WHERE {_UNPAID} AND {st} NOT IN ('Closed', 'Cancelled')
+        FROM lc WHERE {_UNPAID} AND {st} NOT IN ('Closed', 'Cancelled')
         GROUP BY 1 ORDER BY 2 DESC LIMIT 3
     """)
     
@@ -85,7 +85,7 @@ def _get_comprehensive_snapshot() -> Dict[str, Any]:
     base_cols = (f"{COL_MAP['lc_no']} as lc_no, {COL_MAP['bank']} as bank, "
                  f"{COL_MAP['supplier']} as supplier, {due} as due_date, {due_amt} as amount")
     top_unpaid = fetch_dict(f"""
-        SELECT {base_cols} FROM LC
+        SELECT {base_cols} FROM lc
         WHERE {_UNPAID} AND {st} NOT IN ('Closed', 'Cancelled') AND {due} IS NOT NULL
         ORDER BY {due_amt} DESC LIMIT 5
     """)

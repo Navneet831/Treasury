@@ -25,18 +25,18 @@ def get_fd_module_data() -> Dict[str, Any]:
     cd, maturity_analysis = date.today(), {"7 Days": 0, "30 Days": 0, "60 Days": 0, "90 Days": 0, "Over 90 Days": 0}
     unparseable_dates = 0
     for row in fdr_data:
-        amt, lien = _clean_amount(row.get('FINAL FD  AMT')), _clean_amount(row.get('FD LIEN AMT for LC/BG'))
+        amt, lien = _clean_amount(row.get('final_fd_amt')), _clean_amount(row.get('fd_lien_amt_for_lc_bg'))
         total_fd += amt; total_lien += lien
-        bank = row.get('Bank Name', 'Unknown'); bank_wise[bank] = bank_wise.get(bank, 0) + amt
-        purpose = str(row.get('LC/BG/COLLETRAL', 'Other')).upper()
+        bank = row.get('bank_name', 'Unknown'); bank_wise[bank] = bank_wise.get(bank, 0) + amt
+        purpose = str(row.get('lc_bg_collateral', 'Other')).upper()
         if "LC" in purpose: purpose_wise["LC"] += amt
         elif "BG" in purpose: purpose_wise["BG"] += amt
         elif "COLL" in purpose: purpose_wise["Collateral"] += amt
         else: purpose_wise["Other"] += amt
-        m_date_str = row.get('Maturity Date') or row.get('New Maturity Date')
-        if m_date_str:
+        m_date_str = row.get('maturity_date') or row.get('new_maturity_date')
+        if m_date_str and str(m_date_str).strip() not in ('', '-'):
             try:
-                m_date = datetime.strptime(str(m_date_str), "%Y-%m-%d").date()
+                m_date = datetime.strptime(str(m_date_str)[:10], "%Y-%m-%d").date()
                 diff = (m_date - cd).days
                 if diff <= 7: maturity_analysis["7 Days"] += amt
                 elif diff <= 30: maturity_analysis["30 Days"] += amt
@@ -59,21 +59,22 @@ def get_bg_module_data() -> Dict[str, Any]:
     outstanding, expiring_soon, expired, fd_linked = 0, 0, 0, 0
     unparseable_dates = 0
     for bg in bg_data:
-        amt, status = _clean_amount(bg.get('Amt.')), str(bg.get('status')).lower()
-        exp_date_str = bg.get('Date of expiry ')
+        amt, status = _clean_amount(bg.get('amt')), str(bg.get('status')).lower()
+        is_open = status in ('open', 'active')
+        exp_date_str = bg.get('date_of_expiry')
         if exp_date_str:
             try:
-                exp_date = datetime.strptime(str(exp_date_str), "%Y-%m-%d").date()
+                exp_date = datetime.strptime(str(exp_date_str)[:10], "%Y-%m-%d").date()
                 diff = (exp_date - date.today()).days
                 if diff < 0: expired += amt
-                elif status == 'open':
+                elif is_open:
                     outstanding += amt
                     if diff < 30: expiring_soon += amt
             except ValueError:
                 unparseable_dates += 1
-                if status == 'open': outstanding += amt
-        elif status == 'open': outstanding += amt
-        if _clean_amount(bg.get('FD Lien Amt')) > 0 and status == 'open': fd_linked += amt
+                if is_open: outstanding += amt
+        elif is_open: outstanding += amt
+        if _clean_amount(bg.get('fd_lien_amt')) > 0 and is_open: fd_linked += amt
     if unparseable_dates:
         logger.warning("Bank_Guarantee: %d rows have unparseable expiry dates", unparseable_dates)
     return {"outstanding": outstanding, "expiring_30d": expiring_soon, "expired": expired, "fd_linked": fd_linked}

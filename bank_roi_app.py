@@ -113,7 +113,7 @@ def discover_month_range():
     # Get list of bank statement tables (numeric names or starting with 4)
     tables_query = """
         SELECT tablename FROM pg_tables
-        WHERE schemaname = 'public'
+        WHERE schemaname = 'treasury'
           AND (tablename ~ '^[0-9]{6,}' OR tablename ~ '^4[0-9]{5,}')
     """
     tables_df = execute_query_with_retry(tables_query)

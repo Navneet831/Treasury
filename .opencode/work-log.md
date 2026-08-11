@@ -4,10 +4,26 @@
 - [x] ses_1 (Worker): `backend/services/copilot.py` - MODIFY done
 - [x] ses_R (Reviewer): Full verification pass — ALL checks passed
 - [x] ses_M (Worker): Mobile-responsive frontend — DONE
+- [x] M14 (Commander): lowercase-schema migration fix — 6 files MODIFY done, verified live
+
+## M14 — Fix Limit Utilization 500 (2026-08-11)
+Root cause: DB tables/columns migrated to lowercase (`lc`, `sblc`, `lc_bg_in_process`, `fdr_list`, `bank_guarantee`) but service SQL still referenced old uppercase quoted names → `/limit-utilisation` & `/command-data` 500 → frontend "No data available. Verify the backend connection."
+Fixes: table/column refs → lowercase; `sblc_lc_payment_due_date` added to compat DATE-cast list; fd_bg row keys → snake_case; BG status now recognizes ACTIVE; date strings with time component handled.
 
 ## File Status
 | File | Action | Status | Session | Unit Test | Timestamp | Issue |
 |------|--------|--------|---------|-----------|-----------|-------|
+| backend/services/limits.py | MODIFY | done | Commander | pass | 2026-08-11T18:08 | - |
+| backend/services/lc.py | MODIFY | done | Commander | pass | 2026-08-11T18:08 | - |
+| backend/services/sblc.py | MODIFY | done | Commander | pass | 2026-08-11T18:08 | - |
+| backend/services/executive.py | MODIFY | done | Commander | pass | 2026-08-11T18:09 | - |
+| backend/services/fd_bg.py | MODIFY | done | Commander | pass | 2026-08-11T18:13 | - |
+| backend/main.py | MODIFY | done | Commander | pass | 2026-08-11T18:09 | - |
+| backend/postgres_compat.py | MODIFY | done | Commander | pass | 2026-08-11T18:12 | - |
+| backend/services/audit.py | MODIFY | done | Commander | pass | 2026-08-11T18:19 | - |
+| backend/services/calendar_svc.py | MODIFY | done | Commander | pass | 2026-08-11T18:25 | - |
+| backend/services/interest.py | MODIFY | done | Commander | pass | 2026-08-11T21:20 | - |
+| backend/main.py | MODIFY | done | Commander | pass | 2026-08-11T21:20 | - |
 | backend/llm_metrics.py | CREATE | done | Commander | - | 2026-07-20T14:00:00 | - |
 | backend/services/copilot.py | MODIFY | done | ses_1 | - | 2026-07-20T14:27:00 | - |
 | backend/run_standalone.py | MODIFY | done | Commander | - | 2026-07-20T14:30:00 | - |

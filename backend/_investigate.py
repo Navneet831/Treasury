@@ -19,7 +19,7 @@ for r in rows:
 
 # 2. Check statement tables
 tables = fetch_dict(
-    "SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename IN (%s, %s)",
+    "SELECT tablename FROM pg_tables WHERE schemaname='treasury' AND tablename IN (%s, %s)",
     [account, "41973511184"]
 )
 print(f"\n=== Statement tables found: {len(tables)} ===")
@@ -36,7 +36,7 @@ for r in cc:
 
 # 4. Check what tables exist that start with 4197
 tbls = fetch_dict(
-    "SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE '4197%%'"
+    "SELECT tablename FROM pg_tables WHERE schemaname='treasury' AND tablename LIKE '4197%%'"
 )
 print(f"\n=== Tables starting with 4197: {len(tbls)} ===")
 for t in tbls:

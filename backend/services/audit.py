@@ -15,19 +15,19 @@ logger = logging.getLogger(__name__)
 
 # Tables the app reads, and why. Row counts are fetched live.
 _DATA_SOURCES = [
-    {"table": "LC", "purpose": "Master letter-of-credit register — every exposure, due date, BOE and payment status. Primary source for almost every number in the app.",
-     "columns_used": "LC Amt (in INR/FC), BOE Bill Amt, Pending BOE Amt, LC Status, Payment Status, BOE Status, LC Op./Close/Due/Expiry/Shipment dates, Margin, Margin FD Made, Bank, Supplier, Currency, Type, Product Name"},
+    {"table": "lc", "purpose": "Master letter-of-credit register — every exposure, due date, BOE and payment status. Primary source for almost every number in the app.",
+     "columns_used": "LC Amt (in INR/FC), BOE Bill Amt, Pending BOE Amt, LC Status, Payment Status, BOE Status, LC Op./Close/Due/Expiry/Shipment dates, margin, margin FD Made, Bank, Supplier, Currency, Type, Product Name"},
     {"table": "bank_limit", "purpose": "Sanctioned limits per bank (LC / SBLC / Cash columns, Bank_Table='Bank' rows). Source of every limit and headroom figure.",
      "columns_used": "Element (bank), LC, SBLC, Cash"},
-    {"table": "SBLC", "purpose": "Standby LC register — outstanding and paid SBLC bills per bank.",
+    {"table": "sblc", "purpose": "Standby LC register — outstanding and paid SBLC bills per bank.",
      "columns_used": "BANK, BOE Bill Amt (in INR), Final PAYMENT AMT INR, Payment Status, SBLC LC Payment Due Date"},
-    {"table": "LC BG in Process", "purpose": "Instruments submitted to bank but not yet drawn — shown as 'In Process', informational until sanctioned.",
+    {"table": "lc_bg_in_process", "purpose": "Instruments submitted to bank but not yet drawn — shown as 'In Process', informational until sanctioned.",
      "columns_used": "Bank Name, AMT IN INR, Amt in FC, Status"},
-    {"table": "FDR_List", "purpose": "Fixed-deposit register (varchar Excel load) — margin FDs, lien amounts, maturity buckets, FD-release calendar events.",
+    {"table": "fdr_list", "purpose": "Fixed-deposit register (varchar Excel load) — margin FDs, lien amounts, maturity buckets, FD-release calendar events.",
      "columns_used": "Bank Name, FINAL FD AMT, FD LIEN AMT for LC/BG, LC/BG/COLLETRAL, Maturity Date, STATUS"},
-    {"table": "Bank_Guarantee", "purpose": "BG register (varchar Excel load) — outstanding, expiring and FD-linked guarantees; feeds the limit waterfall.",
+    {"table": "bank_guarantee", "purpose": "BG register (varchar Excel load) — outstanding, expiring and FD-linked guarantees; feeds the limit waterfall.",
      "columns_used": "Amt., status, Date of expiry, FD Lien Amt"},
-    {"table": "APP_CONFIG", "purpose": "Rates and thresholds (key/value). Overrides the documented defaults below — nothing is hardcoded in the app.",
+    {"table": "app_config", "purpose": "Rates and thresholds (key/value). Overrides the documented defaults below — nothing is hardcoded in the app.",
      "columns_used": "key, value, description"},
 ]
 
@@ -54,7 +54,7 @@ _CONVENTIONS = [
     {"topic": "Unpaid", "rule": "A bill is 'unpaid' when Payment Status is NULL or anything other than 'Paid'. NULL is deliberately treated as unpaid — absence of confirmation is not payment."},
     {"topic": "Payment obligation amount", "rule": "Once a BOE bill is lodged (BOE Bill Amt > 0) the obligation is the BOE bill amount; before that it is the LC amount. This 'due amount' rule is used by the calendar, forecast, insights and copilot consistently."},
     {"topic": "Fiscal year (FY)", "rule": "Indian fiscal year, 1 April – 31 March. The FY dropdown lists only years actually present in the LC data (derived live, never hardcoded). FY filters apply to the opening date unless a view states otherwise."},
-    {"topic": "Limit utilization rule", "rule": "Bank limit utilization counts Open LCs at 10% margin only (Margin = 0.1) — the business rule for limit-consuming instruments. 'In Process' amounts come from the LC BG in Process table and are informational until drawn."},
+    {"topic": "Limit utilization rule", "rule": "Bank limit utilization counts Open LCs at 10% margin only (margin = 0.1) — the business rule for limit-consuming instruments. 'In Process' amounts come from the LC BG in Process table and are informational until drawn."},
     {"topic": "Hedged classification", "rule": "An LC is hedged when its Type is anything other than 'Unhedged'. In the hedge-coverage product view, CAPEX-type bills are treated as the hedged book."},
     {"topic": "Caching", "rule": "Heavy aggregates are cached for 60s (reference lists 300s). The warehouse is a read-only daily load, so cached figures cannot be stale within a working session in any material way."},
     {"topic": "AI Copilot", "rule": "The copilot is a deterministic intent router — every answer is a SQL aggregate over the LC table with a computed narrative. It does not generate numbers and cannot hallucinate."},
@@ -64,8 +64,8 @@ _CONVENTIONS = [
 _METRICS: List[Dict[str, Any]] = [
     # ── Command Center ───────────────────────────────────────────────────
     {"id": "cmd-used-limit", "name": "Used Limit (per bank)", "tab": "Command Center",
-     "formula": "Sum of LC Amt for LCs with Status = 'Open' AND Margin = 0.1, per bank.",
-     "source": "LC: LC Amt (in INR), LC Status, Margin, Bank Name",
+     "formula": "Sum of LC Amt for LCs with Status = 'Open' AND margin = 0.1, per bank.",
+     "source": "LC: LC Amt (in INR), LC Status, margin, Bank Name",
      "caveats": "Only 10%-margin Open LCs consume the sanctioned limit (business rule).",
      "confidence": "high",
      "atRisk": "Drawn limits are near 90% at SBI. Exceeding sanctions triggers immediate default penalties, credit rating impact, and stops all import documentation clearances."},
@@ -95,9 +95,9 @@ _METRICS: List[Dict[str, Any]] = [
      "source": "bank_limit.LC totals, LC used limit, Bank_Guarantee outstanding",
      "confidence": "high",
      "atRisk": "An uncoordinated waterfall risks credit blockages. A sudden BG claim from custom authorities would instantly freeze ₹12 Cr in LC capacity, halting core imports."},
-    {"id": "cmd-boe-pivot", "name": "BOE × Margin pivot", "tab": "Command Center",
+    {"id": "cmd-boe-pivot", "name": "BOE × margin pivot", "tab": "Command Center",
      "formula": "BOE Bill Amt (falling back to LC Amt) summed by bank × margin bucket for BOE-received bills, filtered by the payment-status toggle.",
-     "source": "LC: BOE Bill Amt, Margin, BOE Status, Payment Status",
+     "source": "LC: BOE Bill Amt, margin, BOE Status, Payment Status",
      "confidence": "high",
      "atRisk": "BOE documents matching high-margin bands (e.g. 100% margin at SBI) represents frozen liquidity. Delayed BOE closures delay bank margins release, keeping ₹15 Cr locked up unnecessarily."},
 
@@ -124,8 +124,8 @@ _METRICS: List[Dict[str, Any]] = [
      "confidence": "high",
      "atRisk": "SBLC claims are primary, unconditional obligations. A drawing on SBLC triggers immediate debt crystallization, inflating cost of capital by 400 bps."},
     {"id": "ov-wc-frozen", "name": "Working Capital Frozen", "tab": "Executive Overview",
-     "formula": "Σ 'Margin FD Made' across Open LCs — cash locked as LC margin.",
-     "source": "LC: Margin FD Made, LC Status",
+     "formula": "Σ 'margin FD Made' across Open LCs — cash locked as LC margin.",
+     "source": "LC: margin FD Made, LC Status",
      "confidence": "high",
      "atRisk": "₹52 Cr margin FD is locked at 6.0% yield while average borrowing rate is 9.5%. This is a net drag of ₹1.82 Cr/year in avoidable interest expense."},
     {"id": "ov-hedged-pct", "name": "Hedged / Unhedged %", "tab": "Executive Overview",
@@ -152,7 +152,7 @@ _METRICS: List[Dict[str, Any]] = [
 
     # ── Calendar ─────────────────────────────────────────────────────────
     {"id": "cal-events", "name": "Calendar events", "tab": "Calendar",
-     "formula": "Payment Due / Paid use the due-amount rule on the due date; LC Opened/Closed use LC Amt on their dates; LC Expiry shows non-closed LCs on expiry date; BOE Received on BOE submission date; FD Margin Released sums active FDR lien amounts on maturity date.",
+     "formula": "Payment Due / Paid use the due-amount rule on the due date; LC Opened/Closed use LC Amt on their dates; LC Expiry shows non-closed LCs on expiry date; BOE Received on BOE submission date; FD margin Released sums active FDR lien amounts on maturity date.",
      "source": "LC date columns + FDR_List (Maturity Date, FD LIEN AMT, STATUS='ACTIVE')",
      "confidence": "high",
      "atRisk": "Missing a calendar payment due date triggers penalty interest from the bank (+2% default rate) and locks the supplier's dispatch pipeline, causing assembly delays."},
@@ -262,7 +262,7 @@ _METRICS: List[Dict[str, Any]] = [
      "atRisk": "Stress probability above 50% means current headroom cannot cover near-term dues. Technical defaults on upcoming bank obligations are highly probable."},
     {"id": "int-yield-lost", "name": "Yield lost / Working-capital unlock", "tab": "Intelligence",
      "formula": "Yield lost = margin FDs on Open LCs × yield_rate. Unlock = locked FD + annual yield lost.",
-     "source": "LC: Margin FD Made × APP_CONFIG rate",
+     "source": "LC: margin FD Made × APP_CONFIG rate",
      "config_keys": "yield_rate",
      "confidence": "high",
      "atRisk": "Avoidable yield loss directly leaks cash from the balance sheet. This capital could otherwise fund new revenue-generating projects yielding 15%+."},
@@ -340,7 +340,7 @@ def get_audit_catalog() -> Dict[str, Any]:
     # Live config: defaults overlaid with APP_CONFIG rows
     overrides: Dict[str, Dict[str, Any]] = {}
     try:
-        for r in fetch_dict("SELECT key, value, description FROM APP_CONFIG"):
+        for r in fetch_dict("SELECT key, value, description FROM system.app_config"):
             overrides[r["key"]] = r
     except Exception as e:
         logger.warning("APP_CONFIG unavailable for audit catalog: %s", e)
@@ -369,7 +369,8 @@ def get_audit_catalog() -> Dict[str, Any]:
     data_sources = []
     for src in _DATA_SOURCES:
         try:
-            count = fetch_one(f'SELECT COUNT(*) FROM "{src["table"]}"')[0]
+            tbl = "system.app_config" if src["table"] == "app_config" else src["table"]
+            count = fetch_one(f'SELECT COUNT(*) FROM {tbl}')[0]
         except Exception as e:
             logger.warning("Audit row count failed for %s: %s", src["table"], e)
             count = None

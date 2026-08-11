@@ -45,6 +45,13 @@ class PostgreSQLRepository(IRepository):
             keepalives_count=5,
         )
         self._con.autocommit = True   # read-only workload; no transactions needed
+        # Set search_path so unqualified table names resolve to the treasury schema
+        try:
+            cur = self._con.cursor()
+            cur.execute("SET search_path TO treasury, public")
+            cur.close()
+        except Exception:
+            pass
         logger.info("Treasury: PostgreSQL repository connected (%s)", dsn.split("@")[-1])
 
     # -- internal helpers
@@ -79,6 +86,12 @@ class PostgreSQLRepository(IRepository):
                     pass
                 self._con = self._psycopg2.connect(self._dsn)
                 self._con.autocommit = True
+                try:
+                    cur = self._con.cursor()
+                    cur.execute("SET search_path TO treasury, public")
+                    cur.close()
+                except Exception:
+                    pass
                 logger.info("Treasury: DB reconnected (attempt %d/%d)", attempt + 1, max_attempts)
                 return
             except self._psycopg2.OperationalError as e:
@@ -139,6 +152,13 @@ class PostgreSQLRepository(IRepository):
         q = self._translate(query)
         import psycopg2
         con = psycopg2.connect(self._dsn)
+        # Set search_path so unqualified table names resolve to the treasury schema
+        try:
+            cur = con.cursor()
+            cur.execute("SET search_path TO treasury, public")
+            cur.close()
+        except Exception:
+            pass
         df = pd.read_sql_query(q, con, params=params)
         con.close()
         return df
